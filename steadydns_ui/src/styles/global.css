@@ -1,0 +1,127 @@
+/* Global styles for SteadyDNS UI */
+/* 全局样式 - 适配国产化系统 */
+
+/* 字体配置 - 优先使用思源黑体/麒麟字体 */
+@font-face {
+  font-family: 'Source Han Sans';
+  src: local('Source Han Sans SC'), local('Source Han Sans'), local('Noto Sans SC');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Kylin Sans';
+  src: local('Kylin Sans'), local('KaiLin'), local('Kylin');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 全局字体设置 */
+* {
+  font-family: 'Source Han Sans', 'Kylin Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* 基础样式重置 */
+body {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  background-color: #f0f2f5;
+}
+
+/* 滚动条样式 - 适配国产化浏览器 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 解决国产化浏览器的渲染问题 */
+.ant-btn, .ant-input, .ant-select, .ant-table, .ant-card {
+  box-sizing: border-box;
+}
+
+/* 适配360浏览器和麒麟浏览器 */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  /* 360浏览器特定修复 */
+  .ant-form-item-label > label {
+    font-weight: normal;
+  }
+  
+  /* 麒麟浏览器特定修复 */
+  .ant-btn-primary {
+    background-color: #1890ff;
+    border-color: #1890ff;
+  }
+}
+
+/* 确保表单元素在不同浏览器中的一致性 */
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 修复表格在国产化浏览器中的显示问题 */
+.ant-table {
+  font-size: 14px;
+}
+
+.ant-table-tbody > tr > td {
+  padding: 12px;
+}
+
+/* 修复模态框在国产化浏览器中的显示问题 */
+.ant-modal {
+  font-size: 14px;
+}
+
+/* 修复菜单在国产化浏览器中的显示问题 */
+.ant-menu {
+  font-size: 14px;
+}
+
+/* 修复卡片在国产化浏览器中的显示问题 */
+.ant-card {
+  font-size: 14px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .ant-layout-sider {
+    min-width: 64px !important;
+    max-width: 64px !important;
+    width: 64px !important;
+  }
+  
+  .ant-layout-sider-collapsed {
+    min-width: 64px !important;
+    max-width: 64px !important;
+    width: 64px !important;
+  }
+}
+
+/* 确保路径使用POSIX风格 */
+/* 注意：此样式文件仅包含CSS样式，不涉及文件路径操作 */
+
+/* 国产化系统适配说明：
+1. 字体：优先使用思源黑体和麒麟字体，确保在国产化系统中显示正常
+2. 渲染：适配360浏览器和麒麟浏览器的渲染规则
+3. 布局：确保在不同分辨率下的布局一致性
+4. 性能：优化样式，减少重排和重绘
+*/

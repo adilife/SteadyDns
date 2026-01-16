@@ -1,0 +1,421 @@
+# SteadyDNS API接口说明（前端开发版）
+
+## 本次更新内容
+
+本次更新主要增强了 JWT 安全性，实现了以下功能：
+
+1. **双令牌系统**：访问令牌和刷新令牌分离
+2. **令牌自动刷新**：支持无感知令牌刷新
+3. **令牌过期管理**：合理的令牌生命周期
+4. **用户登出功能**：支持主动撤销令牌
+
+## API接口清单
+
+### 1. 登录接口
+
+**请求信息**
+- **请求方法**：POST
+- **请求路径**：`/api/login`
+- **请求头**：`Content-Type: application/json`
+
+**请求参数**
+```json
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
+
+**响应格式**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "1_1768345066_1768345066",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com"
+    },
+    "expires_in": 1800
+  },
+  "message": "登录成功"
+}
+```
+
+### 2. 令牌刷新接口
+
+**请求信息**
+- **请求方法**：POST
+- **请求路径**：`/api/refresh-token`
+- **请求头**：`Content-Type: application/json`
+
+**请求参数**
+```json
+{
+  "refresh_token": "1_1768345066_1768345066"
+}
+```
+
+**响应格式**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "1_1768345067_1768345067",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com"
+    },
+    "expires_in": 1800
+  },
+  "message": "令牌刷新成功"
+}
+```
+
+### 3. 登出接口
+
+**请求信息**
+- **请求方法**：POST
+- **请求路径**：`/api/logout`
+- **请求头**：`Content-Type: application/json`
+
+**请求参数**
+```json
+{
+  "refresh_token": "1_1768345066_1768345066"
+}
+```
+
+**响应格式**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "登出成功"
+}
+```
+
+### 4. 转发组管理接口
+
+**请求信息**
+- **请求方法**：GET/POST/PUT/DELETE
+- **请求路径**：`/api/forward-groups`
+- **请求头**：
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <access_token>`
+
+**功能说明**
+- **GET**：获取所有转发组
+- **POST**：创建新转发组
+- **PUT**：更新指定转发组
+- **DELETE**：删除指定转发组
+
+### 5. 服务器管理接口
+
+**请求信息**
+- **请求方法**：GET/POST/PUT/DELETE
+- **请求路径**：`/api/forward-servers`
+- **请求头**：
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <access_token>`
+
+**功能说明**
+- **GET**：获取服务器信息（支持健康检查）
+- **POST**：批量添加服务器
+- **PUT**：更新指定服务器
+- **DELETE**：删除指定服务器
+
+## 前端实现建议
+
+### 1. 令牌管理
+
+**存储方式**
+- **access_token**：存储在内存中，避免持久化
+- **refresh_token**：存储在安全的地方，如 localStorage 或 sessionStorage
+
+**令牌使用**
+- 每次 API 请求时，在请求头中携带 `Authorization: Bearer <access_token>`
+- 监控令牌过期时间，在过期前使用 refresh_token 刷新
+
+### 2. 自动令牌刷新实现
+
+**步骤**
+1. 登录成功后，存储 access_token、refresh_token 和过期时间
+2. 每次 API 请求前，检查 access_token 是否即将过期（如剩余时间小于 5 分钟）
+3. 如果即将过期，调用 `/api/refresh-token` 刷新令牌
+4. 使用新的令牌继续原始请求
+
+**示例代码**
+```javascript
+// 检查令牌是否需要刷新
+function shouldRefreshToken() {
+  const expiresAt = localStorage.getItem('token_expires_at');
+  if (!expiresAt) return true;
+  
+  const now = Date.now();
+  const expiresTimestamp = parseInt(expiresAt);
+  // 提前5分钟刷新
+  return (expiresTimestamp - now) < (5 * 60 * 1000);
+}
+
+// 刷新令牌
+async function refreshToken() {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) {
+    // 跳转到登录页面
+    window.location.href = '/login';
+    return null;
+  }
+  
+  try {
+    const response = await fetch('/api/refresh-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      // 更新令牌
+      localStorage.setItem('access_token', data.data.access_token);
+      localStorage.setItem('refresh_token', data.data.refresh_token);
+      localStorage.setItem('token_expires_at', Date.now() + (data.data.expires_in * 1000));
+      return data.data.access_token;
+    } else {
+      // 刷新失败，跳转到登录页面
+      window.location.href = '/login';
+      return null;
+    }
+  } catch (error) {
+    console.error('刷新令牌失败:', error);
+    window.location.href = '/login';
+    return null;
+  }
+}
+
+// 带令牌的请求
+async function apiRequest(url, options = {}) {
+  // 检查并刷新令牌
+  if (shouldRefreshToken()) {
+    const newToken = await refreshToken();
+    if (!newToken) return null;
+  }
+  
+  // 添加认证头
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+    ...options.headers
+  };
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
+    
+    // 检查响应状态
+    if (response.status === 401) {
+      // 令牌无效，尝试刷新
+      const newToken = await refreshToken();
+      if (newToken) {
+        // 用新令牌重试
+        headers['Authorization'] = `Bearer ${newToken}`;
+        return fetch(url, {
+          ...options,
+          headers
+        });
+      }
+    }
+    
+    return response;
+  } catch (error) {
+    console.error('API请求失败:', error);
+    throw error;
+  }
+}
+```
+
+### 3. 登出实现
+
+**步骤**
+1. 调用 `/api/logout` 接口，传入 refresh_token
+2. 清除本地存储的所有令牌信息
+3. 跳转到登录页面
+
+**示例代码**
+```javascript
+async function logout() {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) {
+    // 直接清除并跳转
+    clearTokens();
+    return;
+  }
+  
+  try {
+    await fetch('/api/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+  } catch (error) {
+    console.error('登出请求失败:', error);
+  } finally {
+    // 无论请求是否成功，都清除本地令牌
+    clearTokens();
+  }
+}
+
+function clearTokens() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('token_expires_at');
+  // 跳转到登录页面
+  window.location.href = '/login';
+}
+```
+
+### 4. 错误处理
+
+**常见错误**
+- **401 Unauthorized**：令牌无效或过期，需要刷新令牌
+- **403 Forbidden**：权限不足，无法访问资源
+- **400 Bad Request**：请求参数错误
+- **500 Internal Server Error**：服务器内部错误
+
+**错误处理示例**
+```javascript
+async function handleApiError(response) {
+  const errorData = await response.json();
+  
+  switch (response.status) {
+    case 401:
+      // 令牌无效，尝试刷新
+      const newToken = await refreshToken();
+      if (newToken) {
+        // 刷新成功，重试请求
+        return retryRequest(response.url, response.options);
+      } else {
+        // 刷新失败，跳转到登录
+        window.location.href = '/login';
+      }
+      break;
+    case 403:
+      // 权限不足，显示错误信息
+      showErrorMessage('权限不足，无法访问此资源');
+      break;
+    case 400:
+      // 请求参数错误，显示错误信息
+      showErrorMessage(errorData.message || '请求参数错误');
+      break;
+    case 500:
+      // 服务器错误，显示通用错误信息
+      showErrorMessage('服务器内部错误，请稍后重试');
+      break;
+    default:
+      // 其他错误
+      showErrorMessage(errorData.message || '请求失败');
+  }
+}
+```
+
+## 安全注意事项
+
+1. **令牌保护**：
+   - 不要在 URL 中传递令牌
+   - 不要在日志中记录完整令牌
+   - 定期更换密码和令牌
+
+2. **网络安全**：
+   - 确保所有 API 调用使用 HTTPS
+   - 避免在公共网络上进行敏感操作
+
+3. **前端安全**：
+   - 避免使用 document.cookie 存储令牌
+   - 实现适当的会话超时机制
+   - 定期检查令牌有效性
+
+## 配置说明
+
+### 令牌过期时间
+
+令牌过期时间可在服务器配置文件中自定义：
+
+- **访问令牌**：默认 30 分钟
+- **刷新令牌**：默认 7 天
+
+### 默认账号
+
+系统首次启动时会自动创建默认管理员账号：
+- **用户名**：admin
+- **密码**：admin123
+
+**生产环境请务必修改默认密码！**
+
+## 示例请求
+
+### 登录示例
+```javascript
+const response = await fetch('/api/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    username: 'admin',
+    password: 'admin123'
+  })
+});
+
+const data = await response.json();
+if (data.success) {
+  // 存储令牌
+  localStorage.setItem('access_token', data.data.access_token);
+  localStorage.setItem('refresh_token', data.data.refresh_token);
+  localStorage.setItem('token_expires_at', Date.now() + (data.data.expires_in * 1000));
+  // 跳转到首页
+  window.location.href = '/dashboard';
+} else {
+  // 显示错误信息
+  alert(data.message);
+}
+```
+
+### 刷新令牌示例
+```javascript
+const response = await fetch('/api/refresh-token', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    refresh_token: localStorage.getItem('refresh_token')
+  })
+});
+
+const data = await response.json();
+if (data.success) {
+  // 更新令牌
+  localStorage.setItem('access_token', data.data.access_token);
+  localStorage.setItem('refresh_token', data.data.refresh_token);
+  localStorage.setItem('token_expires_at', Date.now() + (data.data.expires_in * 1000));
+} else {
+  // 刷新失败，跳转到登录
+  window.location.href = '/login';
+}
+```
+
+## 结语
+
+本次 API 升级提供了更安全、更可靠的认证机制，同时保持了良好的用户体验。前端开发人员可以通过上述实现建议，轻松集成这些功能，为用户提供无缝的登录体验。
+
+如果在使用过程中遇到任何问题，请随时联系后端开发团队。

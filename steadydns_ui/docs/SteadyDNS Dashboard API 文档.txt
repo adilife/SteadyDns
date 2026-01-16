@@ -1,0 +1,272 @@
+# SteadyDNS Dashboard API 文档
+
+## 概述
+
+本文档描述了 SteadyDNS 系统中用于前端dashboard页面的API端点。这些API端点提供了系统的各种统计信息、趋势数据和排行榜数据，供前端dashboard页面展示。
+
+## 认证
+
+所有API端点都需要认证，使用Bearer Token认证方式。获取token的方法请参考登录API文档。
+
+## API端点
+
+### 1. 综合数据API
+
+**端点**：`GET /api/dashboard/summary`
+
+**描述**：获取系统综合数据，包括系统概览统计、转发服务器状态、缓存状态和系统资源使用情况。
+
+**请求参数**：无
+
+**响应格式**：
+```json
+{
+  "success": true,
+  "data": {
+    "systemStats": {
+      "totalQueries": 12500,      // 总查询量（整数）
+      "qps": 25.5,                // 当前QPS（浮点数，保留1位小数）
+      "cacheHitRate": 85.5,       // 缓存命中率（浮点数，保留1位小数）
+      "systemHealth": 92,         // 系统健康度（整数，0-100）
+      "activeServers": 5          // 活跃服务器数量（整数）
+    },
+    "forwardServers": [
+      {
+        "id": 1,                  // 服务器ID（整数）
+        "address": "8.8.8.8",     // 服务器地址（字符串）
+        "qps": 10.0,              // 服务器QPS（浮点数，保留1位小数）
+        "latency": 10.0,          // 服务器延迟（浮点数，保留1位小数，单位：ms）
+        "status": "healthy"       // 服务器状态（字符串："healthy" 或 "unhealthy"）
+      }
+    ],
+    "cacheStats": {
+      "size": "1.2 GB",           // 当前缓存大小（字符串，带单位）
+      "maxSize": "2 GB",          // 最大缓存容量（字符串，带单位）
+      "hitRate": 85,              // 缓存命中率（整数，0-100）
+      "missRate": 15,             // 缓存未命中率（整数，0-100）
+      "items": 150000             // 缓存项目数（整数）
+    },
+    "systemResources": {
+      "cpu": 45,                  // CPU使用率（整数，0-100）
+      "memory": 68,               // 内存使用率（整数，0-100）
+      "disk": 32,                 // 磁盘使用率（整数，0-100）
+      "network": {
+        "inbound": "12 MB/s",     // 入站网络流量（字符串，带单位）
+        "outbound": "8 MB/s"      // 出站网络流量（字符串，带单位）
+      }
+    }
+  },
+  "message": "获取dashboard综合数据成功"
+}
+```
+
+**示例响应**：
+```json
+{"success":true,"data":{"systemStats":{"totalQueries":12500,"qps":25.5,"cacheHitRate":85.5,"systemHealth":92,"activeServers":5},"forwardServers":[{"id":1,"address":"8.8.8.8","qps":10,"latency":10,"status":"healthy"},{"id":4,"address":"202.99.192.68","qps":10,"latency":10,"status":"healthy"},{"id":8,"address":"114.114.114.114","qps":10,"latency":10,"status":"healthy"}],"cacheStats":{"size":"1.2 GB","maxSize":"2 GB","hitRate":85,"missRate":15,"items":150000},"systemResources":{"cpu":45,"memory":68,"disk":32,"network":{"inbound":"12 MB/s","outbound":"8 MB/s"}}},"message":"获取dashboard综合数据成功"}
+```
+
+### 2. 趋势数据API
+
+**端点**：`GET /api/dashboard/trends`
+
+**描述**：获取系统趋势数据，包括QPS趋势、延迟分布和资源使用趋势。
+
+**请求参数**：
+- `timeRange`：时间范围（可选，默认 1h，可选值：1h, 6h, 24h, 7d）
+
+**响应格式**：
+```json
+{
+  "success": true,
+  "data": {
+    "qpsTrend": [
+      {
+        "time": "13:36",          // 时间点（字符串，HH:MM格式）
+        "qps": 20.0               // QPS值（浮点数，保留1位小数）
+      }
+    ],
+    "latencyData": [
+      {
+        "range": "<10ms",         // 延迟范围（字符串）
+        "count": 45               // 占比（整数，0-100）
+      }
+    ],
+    "resourceUsage": [
+      {
+        "time": "13:36",          // 时间点（字符串，HH:MM格式）
+        "cpu": 30,                // CPU使用率（整数，0-100）
+        "memory": 60,             // 内存使用率（整数，0-100）
+        "disk": 30                // 磁盘使用率（整数，0-100）
+      }
+    ]
+  },
+  "message": "获取dashboard趋势数据成功"
+}
+```
+
+**示例响应**：
+```json
+{"success":true,"data":{"qpsTrend":[{"time":"13:36","qps":20},{"time":"13:51","qps":22},{"time":"14:06","qps":24},{"time":"14:21","qps":26},{"time":"14:36","qps":28}],"latencyData":[{"range":"<10ms","count":45},{"range":"10-20ms","count":30},{"range":"20-50ms","count":15},{"range":"50-100ms","count":8},{"range":">100ms","count":2}],"resourceUsage":[{"time":"13:36","cpu":30,"memory":60,"disk":30},{"time":"13:51","cpu":35,"memory":62,"disk":31},{"time":"14:06","cpu":40,"memory":64,"disk":32},{"time":"14:21","cpu":45,"memory":66,"disk":33},{"time":"14:36","cpu":50,"memory":68,"disk":34}]},"message":"获取dashboard趋势数据成功"}
+```
+
+### 3. 排行榜数据API
+
+**端点**：`GET /api/dashboard/top`
+
+**描述**：获取热门域名和热门客户端数据。
+
+**请求参数**：
+- `limit`：返回数量（可选，默认 10）
+
+**响应格式**：
+```json
+{
+  "success": true,
+  "data": {
+    "topDomains": [
+      {
+        "rank": 1,                // 排名（整数）
+        "domain": "example.com",  // 域名（字符串）
+        "queries": 1250,          // 查询数（整数）
+        "percentage": 10.2        // 占比（浮点数，保留1位小数）
+      }
+    ],
+    "topClients": [
+      {
+        "rank": 1,                // 排名（整数）
+        "ip": "192.168.1.100",    // 客户端IP（字符串）
+        "queries": 1200,          // 查询数（整数）
+        "percentage": 9.8         // 占比（浮点数，保留1位小数）
+      }
+    ]
+  },
+  "message": "获取dashboard排行榜数据成功"
+}
+```
+
+**示例响应**：
+```json
+{"success":true,"data":{"topDomains":[{"rank":1,"domain":"example.com","queries":1250,"percentage":10.2},{"rank":2,"domain":"google.com","queries":1150,"percentage":9.7},{"rank":3,"domain":"facebook.com","queries":1050,"percentage":9.2},{"rank":4,"domain":"twitter.com","queries":950,"percentage":8.7},{"rank":5,"domain":"instagram.com","queries":850,"percentage":8.2},{"rank":6,"domain":"youtube.com","queries":750,"percentage":7.699999999999999},{"rank":7,"domain":"baidu.com","queries":650,"percentage":7.199999999999999},{"rank":8,"domain":"qq.com","queries":550,"percentage":6.699999999999999},{"rank":9,"domain":"weixin.com","queries":450,"percentage":6.199999999999999},{"rank":10,"domain":"taobao.com","queries":350,"percentage":5.699999999999999}],"topClients":[{"rank":1,"ip":"192.168.1.100","queries":1200,"percentage":9.8},{"rank":2,"ip":"192.168.1.101","queries":1110,"percentage":9.4},{"rank":3,"ip":"192.168.1.102","queries":1020,"percentage":9},{"rank":4,"ip":"192.168.1.103","queries":930,"percentage":8.600000000000001},{"rank":5,"ip":"192.168.1.104","queries":840,"percentage":8.200000000000001},{"rank":6,"ip":"192.168.1.105","queries":750,"percentage":7.800000000000001},{"rank":7,"ip":"192.168.1.106","queries":660,"percentage":7.4},{"rank":8,"ip":"192.168.1.107","queries":570,"percentage":7},{"rank":9,"ip":"192.168.1.108","queries":480,"percentage":6.6000000000000005},{"rank":10,"ip":"192.168.1.109","queries":390,"percentage":6.200000000000001}]},"message":"获取dashboard排行榜数据成功"}
+```
+
+## 数据刷新建议
+
+根据数据的实时性要求，建议前端按照以下频率刷新数据：
+
+1. **综合数据**（1-5 秒）：
+   - 系统概览统计
+   - 转发服务器状态
+
+2. **趋势数据**（1-5 分钟）：
+   - QPS趋势
+   - 延迟分布
+   - 资源使用趋势
+
+3. **排行榜数据**（30-60 秒）：
+   - 热门域名
+   - 热门客户端
+
+## 注意事项
+
+1. **认证**：所有API端点都需要认证，使用Bearer Token认证方式。
+2. **缓存**：建议前端对获取的数据进行适当的缓存，以减少API调用次数。
+3. **错误处理**：当API调用失败时，前端应该处理错误响应，并显示适当的错误信息。
+4. **数据格式**：请确保前端能够正确处理API返回的数据格式，特别是数字和字符串的转换。
+5. **时间范围**：对于趋势数据，前端可以提供时间范围选择器，让用户选择不同的时间范围查看数据。
+
+## 示例代码
+
+### 使用Axios获取综合数据
+
+```javascript
+import axios from 'axios';
+
+// 假设token已经获取并存储在localStorage中
+const token = localStorage.getItem('access_token');
+
+axios.get('/api/dashboard/summary', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+})
+.then(response => {
+  if (response.data.success) {
+    const data = response.data.data;
+    // 处理数据
+    console.log('系统概览:', data.systemStats);
+    console.log('转发服务器:', data.forwardServers);
+    console.log('缓存状态:', data.cacheStats);
+    console.log('系统资源:', data.systemResources);
+  } else {
+    console.error('获取数据失败:', response.data.message);
+  }
+})
+.catch(error => {
+  console.error('请求失败:', error);
+});
+```
+
+### 使用Fetch获取趋势数据
+
+```javascript
+// 假设token已经获取并存储在localStorage中
+const token = localStorage.getItem('access_token');
+
+fetch('/api/dashboard/trends?timeRange=1h', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+})
+.then(response => response.json())
+.then(data => {
+  if (data.success) {
+    // 处理数据
+    console.log('QPS趋势:', data.data.qpsTrend);
+    console.log('延迟分布:', data.data.latencyData);
+    console.log('资源使用趋势:', data.data.resourceUsage);
+  } else {
+    console.error('获取数据失败:', data.message);
+  }
+})
+.catch(error => {
+  console.error('请求失败:', error);
+});
+```
+
+### 使用Axios获取排行榜数据
+
+```javascript
+import axios from 'axios';
+
+// 假设token已经获取并存储在localStorage中
+const token = localStorage.getItem('access_token');
+
+axios.get('/api/dashboard/top?limit=10', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+})
+.then(response => {
+  if (response.data.success) {
+    const data = response.data.data;
+    // 处理数据
+    console.log('热门域名:', data.topDomains);
+    console.log('热门客户端:', data.topClients);
+  } else {
+    console.error('获取数据失败:', response.data.message);
+  }
+})
+.catch(error => {
+  console.error('请求失败:', error);
+});
+```
+
+## 未来计划
+
+1. **实时数据收集**：实现实时数据收集机制，从系统中采集真实的统计数据。
+2. **更多统计指标**：添加更多系统统计指标，如查询类型分布、响应状态码分布等。
+3. **数据导出**：添加数据导出功能，支持将统计数据导出为CSV、Excel等格式。
+4. **自定义仪表盘**：支持用户自定义仪表盘，选择要显示的指标和图表。
+5. **告警系统**：添加系统告警功能，当某些指标超过阈值时发送告警通知。
+
+如有任何问题或建议，请随时联系后端开发团队。

@@ -1,0 +1,709 @@
+# SteadyDNS API接口说明（前端开发版）
+
+## 本次更新内容
+
+本次更新主要增强了 API 安全性，实现了以下功能：
+
+1. **API 请求频率限制**：
+   - 防止暴力攻击和 DoS 攻击
+   - 对不同端点实施差异化的限制策略
+   - 支持临时封禁机制
+
+2. **API 请求日志**：
+   - 详细记录所有 API 请求
+   - 支持安全审计和问题排查
+   - 提供响应时间统计
+
+## API接口清单
+
+### 1. 登录接口
+
+**请求信息**
+- **请求方法**：POST
+- **请求路径**：`/api/login`
+- **请求头**：`Content-Type: application/json`
+
+**请求参数**
+```json
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
+
+**响应格式**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "1_1768368099_1768368099",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com"
+    },
+    "expires_in": 1800
+  },
+  "message": "登录成功"
+}
+```
+
+**频率限制**：10次/分钟/IP
+
+### 2. 令牌刷新接口
+
+**请求信息**
+- **请求方法**：POST
+- **请求路径**：`/api/refresh-token`
+- **请求头**：`Content-Type: application/json`
+
+**请求参数**
+```json
+{
+  "refresh_token": "1_1768368099_1768368099"
+}
+```
+
+**响应格式**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "1_1768368100_1768368100",
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com"
+    },
+    "expires_in": 1800
+  },
+  "message": "令牌刷新成功"
+}
+```
+
+**频率限制**：5次/分钟/IP
+
+### 3. 登出接口
+
+**请求信息**
+- **请求方法**：POST
+- **请求路径**：`/api/logout`
+- **请求头**：`Content-Type: application/json`
+
+**请求参数**
+```json
+{
+  "refresh_token": "1_1768368099_1768368099"
+}
+```
+
+**响应格式**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "登出成功"
+}
+```
+
+### 4. 转发组管理接口
+
+**请求信息**
+- **请求方法**：GET/POST/PUT/DELETE
+- **请求路径**：`/api/forward-groups`
+- **请求头**：
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <access_token>`
+
+**频率限制**：60次/分钟/IP 或 100次/分钟/用户
+
+### 5. 服务器管理接口
+
+**请求信息**
+- **请求方法**：GET/POST/PUT/DELETE
+- **请求路径**：`/api/forward-servers`
+- **请求头**：
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <access_token>`
+
+**频率限制**：60次/分钟/IP 或 100次/分钟/用户
+
+## 安全特性说明
+
+### 1. 频率限制
+
+**限制策略**：
+- **登录接口**：10次/分钟/IP
+- **令牌刷新**：5次/分钟/IP
+- **普通API**：60次/分钟/IP 或 100次/分钟/用户
+
+**超出限制的响应**：
+```json
+{
+  "success": false,
+  "data": null,
+  "message": "请求过于频繁，请稍后再试"
+}
+```
+
+**状态码**：429 Too Many Requests
+
+### 2. 临时封禁
+
+**触发条件**：
+- 登录接口：连续失败 5 次
+- 令牌刷新：连续失败 3 次
+- 普通API：连续失败 10 次
+
+**封禁时长**：
+- 登录接口：5分钟
+- 令牌刷新：3分钟
+- 普通API：10分钟
+
+**封禁期间的响应**：
+```json
+{
+  "success": false,
+  "data": null,
+  "message": "请求过于频繁，已被临时封禁"
+}
+```
+
+## 前端实现建议
+
+### 1. 错误处理
+
+**频率限制错误处理**：
+```javascript
+async function apiRequest(url, options = {}) {
+  try {
+    const response = await fetch(url, options);
+    
+    if (response.status === 429) {
+      // 频率限制，显示友好提示
+      const errorData = await response.json();
+      showErrorMessage(errorData.message || '请求过于频繁，请稍后再试');
+      return null;
+    }
+    
+    if (!response.ok) {
+      // 其他错误
+      const errorData = await response.json();
+      showErrorMessage(errorData.message || '请求失败');
+      return null;
+    }
+    
+    return response;
+  } catch (error) {
+    console.error('API请求失败:', error);
+    showErrorMessage('网络错误，请检查网络连接');
+    return null;
+  }
+}
+```
+
+### 2. 登录优化
+
+**避免频繁登录尝试**：
+```javascript
+// 添加登录按钮防抖
+let loginAttempts = 0;
+const maxLoginAttempts = 5;
+const cooldownTime = 60000; // 1分钟
+
+async function handleLogin() {
+  if (loginAttempts >= maxLoginAttempts) {
+    showErrorMessage('登录尝试次数过多，请1分钟后再试');
+    return;
+  }
+  
+  loginAttempts++;
+  
+  // 登录逻辑
+  const response = await apiRequest('/api/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      username: username.value,
+      password: password.value
+    })
+  });
+  
+  if (response) {
+    // 登录成功，重置尝试次数
+    loginAttempts = 0;
+    // 处理登录成功逻辑
+  }
+  
+  // 如果达到最大尝试次数，设置冷却
+  if (loginAttempts >= maxLoginAttempts) {
+    setTimeout(() => {
+      loginAttempts = 0;
+    }, cooldownTime);
+  }
+}
+```
+
+### 3. 令牌管理
+
+**优化令牌刷新**：
+```javascript
+async function refreshToken() {
+  try {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+      // 跳转到登录页面
+      window.location.href = '/login';
+      return null;
+    }
+    
+    const response = await fetch('/api/refresh-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    
+    if (response.status === 429) {
+      // 令牌刷新过于频繁
+      showErrorMessage('令牌刷新过于频繁，请稍后再试');
+      // 跳转到登录页面
+      window.location.href = '/login';
+      return null;
+    }
+    
+    if (!response.ok) {
+      // 令牌无效，跳转到登录页面
+      window.location.href = '/login';
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data.success) {
+      // 更新令牌
+      localStorage.setItem('access_token', data.data.access_token);
+      localStorage.setItem('refresh_token', data.data.refresh_token);
+      localStorage.setItem('token_expires_at', Date.now() + (data.data.expires_in * 1000));
+      return data.data.access_token;
+    } else {
+      // 跳转到登录页面
+      window.location.href = '/login';
+      return null;
+    }
+  } catch (error) {
+    console.error('令牌刷新失败:', error);
+    // 跳转到登录页面
+    window.location.href = '/login';
+    return null;
+  }
+}
+```
+
+### 4. 批量操作处理
+
+**避免批量操作触发频率限制**：
+```javascript
+// 批量删除服务器
+async function batchDeleteServers(serverIds) {
+  // 分批处理，每批5个
+  const batchSize = 5;
+  const batches = [];
+  
+  for (let i = 0; i < serverIds.length; i += batchSize) {
+    batches.push(serverIds.slice(i, i + batchSize));
+  }
+  
+  // 逐个批次处理，添加延迟
+  for (const batch of batches) {
+    await apiRequest('/api/forward-servers?batch=true', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(batch)
+    });
+    
+    // 添加延迟，避免触发频率限制
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+```
+
+## 性能优化建议
+
+### 1. 请求合并
+
+**合并多个相关请求**：
+```javascript
+// 合并获取转发组和服务器的请求
+async function loadDashboardData() {
+  try {
+    // 并行请求，减少等待时间
+    const [groupsResponse, serversResponse] = await Promise.all([
+      apiRequest('/api/forward-groups', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      }),
+      apiRequest('/api/forward-servers', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      })
+    ]);
+    
+    const groupsData = await groupsResponse.json();
+    const serversData = await serversResponse.json();
+    
+    // 处理数据
+    updateDashboard(groupsData.data, serversData.data);
+  } catch (error) {
+    console.error('加载仪表盘数据失败:', error);
+  }
+}
+```
+
+### 2. 缓存策略
+
+**缓存不频繁变化的数据**：
+```javascript
+// 缓存转发组数据
+let groupsCache = null;
+let groupsCacheTime = 0;
+const cacheExpiry = 5 * 60 * 1000; // 5分钟
+
+async function getForwardGroups() {
+  // 检查缓存是否有效
+  if (groupsCache && Date.now() - groupsCacheTime < cacheExpiry) {
+    return groupsCache;
+  }
+  
+  // 缓存无效，重新获取
+  const response = await apiRequest('/api/forward-groups', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+    }
+  });
+  
+  if (response) {
+    const data = await response.json();
+    if (data.success) {
+      // 更新缓存
+      groupsCache = data.data;
+      groupsCacheTime = Date.now();
+      return data.data;
+    }
+  }
+  
+  return [];
+}
+```
+
+## 安全最佳实践
+
+### 1. 输入验证
+
+**前端输入验证**：
+```javascript
+function validateLoginForm() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  
+  if (!username.trim()) {
+    showErrorMessage('用户名不能为空');
+    return false;
+  }
+  
+  if (!password.trim()) {
+    showErrorMessage('密码不能为空');
+    return false;
+  }
+  
+  if (password.length < 6) {
+    showErrorMessage('密码长度不能少于6位');
+    return false;
+  }
+  
+  return true;
+}
+```
+
+### 2. HTTPS使用
+
+**确保使用HTTPS**：
+```javascript
+// 检查是否使用HTTPS
+function checkHTTPS() {
+  if (window.location.protocol !== 'https:') {
+    console.warn('建议使用HTTPS协议以提高安全性');
+    // 在生产环境中可以强制跳转
+    // if (window.location.hostname !== 'localhost') {
+    //   window.location.href = 'https:' + window.location.href.substring(window.location.protocol.length);
+    // }
+  }
+}
+
+// 页面加载时检查
+window.addEventListener('load', checkHTTPS);
+```
+
+### 3. 敏感信息保护
+
+**避免在前端存储敏感信息**：
+```javascript
+// 正确的令牌存储方式
+function storeTokens(accessToken, refreshToken, expiresIn) {
+  // 访问令牌存储在内存中
+  sessionStorage.setItem('access_token', accessToken);
+  // 刷新令牌可以存储在localStorage中
+  localStorage.setItem('refresh_token', refreshToken);
+  // 存储过期时间
+  localStorage.setItem('token_expires_at', Date.now() + (expiresIn * 1000));
+}
+
+// 登出时清除令牌
+function logout() {
+  sessionStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('token_expires_at');
+  window.location.href = '/login';
+}
+```
+
+## 示例代码
+
+### 1. 登录示例
+
+```javascript
+async function login(username, password) {
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username,
+        password: password
+      })
+    });
+    
+    if (response.status === 429) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || '登录尝试过于频繁，请稍后再试');
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || '登录失败');
+    }
+    
+    const data = await response.json();
+    if (data.success) {
+      // 存储令牌
+      storeTokens(data.data.access_token, data.data.refresh_token, data.data.expires_in);
+      // 跳转到首页
+      window.location.href = '/dashboard';
+    } else {
+      throw new Error(data.message || '登录失败');
+    }
+  } catch (error) {
+    console.error('登录失败:', error);
+    showErrorMessage(error.message);
+  }
+}
+```
+
+### 2. API请求封装
+
+```javascript
+class APIClient {
+  constructor() {
+    this.baseURL = '/api';
+    this.token = sessionStorage.getItem('access_token');
+  }
+  
+  setToken(token) {
+    this.token = token;
+    sessionStorage.setItem('access_token', token);
+  }
+  
+  async request(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    
+    // 默认选项
+    const defaultOptions = {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    // 添加认证令牌
+    if (this.token) {
+      defaultOptions.headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    
+    // 合并选项
+    const fetchOptions = {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...options.headers
+      }
+    };
+    
+    try {
+      const response = await fetch(url, fetchOptions);
+      
+      // 处理频率限制
+      if (response.status === 429) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '请求过于频繁，请稍后再试');
+      }
+      
+      // 处理令牌过期
+      if (response.status === 401) {
+        // 尝试刷新令牌
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          // 重新尝试请求
+          fetchOptions.headers['Authorization'] = `Bearer ${this.token}`;
+          return this.request(endpoint, fetchOptions);
+        } else {
+          // 跳转到登录页面
+          window.location.href = '/login';
+          return null;
+        }
+      }
+      
+      // 处理其他错误
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '请求失败');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('API请求失败:', error);
+      throw error;
+    }
+  }
+  
+  async refreshToken() {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+      return false;
+    }
+    
+    try {
+      const response = await fetch(`${this.baseURL}/refresh-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_token: refreshToken })
+      });
+      
+      if (response.status === 429) {
+        // 刷新过于频繁，返回登录页面
+        return false;
+      }
+      
+      if (!response.ok) {
+        return false;
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        this.setToken(data.data.access_token);
+        localStorage.setItem('refresh_token', data.data.refresh_token);
+        localStorage.setItem('token_expires_at', Date.now() + (data.data.expires_in * 1000));
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('刷新令牌失败:', error);
+      return false;
+    }
+  }
+  
+  // 便捷方法
+  async get(endpoint, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'GET'
+    });
+  }
+  
+  async post(endpoint, data, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+  
+  async put(endpoint, data, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+  
+  async delete(endpoint, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'DELETE'
+    });
+  }
+}
+
+// 使用示例
+const api = new APIClient();
+
+// 登录
+async function handleLogin(username, password) {
+  const data = await api.post('/login', { username, password });
+  if (data.success) {
+    api.setToken(data.data.access_token);
+    localStorage.setItem('refresh_token', data.data.refresh_token);
+    localStorage.setItem('token_expires_at', Date.now() + (data.data.expires_in * 1000));
+    window.location.href = '/dashboard';
+  }
+}
+
+// 获取转发组
+async function getForwardGroups() {
+  const data = await api.get('/forward-groups');
+  if (data.success) {
+    return data.data;
+  }
+  return [];
+}
+```
+
+## 总结
+
+本次 API 安全增强为系统提供了多层保护，确保 API 服务的稳定性和安全性。前端开发人员需要注意以下几点：
+
+1. **合理控制请求频率**：避免短时间内发送过多请求
+2. **优化登录逻辑**：添加防抖和冷却机制
+3. **正确处理错误**：特别是 429 状态码的处理
+4. **安全存储令牌**：使用合适的存储方式
+5. **实施缓存策略**：减少不必要的请求
+
+通过遵循这些建议，前端应用可以更好地与 API 服务配合，提供更安全、更流畅的用户体验。
+
+如果在使用过程中遇到任何问题，请随时联系后端开发团队。
