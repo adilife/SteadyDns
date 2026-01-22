@@ -6,7 +6,8 @@ import {
   AppstoreOutlined,
   UserOutlined,
   DownOutlined,
-  DashboardOutlined
+  DashboardOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons'
 import './App.css'
 import DnsRules from './pages/DnsRules'
@@ -14,6 +15,7 @@ import Logs from './pages/Logs'
 import Settings from './pages/Settings'
 import ForwardGroups from './pages/ForwardGroups'
 import Dashboard from './pages/Dashboard'
+import AuthZones from './pages/AuthZones'
 import Login from './pages/Login'
 import { t, getSavedLanguage, switchLanguage } from './i18n'
 import { getAccessToken, logout, hasValidToken } from './utils/tokenManager'
@@ -115,12 +117,14 @@ function App() {
       case '1':
         return <Dashboard currentLanguage={currentLanguage} userInfo={userInfo} />
       case '2':
-        return <DnsRules currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <AuthZones currentLanguage={currentLanguage} userInfo={userInfo} />
       case '3':
-        return <Logs currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <DnsRules currentLanguage={currentLanguage} userInfo={userInfo} />
       case '4':
-        return <Settings currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <Logs currentLanguage={currentLanguage} userInfo={userInfo} />
       case '5':
+        return <Settings currentLanguage={currentLanguage} userInfo={userInfo} />
+      case '6':
         return <ForwardGroups currentLanguage={currentLanguage} userInfo={userInfo} />
       default:
         return <Dashboard currentLanguage={currentLanguage} userInfo={userInfo} />
@@ -168,21 +172,26 @@ function App() {
             },
             {
               key: '2',
+              icon: <DatabaseOutlined />,
+              label: t('nav.authZones', currentLanguage),
+            },
+            {
+              key: '3',
               icon: <AppstoreOutlined />,
               label: t('nav.dnsRules', currentLanguage),
             },
             {
-              key: '3',
+              key: '4',
               icon: <LogoutOutlined />,
               label: t('nav.logs', currentLanguage),
             },
             {
-              key: '4',
+              key: '5',
               icon: <SettingOutlined />,
               label: t('nav.settings', currentLanguage),
             },
             {
-              key: '5',
+              key: '6',
               icon: <SettingOutlined />,
               label: t('nav.forwardGroups', currentLanguage),
             },
