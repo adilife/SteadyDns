@@ -275,6 +275,8 @@ func setDefaultConfig() {
 	setDefault("BIND", "BIND_EXEC_START", "/usr/local/bind9/sbin/named -u named")
 	setDefault("BIND", "BIND_EXEC_RELOAD", "/usr/local/bind9/sbin/rndc -k /etc/named/rndc.key -s 127.0.0.1 -p 9530 reload")
 	setDefault("BIND", "BIND_EXEC_STOP", "/usr/local/bind9/sbin/rndc -k /etc/named/rndc.key -s 127.0.0.1 -p 9530 stop")
+	setDefault("BIND", "BIND_CHECKCONF_PATH", "/usr/local/bind9/bin/named-checkconf")
+	setDefault("BIND", "BIND_CHECKZONE_PATH", "/usr/local/bind9/bin/named-checkzone")
 	setDefault("DNS", "DNS_CLIENT_WORKERS", "10000")
 	setDefault("DNS", "DNS_QUEUE_MULTIPLIER", "2")
 	setDefault("DNS", "DNS_PRIORITY_TIMEOUT_MS", "50")

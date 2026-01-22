@@ -131,5 +131,9 @@ func setupRoutes() {
 	http.HandleFunc("/api/dashboard/", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.DashboardAPIHandler))))
 	http.HandleFunc("/api/dashboard", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.DashboardAPIHandler))))
 
+	// BIND权威域API路由 - 需要认证，应用所有中间件
+	http.HandleFunc("/api/bind-zones/", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.BindAPIHandler))))
+	http.HandleFunc("/api/bind-zones", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.BindAPIHandler))))
+
 	// 其他API路由...
 }
