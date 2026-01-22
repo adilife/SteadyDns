@@ -1,0 +1,17 @@
+# 忽略doc目录
+steadydnsd/doc/
+
+# 忽略bin目录
+steadydnsd/bin/
+
+# 忽略可执行文件
+steadydnsd/src/cmd/steadydns
+
+# 忽略未跟踪的配置文件
+steadydnsd/src/config/
+
+# 忽略备份目录
+steadydnsd/src/cmd/backup/
+
+# 忽略JSON测试文件
+localhost_current.json
