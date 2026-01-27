@@ -36,16 +36,17 @@ type ServerStats struct {
 
 // DNSForwarder 主转发器结构
 type DNSForwarder struct {
-	groups          map[string]*ForwardGroup
-	domainIndex     []string      // 域名索引，按长度降序排列，用于最长匹配
-	defaultGroup    *ForwardGroup // 默认转发组
-	serverStats     map[string]*ServerStats
-	mu              sync.RWMutex // 保护 groups 映射的锁
-	statsMu         sync.RWMutex // 保护 serverStats 映射的锁
-	cacheTTL        time.Duration
-	priorityTimeout time.Duration      // 优先级队列超时时间
-	logger          *common.Logger     // 日志函数
-	forwardPool     *ForwardWorkerPool // 专用的DNS转发协程池
+	groups             map[string]*ForwardGroup
+	domainIndex        []string      // 域名索引，按长度降序排列，用于最长匹配
+	defaultGroup       *ForwardGroup // 默认转发组
+	serverStats        map[string]*ServerStats
+	mu                 sync.RWMutex // 保护 groups 映射的锁
+	statsMu            sync.RWMutex // 保护 serverStats 映射的锁
+	cacheTTL           time.Duration
+	priorityTimeout    time.Duration       // 优先级队列超时时间
+	logger             *common.Logger      // 日志函数
+	forwardPool        *ForwardWorkerPool  // 专用的DNS转发协程池
+	authorityForwarder *AuthorityForwarder // 权威域转发管理器
 
 	// 域名匹配缓存
 	matchCache   map[string]*cacheEntry // 域名匹配结果缓存
@@ -462,11 +463,15 @@ func (f *DNSForwarder) matchDomain(queryDomain string) *ForwardGroup {
 
 	// 尝试最长匹配
 	var matchedGroup *ForwardGroup
+	var matchedZone string
+
+	// 先尝试匹配转发域
 	for _, domain := range f.domainIndex {
 		// 完全匹配（如jcgov.gov.cn）
 		if queryDomain == domain {
 			f.mu.RLock()
 			matchedGroup = f.groups[domain]
+			matchedZone = domain
 			f.mu.RUnlock()
 			break
 		}
@@ -474,8 +479,27 @@ func (f *DNSForwarder) matchDomain(queryDomain string) *ForwardGroup {
 		if strings.HasSuffix(queryDomain, "."+domain) {
 			f.mu.RLock()
 			matchedGroup = f.groups[domain]
+			matchedZone = domain
 			f.mu.RUnlock()
 			break
+		}
+	}
+
+	// 检查是否与权威域冲突
+	if matchedGroup != nil {
+		isAuthority, authorityZone := f.authorityForwarder.MatchAuthorityZone(queryDomain)
+		if isAuthority {
+			// 检查权威域是否更具体
+			authorityLen := len(authorityZone)
+			matchedLen := len(matchedZone)
+
+			// 权威域更具体，优先级更高
+			if authorityLen > matchedLen {
+				// 此域名应转发至权威域，返回默认组让后续逻辑处理
+				f.mu.RLock()
+				matchedGroup = f.defaultGroup
+				f.mu.RUnlock()
+			}
 		}
 	}
 
@@ -615,12 +639,13 @@ func (f *DNSForwarder) LoadConfig() {
 // NewDNSForwarder 创建新的DNS转发器
 func NewDNSForwarder(forwardAddr string) *DNSForwarder {
 	forwarder := &DNSForwarder{
-		groups:      make(map[string]*ForwardGroup),
-		domainIndex: make([]string, 0),
-		serverStats: make(map[string]*ServerStats),
-		cacheTTL:    30 * time.Second,
-		logger:      common.NewLogger(),
-		matchCache:  make(map[string]*cacheEntry), // 初始化域名匹配缓存
+		groups:             make(map[string]*ForwardGroup),
+		domainIndex:        make([]string, 0),
+		serverStats:        make(map[string]*ServerStats),
+		cacheTTL:           30 * time.Second,
+		logger:             common.NewLogger(),
+		matchCache:         make(map[string]*cacheEntry), // 初始化域名匹配缓存
+		authorityForwarder: NewAuthorityForwarder(),      // 初始化权威域转发管理器
 	}
 
 	// 加载配置
@@ -672,6 +697,20 @@ func NewDNSForwarder(forwardAddr string) *DNSForwarder {
 		}
 	}()
 
+	// 启动权威域重新加载协程
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute) // 每5分钟重新加载一次
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := forwarder.authorityForwarder.ReloadAuthorityZones(); err != nil {
+				forwarder.logger.Warn("重新加载权威域失败: %v", err)
+			} else {
+				forwarder.logger.Debug("权威域重新加载成功")
+			}
+		}
+	}()
+
 	return forwarder
 }
 
@@ -696,6 +735,19 @@ func (f *DNSForwarder) ForwardQuery(query *dns.Msg) (*dns.Msg, error) {
 	if len(query.Question) > 0 {
 		queryDomain = query.Question[0].Name
 		queryType = dns.TypeToString[query.Question[0].Qtype]
+	}
+
+	// 检查是否匹配权威域
+	isAuthority, _ := f.authorityForwarder.MatchAuthorityZone(queryDomain)
+	if isAuthority {
+		// 匹配权威域，转发至BIND服务器
+		bindAddr := f.authorityForwarder.GetBindAddress()
+		f.logger.Debug("转发查询 - 匹配权威域: %s, 转发至BIND服务器: %s", queryDomain, bindAddr)
+		result, err := f.forwardToServer(bindAddr, query, nil)
+		if err == nil && result != nil {
+			return result, nil
+		}
+		f.logger.Warn("转发至BIND服务器失败: %v, 尝试使用默认转发组", err)
 	}
 
 	// 使用最长匹配算法选择合适的转发组
