@@ -6,6 +6,7 @@ import (
 	"SteadyDNS/core/common"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -273,6 +274,26 @@ func (c *MemoryCache) Clear() {
 
 	c.cache = make(map[string]*CacheEntry)
 	c.currentSize = 0
+}
+
+// DeleteByDomain 清除与指定域名相关的所有缓存条目
+func (c *MemoryCache) DeleteByDomain(domain string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	deletedCount := 0
+	for key, entry := range c.cache {
+		// 检查缓存键是否包含指定域名
+		if strings.Contains(key, domain+".") || strings.Contains(key, domain) {
+			c.currentSize -= int64(entry.Size)
+			delete(c.cache, key)
+			deletedCount++
+		}
+	}
+
+	if deletedCount > 0 {
+		common.NewLogger().Debug("清除域名 %s 的缓存条目，共 %d 个", domain, deletedCount)
+	}
 }
 
 // evictLRU 移除最久未使用的条目

@@ -10,40 +10,99 @@ import (
 )
 
 // 默认配置模板
-const defaultConfigTemplate = `# SteadyDNS Configuration File
+const DefaultConfigTemplate = `# SteadyDNS Configuration File
 # Format: INI/Conf
 
 [Database]
 # Database file path (relative to working directory)
+# Default: steadydns.db
 DB_PATH=steadydns.db
 
-[Server]
-# JWT secret key for authentication
-JWT_SECRET_KEY=your_jwt_secret_key_here
+[APIServer]
 # API Server port
-PORT=8080
+# Default: 8080, Recommended: 8080-8090
+API_SERVER_PORT=8080
+# API Server IPv4 address
+# Default: 0.0.0.0 (listen on all IPv4 addresses)
+# Recommended: 127.0.0.1 (localhost only) for production
+API_SERVER_IP_ADDR=0.0.0.0
+# API Server IPv6 address
+# Default: :: (listen on all IPv6 addresses)
+# Recommended: ::1 (localhost only) for production
+API_SERVER_IPV6_ADDR=::
+# GIN running mode (debug/release)
+# Default: debug, Recommended: release (production)
+GIN_MODE=debug
+
+[JWT]
+# JWT secret key for authentication
+# Default: your-default-jwt-secret-key-change-this-in-production
+# Recommended: Use a strong, unique secret key in production
+JWT_SECRET_KEY=your_jwt_secret_key_here
+# Access token expiration (minutes)
+# Default: 30, Recommended: 15-60
+ACCESS_TOKEN_EXPIRATION=30
+# Refresh token expiration (days)
+# Default: 7, Recommended: 1-30
+REFRESH_TOKEN_EXPIRATION=7
+# JWT algorithm
+# Default: HS256, Recommended: HS256
+JWT_ALGORITHM=HS256
+
+[API]
+# API rate limit enabled
+# Default: true, Recommended: true
+RATE_LIMIT_ENABLED=true
+# API log enabled
+# Default: true, Recommended: true
+LOG_ENABLED=true
+# API log level
+# Default: INFO, Recommended: INFO (production)/DEBUG (development)
+LOG_LEVEL=INFO
+# Log request body
+# Default: false, Recommended: false (production)/true (debug)
+LOG_REQUEST_BODY=false
+# Log response body
+# Default: false, Recommended: false (production)/true (debug)
+LOG_RESPONSE_BODY=false
 
 [BIND]
 # BIND server address
+# Default: 127.0.0.1:5300
 BIND_ADDRESS=127.0.0.1:5300
 # RNDC key file path
+# Default: /etc/named/rndc.key
 RNDC_KEY=/etc/named/rndc.key
 # Zone file storage path
+# Default: /usr/local/bind9/var/named
 ZONE_FILE_PATH=/usr/local/bind9/var/named
 # Named configuration path
+# Default: /etc/named
 NAMED_CONF_PATH=/etc/named
 # RNDC port
+# Default: 9530
 RNDC_PORT=9530
 # BIND user
+# Default: named
 BIND_USER=named
 # BIND group
+# Default: named
 BIND_GROUP=named
 # BIND start command
+# Default: /usr/local/bind9/sbin/named -u named
 BIND_EXEC_START=/usr/local/bind9/sbin/named -u named
 # BIND reload command
+# Default: /usr/local/bind9/sbin/rndc -k $RNDC_KEY -s 127.0.0.1 -p $RNDC_PORT reload
 BIND_EXEC_RELOAD=/usr/local/bind9/sbin/rndc -k $RNDC_KEY -s 127.0.0.1 -p $RNDC_PORT reload
 # BIND stop command
+# Default: /usr/local/bind9/sbin/rndc -k $RNDC_KEY -s 127.0.0.1 -p $RNDC_PORT stop
 BIND_EXEC_STOP=/usr/local/bind9/sbin/rndc -k $RNDC_KEY -s 127.0.0.1 -p $RNDC_PORT stop
+# named-checkconf executable path
+# Default: /usr/local/bind9/bin/named-checkconf
+BIND_CHECKCONF_PATH=/usr/local/bind9/bin/named-checkconf
+# named-checkzone executable path
+# Default: /usr/local/bind9/bin/named-checkzone
+BIND_CHECKZONE_PATH=/usr/local/bind9/bin/named-checkzone
 
 [DNS]
 # Client processing worker pool size
@@ -150,7 +209,7 @@ func LoadConfig() {
 		}
 
 		// 写入默认配置
-		if err := os.WriteFile(configPath, []byte(defaultConfigTemplate), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(DefaultConfigTemplate), 0644); err != nil {
 			NewLogger().Error("创建默认配置文件失败: %v", err)
 			// 继续使用内存中的默认配置
 			globalConfig = &Config{
@@ -241,7 +300,7 @@ func parseINI() (*Config, error) {
 func setDefaultConfig() {
 	// 确保所有必要的节存在
 	ensureSection("Database")
-	ensureSection("Server")
+	ensureSection("APIServer")
 	ensureSection("JWT")
 	ensureSection("API")
 	ensureSection("BIND")
@@ -252,9 +311,11 @@ func setDefaultConfig() {
 
 	// 设置默认值
 	setDefault("Database", "DB_PATH", "steadydns.db")
-	setDefault("Server", "JWT_SECRET_KEY", "your-default-jwt-secret-key-change-this-in-production")
-	setDefault("Server", "GIN_MODE", "debug")
-	setDefault("Server", "PORT", "8080")
+	setDefault("APIServer", "API_SERVER_PORT", "8080")
+	setDefault("APIServer", "API_SERVER_IP_ADDR", "0.0.0.0")
+	setDefault("APIServer", "API_SERVER_IPV6_ADDR", "::")
+	setDefault("APIServer", "GIN_MODE", "debug")
+	setDefault("JWT", "JWT_SECRET_KEY", "your-default-jwt-secret-key-change-this-in-production")
 	setDefault("JWT", "ACCESS_TOKEN_EXPIRATION", "30")
 	setDefault("JWT", "REFRESH_TOKEN_EXPIRATION", "7")
 	setDefault("JWT", "JWT_ALGORITHM", "HS256")
@@ -404,4 +465,271 @@ func GetConfigPath(section, key string, defaultPath string) string {
 	}
 
 	return path
+}
+
+// ConfigItem 配置项，包含键、值和注释
+type ConfigItem struct {
+	Key      string
+	Value    string
+	Comments []string
+}
+
+// ConfigSection 配置节，包含节名和配置项
+type ConfigSection struct {
+	Name     string
+	Items    []ConfigItem
+	Comments []string
+}
+
+// parseConfigTemplate 解析配置模板，提取节、注释和默认值
+func parseConfigTemplate(template string) map[string]*ConfigSection {
+	sections := make(map[string]*ConfigSection)
+	var currentSection *ConfigSection
+	var currentComments []string
+
+	// 按行解析模板
+	lines := strings.Split(template, "\n")
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// 处理注释行
+		if strings.HasPrefix(trimmedLine, "#") {
+			currentComments = append(currentComments, trimmedLine)
+			continue
+		}
+
+		// 处理空行
+		if trimmedLine == "" {
+			continue
+		}
+
+		// 处理节标题
+		if strings.HasPrefix(trimmedLine, "[") && strings.HasSuffix(trimmedLine, "]") {
+			// 保存当前节
+			if currentSection != nil {
+				sections[currentSection.Name] = currentSection
+			}
+
+			// 创建新节
+			sectionName := strings.TrimSpace(trimmedLine[1 : len(trimmedLine)-1])
+			currentSection = &ConfigSection{
+				Name:     sectionName,
+				Items:    make([]ConfigItem, 0),
+				Comments: currentComments,
+			}
+			currentComments = make([]string, 0)
+			continue
+		}
+
+		// 处理键值对
+		if idx := strings.Index(trimmedLine, "="); idx != -1 {
+			key := strings.TrimSpace(trimmedLine[:idx])
+			value := strings.TrimSpace(trimmedLine[idx+1:])
+
+			// 创建配置项
+			item := ConfigItem{
+				Key:      key,
+				Value:    value,
+				Comments: currentComments,
+			}
+
+			// 添加到当前节
+			if currentSection != nil {
+				currentSection.Items = append(currentSection.Items, item)
+			}
+			currentComments = make([]string, 0)
+		}
+	}
+
+	// 保存最后一个节
+	if currentSection != nil {
+		sections[currentSection.Name] = currentSection
+	}
+
+	return sections
+}
+
+// SaveConfig 保存配置到文件
+func SaveConfig() error {
+	configPath := getConfigFilePath()
+
+	// 解析默认配置模板
+	templateSections := parseConfigTemplate(DefaultConfigTemplate)
+
+	// 生成配置文件内容
+	var configContent strings.Builder
+
+	// 写入文件头注释
+	configContent.WriteString("# SteadyDNS Configuration File\n")
+	configContent.WriteString("# Format: INI/Conf\n\n")
+
+	// 写入各个节的配置
+	for sectionName, section := range templateSections {
+		// 写入节的注释
+		for _, comment := range section.Comments {
+			configContent.WriteString(comment + "\n")
+		}
+
+		// 写入节标题
+		configContent.WriteString(fmt.Sprintf("[%s]\n", sectionName))
+
+		// 写入节内的配置项
+		for _, item := range section.Items {
+			// 写入配置项的注释
+			for _, comment := range item.Comments {
+				configContent.WriteString(comment + "\n")
+			}
+
+			// 获取当前配置值，如果没有则使用默认值
+			value := item.Value
+			if globalConfig != nil {
+				if sectionMap, exists := globalConfig.sections[sectionName]; exists {
+					if v, exists := sectionMap[item.Key]; exists {
+						value = v
+					}
+				}
+			}
+
+			// 写入配置项
+			configContent.WriteString(fmt.Sprintf("%s=%s\n", item.Key, value))
+		}
+
+		// 节之间空一行
+		configContent.WriteString("\n")
+	}
+
+	// 确保配置目录存在
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %v", err)
+	}
+
+	// 写入配置文件
+	if err := os.WriteFile(configPath, []byte(configContent.String()), 0644); err != nil {
+		return fmt.Errorf("写入配置文件失败: %v", err)
+	}
+
+	NewLogger().Info("配置保存成功: %s", configPath)
+	return nil
+}
+
+// UpdateConfig 更新配置值
+func UpdateConfig(section, key, value string) error {
+	// 确保配置实例存在
+	if globalConfig == nil {
+		LoadConfig()
+	}
+
+	// 确保节存在
+	ensureSection(section)
+
+	// 更新配置值
+	globalConfig.sections[section][key] = value
+
+	// 保存配置到文件
+	return SaveConfig()
+}
+
+// ValidateConfig 验证配置有效性
+func ValidateConfig() error {
+	// 确保配置实例存在
+	if globalConfig == nil {
+		LoadConfig()
+	}
+
+	// 验证必要的配置项
+	requiredSections := []string{"Database", "HTTP", "JWT", "API", "BIND", "DNS", "Cache", "Logging", "Security"}
+	for _, section := range requiredSections {
+		if _, exists := globalConfig.sections[section]; !exists {
+			return fmt.Errorf("缺少必要的配置节: %s", section)
+		}
+	}
+
+	// 验证特定配置项
+	// HTTP端口验证
+	port := GetConfig("HTTP", "PORT")
+	if port == "" {
+		return fmt.Errorf("缺少HTTP端口配置")
+	}
+
+	// JWT密钥验证
+	jwtSecret := GetConfig("JWT", "JWT_SECRET_KEY")
+	if jwtSecret == "" {
+		return fmt.Errorf("缺少JWT密钥配置")
+	}
+
+	// 验证配置值的有效性
+	// 例如：端口号范围检查、路径存在性检查等
+
+	NewLogger().Info("配置验证成功")
+	return nil
+}
+
+// GetAllConfig 获取所有配置
+func GetAllConfig() map[string]map[string]string {
+	// 确保配置实例存在
+	if globalConfig == nil {
+		LoadConfig()
+	}
+
+	// 创建配置副本
+	configCopy := make(map[string]map[string]string)
+	for section, keyValues := range globalConfig.sections {
+		configCopy[section] = make(map[string]string)
+		for key, value := range keyValues {
+			configCopy[section][key] = value
+		}
+	}
+
+	return configCopy
+}
+
+// GetSectionConfig 获取指定节的配置
+func GetSectionConfig(section string) map[string]string {
+	// 确保配置实例存在
+	if globalConfig == nil {
+		LoadConfig()
+	}
+
+	// 检查节是否存在
+	if sectionMap, exists := globalConfig.sections[section]; exists {
+		// 创建副本
+		sectionCopy := make(map[string]string)
+		for key, value := range sectionMap {
+			sectionCopy[key] = value
+		}
+		return sectionCopy
+	}
+
+	return make(map[string]string)
+}
+
+// ResetToDefaults 重置为默认配置
+func ResetToDefaults() error {
+	// 重新加载默认配置模板
+	configPath := getConfigFilePath()
+
+	// 确保配置目录存在
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %v", err)
+	}
+
+	// 写入默认配置
+	if err := os.WriteFile(configPath, []byte(DefaultConfigTemplate), 0644); err != nil {
+		return fmt.Errorf("写入默认配置失败: %v", err)
+	}
+
+	// 重新加载配置
+	LoadConfig()
+
+	NewLogger().Info("配置已重置为默认值")
+	return nil
+}
+
+// ReloadConfig 重载配置
+func ReloadConfig() error {
+	LoadConfig()
+	NewLogger().Info("配置重载成功")
+	return nil
 }

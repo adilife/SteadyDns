@@ -106,11 +106,19 @@ func (bm *BindManager) parseZoneFile(filePath, domain string) (*AuthZone, error)
 		name := fields[0]
 		var recordType, value string
 		var priority int
+		var ttl int
 
-		// 解析记录类型，跳过IN（如果存在）
+		// 解析TTL值（如果存在）
 		var typeIndex int = 1
-		if fields[1] == "IN" {
+		// 检查第二个字段是否是TTL值（数字）
+		if ttlValue, err := strconv.Atoi(fields[1]); err == nil {
+			ttl = ttlValue
 			typeIndex = 2
+		}
+
+		// 跳过IN（如果存在）
+		if typeIndex < len(fields) && fields[typeIndex] == "IN" {
+			typeIndex++
 		}
 
 		if typeIndex >= len(fields) {
@@ -139,6 +147,7 @@ func (bm *BindManager) parseZoneFile(filePath, domain string) (*AuthZone, error)
 			Type:     recordType,
 			Value:    value,
 			Priority: priority,
+			TTL:      ttl,
 		}
 
 		// 添加到通用记录切片
@@ -168,6 +177,37 @@ func ensureDotSuffix(value string) string {
 	}
 	// 否则添加点
 	return value + "."
+}
+
+// 默认TTL值映射表
+var defaultTTLMap = map[string]int{
+	"A":          3600,
+	"AAAA":       3600,
+	"NS":         86400,
+	"MX":         86400,
+	"CNAME":      3600,
+	"TXT":        3600,
+	"SRV":        3600,
+	"PTR":        86400,
+	"CAA":        3600,
+	"NAPTR":      3600,
+	"DS":         3600,
+	"DNSKEY":     3600,
+	"RRSIG":      3600,
+	"NSEC":       3600,
+	"NSEC3":      3600,
+	"SSHFP":      3600,
+	"TLSA":       3600,
+	"OPENPGPKEY": 3600,
+	"SMIMEA":     3600,
+}
+
+// getDefaultTTL 根据记录类型获取默认TTL值
+func getDefaultTTL(recordType string) int {
+	if ttl, ok := defaultTTLMap[recordType]; ok {
+		return ttl
+	}
+	return 3600 // 默认值
 }
 
 // generateZoneContent 生成zone文件内容
@@ -212,7 +252,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(nsRecords)
 		for _, record := range nsRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN NS\t%s\n", record.Name, ensureDotSuffix(record.Value)))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("NS")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN NS\t%s\n", record.Name, ttl, ensureDotSuffix(record.Value)))
 		}
 		buffer.WriteString("\n")
 	}
@@ -222,7 +266,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(aRecords)
 		for _, record := range aRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN A\t%s\n", record.Name, record.Value))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("A")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN A\t%s\n", record.Name, ttl, record.Value))
 		}
 		buffer.WriteString("\n")
 	}
@@ -232,7 +280,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(aaaaRecords)
 		for _, record := range aaaaRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN AAAA\t%s\n", record.Name, record.Value))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("AAAA")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN AAAA\t%s\n", record.Name, ttl, record.Value))
 		}
 		buffer.WriteString("\n")
 	}
@@ -242,7 +294,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(cnameRecords)
 		for _, record := range cnameRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN CNAME\t%s\n", record.Name, ensureDotSuffix(record.Value)))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("CNAME")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN CNAME\t%s\n", record.Name, ttl, ensureDotSuffix(record.Value)))
 		}
 		buffer.WriteString("\n")
 	}
@@ -252,7 +308,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(mxRecords)
 		for _, record := range mxRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN MX %d\t%s\n", record.Name, record.Priority, ensureDotSuffix(record.Value)))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("MX")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN MX %d\t%s\n", record.Name, ttl, record.Priority, ensureDotSuffix(record.Value)))
 		}
 		buffer.WriteString("\n")
 	}
@@ -262,7 +322,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(txtRecords)
 		for _, record := range txtRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN TXT\t%s\n", record.Name, record.Value))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("TXT")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN TXT\t%s\n", record.Name, ttl, record.Value))
 		}
 		buffer.WriteString("\n")
 	}
@@ -272,7 +336,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(ptrRecords)
 		for _, record := range ptrRecords {
-			buffer.WriteString(fmt.Sprintf("%s\tIN PTR\t%s\n", record.Name, ensureDotSuffix(record.Value)))
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL("PTR")
+			}
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN PTR\t%s\n", record.Name, ttl, ensureDotSuffix(record.Value)))
 		}
 		buffer.WriteString("\n")
 	}
@@ -287,8 +355,12 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 		// 按名称排序
 		recordSorter(records)
 		for _, record := range records {
+			ttl := record.TTL
+			if ttl == 0 {
+				ttl = getDefaultTTL(recordType)
+			}
 			// 对于其他可能需要加点的记录类型，也使用ensureDotSuffix
-			buffer.WriteString(fmt.Sprintf("%s\tIN %s\t%s\n", record.Name, record.Type, ensureDotSuffix(record.Value)))
+			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN %s\t%s\n", record.Name, ttl, record.Type, ensureDotSuffix(record.Value)))
 		}
 		buffer.WriteString("\n")
 	}

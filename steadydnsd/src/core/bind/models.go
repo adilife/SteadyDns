@@ -4,6 +4,7 @@
 package bind
 
 import (
+	"sync"
 	"time"
 
 	"SteadyDNS/core/common"
@@ -32,6 +33,7 @@ type Record struct {
 	Type     string `json:"type"`
 	Value    string `json:"value"`
 	Priority int    `json:"priority,omitempty"` // 可选，用于MX记录
+	TTL      int    `json:"ttl,omitempty"`      // 可选，记录的生存时间
 }
 
 // AuthZone 权威域信息
@@ -132,4 +134,5 @@ type BindManager struct {
 	logger     *common.Logger
 	config     BindConfig
 	HistoryMgr *HistoryManager
+	mu         sync.Mutex // 互斥锁，用于实现事务性操作，避免多用户冲突
 }

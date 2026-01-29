@@ -4,6 +4,7 @@ package sdns
 
 import (
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -19,6 +20,15 @@ type BufferPool struct {
 	size    int
 	count   int
 	maxSize int
+}
+
+// UDPPacket UDP 数据包任务
+type UDPPacket struct {
+	buf      []byte
+	n        int
+	writer   *UDPResponseWriter
+	msg      *dns.Msg
+	clientIP string
 }
 
 // NewBufferPool 创建缓冲区池
@@ -74,229 +84,6 @@ func (p *BufferPool) Count() int {
 	return p.count
 }
 
-// TCPConnectionPool TCP连接池
-type TCPConnectionPool struct {
-	mu           sync.RWMutex
-	idleConns    chan *tcpConnWrapper
-	maxConns     int
-	maxIdleConns int
-	connTimeout  time.Duration
-	idleTimeout  time.Duration
-	totalConns   int
-	stats        *TCPConnectionStats
-}
-
-// tcpConnWrapper TCP连接包装器
-type tcpConnWrapper struct {
-	conn     net.Conn
-	lastUsed time.Time
-	pool     *TCPConnectionPool
-	inUse    bool
-}
-
-// TCPConnectionStats TCP连接池统计信息
-type TCPConnectionStats struct {
-	TotalConns      int           `json:"totalConns"`
-	IdleConns       int           `json:"idleConns"`
-	ActiveConns     int           `json:"activeConns"`
-	PoolHits        int64         `json:"poolHits"`
-	PoolMisses      int64         `json:"poolMisses"`
-	ConnCreated     int64         `json:"connCreated"`
-	ConnClosed      int64         `json:"connClosed"`
-	ConnReused      int64         `json:"connReused"`
-	AverageIdleTime time.Duration `json:"averageIdleTime"`
-}
-
-// NewTCPConnectionPool 创建TCP连接池
-func NewTCPConnectionPool(maxConns, maxIdleConns int, connTimeout, idleTimeout time.Duration) *TCPConnectionPool {
-	pool := &TCPConnectionPool{
-		idleConns:    make(chan *tcpConnWrapper, maxIdleConns),
-		maxConns:     maxConns,
-		maxIdleConns: maxIdleConns,
-		connTimeout:  connTimeout,
-		idleTimeout:  idleTimeout,
-		stats:        &TCPConnectionStats{},
-	}
-
-	// 启动连接清理 goroutine
-	go pool.cleanupIdleConns()
-
-	return pool
-}
-
-// Get 获取TCP连接
-func (p *TCPConnectionPool) Get() (*tcpConnWrapper, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// 尝试从空闲连接池获取
-	select {
-	case conn := <-p.idleConns:
-		// 检查连接是否超时
-		if time.Since(conn.lastUsed) > p.idleTimeout {
-			p.closeConn(conn)
-			p.stats.PoolMisses++
-			return p.createNewConn()
-		}
-
-		conn.inUse = true
-		conn.lastUsed = time.Now()
-		p.stats.PoolHits++
-		p.stats.ConnReused++
-		p.stats.ActiveConns++
-		p.stats.IdleConns--
-		return conn, nil
-	default:
-		// 没有空闲连接，创建新连接
-		p.stats.PoolMisses++
-		return p.createNewConn()
-	}
-}
-
-// createNewConn 创建新的TCP连接
-func (p *TCPConnectionPool) createNewConn() (*tcpConnWrapper, error) {
-	if p.totalConns >= p.maxConns {
-		return nil, nil
-	}
-
-	p.totalConns++
-	p.stats.ConnCreated++
-	p.stats.ActiveConns++
-
-	return &tcpConnWrapper{
-		pool:     p,
-		lastUsed: time.Now(),
-		inUse:    true,
-	}, nil
-}
-
-// Put 归还TCP连接到池
-func (p *TCPConnectionPool) Put(conn *tcpConnWrapper) {
-	if conn == nil || conn.conn == nil {
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	conn.inUse = false
-	conn.lastUsed = time.Now()
-
-	// 检查连接是否有效
-	if p.isConnValid(conn) {
-		// 尝试放入空闲连接池
-		select {
-		case p.idleConns <- conn:
-			p.stats.ActiveConns--
-			p.stats.IdleConns++
-			return
-		default:
-			// 空闲连接池已满，关闭连接
-			p.closeConn(conn)
-			return
-		}
-	}
-
-	// 连接无效，关闭连接
-	p.closeConn(conn)
-}
-
-// isConnValid 检查连接是否有效
-func (p *TCPConnectionPool) isConnValid(conn *tcpConnWrapper) bool {
-	// 检查连接是否关闭
-	if conn == nil || conn.conn == nil {
-		return false
-	}
-
-	// 检查连接是否超时
-	if time.Since(conn.lastUsed) > p.idleTimeout {
-		return false
-	}
-
-	return true
-}
-
-// closeConn 关闭TCP连接
-func (p *TCPConnectionPool) closeConn(conn *tcpConnWrapper) {
-	if conn == nil || conn.conn == nil {
-		return
-	}
-
-	conn.conn.Close()
-	p.totalConns--
-	p.stats.ConnClosed++
-	p.stats.ActiveConns--
-}
-
-// cleanupIdleConns 清理空闲连接
-func (p *TCPConnectionPool) cleanupIdleConns() {
-	ticker := time.NewTicker(p.idleTimeout / 2)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		p.cleanupExpiredConns()
-	}
-}
-
-// cleanupExpiredConns 清理过期的空闲连接
-func (p *TCPConnectionPool) cleanupExpiredConns() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	expired := make([]*tcpConnWrapper, 0)
-
-	// 检查空闲连接是否过期
-	for {
-		select {
-		case conn := <-p.idleConns:
-			if time.Since(conn.lastUsed) > p.idleTimeout {
-				expired = append(expired, conn)
-			} else {
-				// 连接未过期，放回池
-				p.idleConns <- conn
-			}
-		default:
-			break
-		}
-	}
-
-	// 关闭过期连接
-	for _, conn := range expired {
-		p.closeConn(conn)
-		p.stats.IdleConns--
-	}
-}
-
-// GetStats 获取TCP连接池统计信息
-func (p *TCPConnectionPool) GetStats() *TCPConnectionStats {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	// 创建统计信息副本
-	stats := *p.stats
-	stats.TotalConns = p.totalConns
-	stats.IdleConns = len(p.idleConns)
-	stats.ActiveConns = p.totalConns - len(p.idleConns)
-
-	return &stats
-}
-
-// Close 关闭TCP连接池
-func (p *TCPConnectionPool) Close() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// 关闭所有空闲连接
-	for {
-		select {
-		case conn := <-p.idleConns:
-			p.closeConn(conn)
-		default:
-			break
-		}
-	}
-}
-
 // NetworkStats 网络统计信息
 type NetworkStats struct {
 	TotalRequests       int64         `json:"totalRequests"`
@@ -334,11 +121,15 @@ type CustomDNSServer struct {
 	logger       *common.Logger
 	wg           sync.WaitGroup
 	shutdown     chan struct{}
-	tcpPool      *TCPConnectionPool
 	bufPool      *BufferPool
 	stats        *NetworkStats
 	statsMu      sync.RWMutex
 	statsManager *StatsManager
+	// 新增字段
+	listener   net.Listener   // TCP监听器
+	packetConn net.PacketConn // UDP数据包连接
+	isShutdown bool           // 服务器是否已关闭
+	shutdownMu sync.Mutex     // 关闭操作互斥锁
 }
 
 // NewCustomDNSServer 创建自定义DNS服务器
@@ -356,19 +147,16 @@ func NewCustomDNSServer(addr, net string, handler dns.Handler, pool *WorkerPool,
 		statsManager: NewStatsManager(logger),
 	}
 
-	// 为TCP服务器创建连接池
-	if net == "tcp" {
-		server.tcpPool = NewTCPConnectionPool(
-			3000,           // 最大连接数，支持高并发
-			800,            // 最大空闲连接数，支持高并发
-			30*time.Second, // 连接超时
-			60*time.Second, // 空闲超时
-		)
-	} else if net == "udp" {
-		// 为UDP服务器创建缓冲区池
+	// 为UDP服务器创建缓冲区池
+	if net == "udp" {
+		// 从配置文件获取参数，与任务队列大小匹配
+		workers := common.GetConfigInt("DNS", "DNS_CLIENT_WORKERS", 10000)
+		multiplier := common.GetConfigInt("DNS", "DNS_QUEUE_MULTIPLIER", 2)
+		poolSize := workers * multiplier
+
 		server.bufPool = NewBufferPool(
-			512,   // DNS消息最大长度
-			12000, // 缓冲区池大小，支持高并发
+			512,      // DNS消息最大长度
+			poolSize, // 与任务队列大小匹配
 		)
 	}
 
@@ -395,7 +183,9 @@ func (s *CustomDNSServer) listenAndServeUDP() error {
 	if err != nil {
 		return err
 	}
-	defer pc.Close()
+
+	// 保存监听器
+	s.packetConn = pc
 
 	// 记录监听成功日志
 	s.logger.Info("UDP DNS服务器成功监听: %s", s.addr)
@@ -409,6 +199,17 @@ func (s *CustomDNSServer) listenAndServeUDP() error {
 
 	// 等待关闭信号
 	<-s.shutdown
+
+	// 收到关闭信号后，关闭监听器
+	if s.packetConn != nil {
+		if err := s.packetConn.Close(); err != nil {
+			s.logger.Error("关闭UDP监听器失败: %v", err)
+		} else {
+			s.logger.Info("UDP监听器已关闭")
+		}
+		s.packetConn = nil
+	}
+
 	return nil
 }
 
@@ -419,7 +220,9 @@ func (s *CustomDNSServer) listenAndServeTCP() error {
 	if err != nil {
 		return err
 	}
-	defer l.Close()
+
+	// 保存监听器
+	s.listener = l
 
 	// 记录监听成功日志
 	s.logger.Info("TCP DNS服务器成功监听: %s", s.addr)
@@ -433,6 +236,17 @@ func (s *CustomDNSServer) listenAndServeTCP() error {
 
 	// 等待关闭信号
 	<-s.shutdown
+
+	// 收到关闭信号后，关闭监听器
+	if s.listener != nil {
+		if err := s.listener.Close(); err != nil {
+			s.logger.Error("关闭TCP监听器失败: %v", err)
+		} else {
+			s.logger.Info("TCP监听器已关闭")
+		}
+		s.listener = nil
+	}
+
 	return nil
 }
 
@@ -446,11 +260,81 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 
 	// 流量控制参数
 	const maxConcurrentPackets = 10000 // 最大并发数据包数
-	const batchSize = 100              // 批量处理大小
 	var packetCount int
 	var packetCountMu sync.Mutex
 
+	// 从配置文件获取参数
+	workers := common.GetConfigInt("DNS", "DNS_CLIENT_WORKERS", 10000)
+	multiplier := common.GetConfigInt("DNS", "DNS_QUEUE_MULTIPLIER", 2)
+	channelSize := workers * multiplier
+
+	// 计算工作协程数量
+	cpuCount := runtime.NumCPU()
+	workerCount := cpuCount * 4
+	if workerCount > workers {
+		workerCount = workers
+	}
+	if workerCount < 100 {
+		workerCount = 100
+	}
+
+	s.logger.Info("启动UDP处理工作协程，数量: %d，任务通道大小: %d", workerCount, channelSize)
+
+	// 创建任务通道
+	taskChan := make(chan *UDPPacket, channelSize)
+
+	// 启动工作协程
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for {
+				select {
+				case <-s.shutdown:
+					return
+				case task, ok := <-taskChan:
+					if !ok {
+						return
+					}
+
+					// 处理完成后归还缓冲区
+					defer func() {
+						if s.bufPool != nil {
+							s.bufPool.Put(task.buf)
+						}
+						// 减少数据包计数
+						packetCountMu.Lock()
+						packetCount--
+						packetCountMu.Unlock()
+					}()
+
+					// 记录开始时间
+					startTime := time.Now()
+					// 提交到协程池处理
+					s.pool.SubmitWithClientIP(s.handler, task.writer, task.msg, task.clientIP)
+					// 计算响应时间
+					responseTime := time.Since(startTime)
+					// 更新统计信息
+					s.updateStats(task.n, 0, true, responseTime)
+				}
+			}
+		}()
+	}
+
 	for {
+		// 检查是否收到关闭信号
+		select {
+		case <-s.shutdown:
+			s.logger.Info("收到关闭信号，退出UDP处理协程")
+			// 等待所有工作协程退出
+			wg.Wait()
+			return
+		default:
+			// 继续处理
+		}
+
 		// 流量控制
 		packetCountMu.Lock()
 		currentCount := packetCount
@@ -474,12 +358,14 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 		var addr net.Addr
 		var err error
 
-		// 使用UDPConn的ReadFromUDP方法提高效率
+		// 设置读取超时，以便及时检查shutdown通道
 		if udpConn != nil {
+			udpConn.SetReadDeadline(time.Now().Add(1 * time.Second))
 			udpAddr := &net.UDPAddr{}
 			n, udpAddr, err = udpConn.ReadFromUDP(buf)
 			addr = udpAddr
 		} else {
+			pc.SetReadDeadline(time.Now().Add(1 * time.Second))
 			n, addr, err = pc.ReadFrom(buf)
 		}
 
@@ -489,13 +375,26 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 				s.bufPool.Put(buf)
 			}
 
-			select {
-			case <-s.shutdown:
-				return
-			default:
+			// 检查是否是超时错误
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				// 超时错误，继续尝试
+				continue
+			}
+
+			// 检查是否是监听器关闭导致的错误
+			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
+				// 临时错误，继续尝试
 				s.logger.Error("读取UDP数据包失败: %v", err)
 				continue
 			}
+
+			// 监听器关闭或其他严重错误，退出
+			s.logger.Info("UDP监听器已关闭，退出处理协程")
+			// 关闭任务通道
+			close(taskChan)
+			// 等待所有工作协程退出
+			wg.Wait()
+			return
 		}
 
 		// 提取客户端IP地址
@@ -530,42 +429,78 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 		packetCount++
 		packetCountMu.Unlock()
 
-		// 提交到协程池处理（使用闭包保存缓冲区引用）
-		go func(buf []byte, n int) {
-			defer func() {
-				// 处理完成后归还缓冲区
-				if s.bufPool != nil {
-					s.bufPool.Put(buf)
-				}
-				// 减少数据包计数
-				packetCountMu.Lock()
-				packetCount--
-				packetCountMu.Unlock()
-			}()
-			// 记录开始时间
-			startTime := time.Now()
-			// 提交到协程池处理
-			s.pool.SubmitWithClientIP(s.handler, writer, &msg, clientIP)
-			// 计算响应时间
-			responseTime := time.Since(startTime)
-			// 更新统计信息
-			s.updateStats(n, 0, true, responseTime)
-		}(buf, n)
+		// 创建任务并发送到通道
+		task := &UDPPacket{
+			buf:      buf,
+			n:        n,
+			writer:   writer,
+			msg:      &msg,
+			clientIP: clientIP,
+		}
+
+		select {
+		case <-s.shutdown:
+			// 收到关闭信号，退出
+			s.logger.Info("收到关闭信号，退出UDP处理协程")
+			// 归还缓冲区
+			if s.bufPool != nil {
+				s.bufPool.Put(buf)
+			}
+			// 等待所有工作协程退出
+			wg.Wait()
+			return
+		case taskChan <- task:
+			// 任务发送成功
+		default:
+			// 通道已满，丢弃任务
+			s.logger.Warn("UDP任务通道已满，丢弃数据包")
+			// 归还缓冲区
+			if s.bufPool != nil {
+				s.bufPool.Put(buf)
+			}
+			// 减少数据包计数
+			packetCountMu.Lock()
+			packetCount--
+			packetCountMu.Unlock()
+		}
 	}
 }
 
 // handleTCPConnections 处理TCP连接
 func (s *CustomDNSServer) handleTCPConnections(l net.Listener) {
 	for {
+		// 检查是否收到关闭信号
+		select {
+		case <-s.shutdown:
+			s.logger.Info("收到关闭信号，退出TCP处理协程")
+			return
+		default:
+			// 继续处理
+		}
+
+		// 设置接受连接超时，以便及时检查shutdown通道
+		if tcpListener, ok := l.(*net.TCPListener); ok {
+			tcpListener.SetDeadline(time.Now().Add(1 * time.Second))
+		}
+
 		conn, err := l.Accept()
 		if err != nil {
-			select {
-			case <-s.shutdown:
-				return
-			default:
+			// 检查是否是超时错误
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				// 超时错误，继续尝试
+				continue
+			}
+
+			// 检查是否是监听器关闭导致的错误
+			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
+				// 临时错误，继续尝试
 				s.logger.Error("接受TCP连接失败: %v", err)
 				continue
 			}
+
+			// 监听器关闭或其他严重错误，退出
+			s.logger.Info("TCP监听器已关闭，退出处理协程")
+			return
 		}
 
 		s.wg.Add(1)
@@ -591,8 +526,6 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 		tcpConn.SetKeepAlivePeriod(30 * time.Second)
 		tcpConn.SetNoDelay(true) // 禁用Nagle算法，提高实时性
 	}
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 
 	// 创建TCP响应 writer
 	writer := &TCPResponseWriter{
@@ -606,31 +539,44 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 
 	// 处理多个DNS消息（长连接）
 	for {
+		// 检查是否收到关闭信号
+		select {
+		case <-s.shutdown:
+			s.logger.Info("收到关闭信号，关闭TCP连接: %v", clientIP)
+			return
+		default:
+			// 继续处理
+		}
+
+		// 设置读取超时，以便及时检查shutdown通道
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+
 		// 读取DNS消息长度
 		lengthBuf := make([]byte, 2)
 		n, err := conn.Read(lengthBuf)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				// 连接超时，正常关闭
-				s.logger.Info("TCP连接超时: %v, 处理消息数: %d, 连接时长: %v", clientIP, messageCount, time.Since(startTime))
+				s.logger.Debug("TCP连接超时: %v, 处理消息数: %d, 连接时长: %v", clientIP, messageCount, time.Since(startTime))
 			} else if err.Error() != "EOF" {
 				s.logger.Error("读取DNS消息长度失败: %v", err)
 			} else {
-				s.logger.Info("TCP连接正常关闭: %v, 处理消息数: %d, 连接时长: %v", clientIP, messageCount, time.Since(startTime))
+				// s.logger.Debug("TCP连接正常关闭: %v, 处理消息数: %d, 连接时长: %v", clientIP, messageCount, time.Since(startTime))
 			}
-			break
+			return
 		}
 
 		if n != 2 {
 			s.logger.Error("读取DNS消息长度不完整")
-			break
+			return
 		}
 
 		// 解析消息长度
 		length := uint16(lengthBuf[0])<<8 | uint16(lengthBuf[1])
 		if length > 4096 {
 			s.logger.Error("DNS消息长度超过限制: %d", length)
-			break
+			return
 		}
 
 		// 读取DNS消息
@@ -638,12 +584,12 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 		n, err = conn.Read(buf)
 		if err != nil {
 			s.logger.Error("读取DNS消息失败: %v", err)
-			break
+			return
 		}
 
 		if n != int(length) {
 			s.logger.Error("读取DNS消息不完整")
-			break
+			return
 		}
 
 		// 解析DNS消息
@@ -652,9 +598,6 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 			s.logger.Error("解析DNS消息失败: %v", err)
 			continue
 		}
-
-		// 更新读取超时
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
 		// 增加消息计数
 		messageCount++
@@ -669,9 +612,8 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 		s.updateStats(n, 0, true, responseTime)
 	}
 
-	// 关闭连接
-	conn.Close()
-	s.logger.Info("TCP连接已关闭: %v, 处理消息数: %d, 连接时长: %v", clientIP, messageCount, time.Since(startTime))
+	// 关闭连接（实际上会由defer语句处理）
+
 }
 
 // updateStats 更新网络统计信息
@@ -730,13 +672,46 @@ func (s *CustomDNSServer) GetStatsManager() *StatsManager {
 
 // Close 关闭DNS服务器
 func (s *CustomDNSServer) Close() {
-	close(s.shutdown)
-	s.wg.Wait()
+	s.Shutdown()
+}
 
-	// 关闭TCP连接池
-	if s.tcpPool != nil {
-		s.tcpPool.Close()
+// Shutdown 关闭DNS服务器（与Close方法功能相同，用于兼容server_manager.go中的调用）
+func (s *CustomDNSServer) Shutdown() error {
+	s.shutdownMu.Lock()
+
+	// 检查是否已经关闭
+	if s.isShutdown {
+		s.shutdownMu.Unlock()
+		s.logger.Info("DNS服务器已经关闭")
+		return nil
 	}
+
+	s.logger.Info("开始关闭DNS服务器...")
+
+	// 标记服务器为关闭状态
+	s.isShutdown = true
+
+	// 关闭shutdown通道，通知所有goroutine退出
+	close(s.shutdown)
+
+	// 解锁，允许其他操作执行
+	s.shutdownMu.Unlock()
+
+	// 等待所有goroutine退出
+	s.wg.Wait()
+	s.logger.Info("所有goroutine已退出")
+
+	// 关闭协程池
+
+	if s.pool != nil {
+		s.pool.Close()
+		s.logger.Info("协程池已关闭")
+		// 将 pool 设置为 nil，避免重复关闭
+		s.pool = nil
+	}
+
+	s.logger.Info("DNS服务器已成功关闭")
+	return nil
 }
 
 // UDPResponseWriter UDP响应 writer
