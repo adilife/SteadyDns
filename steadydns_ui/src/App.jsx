@@ -12,13 +12,13 @@ import {
 import './App.css'
 import DnsRules from './pages/DnsRules'
 import Logs from './pages/Logs'
-import Settings from './pages/Settings'
 import ForwardGroups from './pages/ForwardGroups'
 import Dashboard from './pages/Dashboard'
 import AuthZones from './pages/AuthZones'
+import Configuration from './pages/Configuration'
 import Login from './pages/Login'
 import { t, getSavedLanguage, switchLanguage } from './i18n'
-import { getAccessToken, logout, hasValidToken } from './utils/tokenManager'
+import { logout, hasValidToken, startTokenRefreshInterval, resetSessionTimeoutTimer, clearTokenRefreshInterval } from './utils/tokenManager'
 
 const { Header, Sider, Content } = Layout
 const { Option } = Select
@@ -40,17 +40,25 @@ function App() {
             if (parsedUser && Object.keys(parsedUser).length > 0) {
               setIsLoggedIn(true)
               setUserInfo(parsedUser)
+              // Start token refresh interval
+              startTokenRefreshInterval()
             } else {
               console.error('Invalid user data in sessionStorage:', parsedUser)
               sessionStorage.removeItem('steadyDNS_user')
+              setIsLoggedIn(false)
+              setUserInfo({ username: '' })
             }
           } else {
             console.error('Invalid data in sessionStorage')
             sessionStorage.removeItem('steadyDNS_user')
+            setIsLoggedIn(false)
+            setUserInfo({ username: '' })
           }
         } catch (error) {
           console.error('Error parsing user data from sessionStorage:', error)
           sessionStorage.removeItem('steadyDNS_user')
+          setIsLoggedIn(false)
+          setUserInfo({ username: '' })
         }
       } else {
         setIsLoggedIn(false)
@@ -61,7 +69,22 @@ function App() {
     checkLoginStatus()
     // Check login status periodically
     const interval = setInterval(checkLoginStatus, 30000)
-    return () => clearInterval(interval)
+    
+    // User activity event listeners to reset session timeout
+    const handleUserActivity = () => {
+      resetSessionTimeoutTimer()
+    }
+    
+    window.addEventListener('mousedown', handleUserActivity)
+    window.addEventListener('keydown', handleUserActivity)
+    window.addEventListener('scroll', handleUserActivity)
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('mousedown', handleUserActivity)
+      window.removeEventListener('keydown', handleUserActivity)
+      window.removeEventListener('scroll', handleUserActivity)
+    }
   }, [])
   // Update language when changed
   useEffect(() => {
@@ -123,9 +146,9 @@ function App() {
       case '4':
         return <Logs currentLanguage={currentLanguage} userInfo={userInfo} />
       case '5':
-        return <Settings currentLanguage={currentLanguage} userInfo={userInfo} />
-      case '6':
         return <ForwardGroups currentLanguage={currentLanguage} userInfo={userInfo} />
+      case '6':
+        return <Configuration currentLanguage={currentLanguage} userInfo={userInfo} />
       default:
         return <Dashboard currentLanguage={currentLanguage} userInfo={userInfo} />
     }
@@ -152,11 +175,14 @@ function App() {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', height: '100vh' }}>
       <Sider
         collapsible
         collapsed={collapsed}
         onCollapse={(value) => setCollapsed(value)}
+        style={{
+          overflow: 'auto',
+        }}
       >
         <div className="logo" />
         <Menu
@@ -188,17 +214,17 @@ function App() {
             {
               key: '5',
               icon: <SettingOutlined />,
-              label: t('nav.settings', currentLanguage),
+              label: t('nav.forwardGroups', currentLanguage),
             },
             {
               key: '6',
               icon: <SettingOutlined />,
-              label: t('nav.forwardGroups', currentLanguage),
+              label: t('configuration.title', currentLanguage),
             },
           ]}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', background: colorBgContainer }}>
           <h1 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold' }}>
             {t('header.title', currentLanguage)}
@@ -231,9 +257,11 @@ function App() {
           style={{
             margin: '24px 16px',
             padding: 24,
-            minHeight: 280,
+            flex: 1,
+            minHeight: 0,
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
+            overflow: 'auto',
           }}
         >
           {renderContent()}
