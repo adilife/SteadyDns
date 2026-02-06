@@ -1,3 +1,7 @@
+// SteadyDNS - DNS服务器实现
+// 许可证: AGPLv3
+// 详见LICENSE文件
+
 module SteadyDNS
 
 go 1.25.5
