@@ -3,71 +3,68 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
 	"SteadyDNS/core/sdns"
+
+	"github.com/gin-gonic/gin"
 )
 
-// CacheAPIHandler 处理缓存相关的API请求
-func CacheAPIHandler(w http.ResponseWriter, r *http.Request) {
+// CacheAPIHandlerGin 处理缓存相关的API请求
+func CacheAPIHandlerGin(c *gin.Context) {
 	// 应用认证中间件
-	authHandler := AuthMiddleware(cacheHandler)
-	authHandler(w, r)
+	authHandler := AuthMiddlewareGin(cacheHandlerGin)
+	authHandler(c)
 }
 
-// cacheHandler 缓存管理API处理函数
-func cacheHandler(w http.ResponseWriter, r *http.Request) {
-	// 获取服务器管理器实例
-
+// cacheHandlerGin 缓存管理API处理函数
+func cacheHandlerGin(c *gin.Context) {
 	// 解析请求路径
-	path := strings.TrimPrefix(r.URL.Path, "/api/cache/")
+	path := strings.TrimPrefix(c.Request.URL.Path, "/api/cache/")
 	pathParts := strings.Split(path, "/")
 
 	// 根据请求路径和方法处理不同的API端点
 	switch {
-	case path == "stats" && r.Method == http.MethodGet:
+	case path == "stats" && c.Request.Method == http.MethodGet:
 		// 获取缓存统计信息
-		handleGetCacheStats(w, r)
+		handleGetCacheStatsGin(c)
 
-	case path == "clear" && r.Method == http.MethodPost:
+	case path == "clear" && c.Request.Method == http.MethodPost:
 		// 清空缓存
-		handleClearCache(w, r)
+		handleClearCacheGin(c)
 
-	case strings.HasPrefix(path, "clear/") && r.Method == http.MethodPost:
+	case strings.HasPrefix(path, "clear/") && c.Request.Method == http.MethodPost:
 		// 按域名清除缓存
 		domain := pathParts[1]
-		handleClearCacheByDomain(w, r, domain)
+		handleClearCacheByDomainGin(c, domain)
 
 	default:
 		// 未找到的API端点
-		http.Error(w, "Not Found", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found"})
 	}
 }
 
-// handleGetCacheStats 处理获取缓存统计信息的请求
-func handleGetCacheStats(w http.ResponseWriter, r *http.Request) {
+// handleGetCacheStatsGin 处理获取缓存统计信息的请求
+func handleGetCacheStatsGin(c *gin.Context) {
 	// 获取缓存统计信息
 	stats := sdns.GetCacheStats()
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    stats,
 	})
 }
 
-// handleClearCache 处理清空缓存的请求
-func handleClearCache(w http.ResponseWriter, r *http.Request) {
+// handleClearCacheGin 处理清空缓存的请求
+func handleClearCacheGin(c *gin.Context) {
 	// 执行清空缓存操作
 	err := sdns.ClearCache()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -75,22 +72,20 @@ func handleClearCache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Cache cleared successfully",
 	})
 }
 
-// handleClearCacheByDomain 处理按域名清除缓存的请求
-func handleClearCacheByDomain(w http.ResponseWriter, r *http.Request, domain string) {
+// handleClearCacheByDomainGin 处理按域名清除缓存的请求
+func handleClearCacheByDomainGin(c *gin.Context, domain string) {
 	// 执行按域名清除缓存操作
 	err := sdns.ClearCacheByDomain(domain)
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -98,8 +93,7 @@ func handleClearCacheByDomain(w http.ResponseWriter, r *http.Request, domain str
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Cache cleared successfully for domain: " + domain,
 		"domain":  domain,

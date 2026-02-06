@@ -3,102 +3,102 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"SteadyDNS/core/bind"
+
+	"github.com/gin-gonic/gin"
 )
 
-// BindServerAPIHandler 处理BIND服务器管理API请求
-func BindServerAPIHandler(w http.ResponseWriter, r *http.Request) {
+// BindServerAPIHandlerGin 处理BIND服务器管理API请求（Gin版本）
+func BindServerAPIHandlerGin(c *gin.Context) {
 	// 应用认证中间件
-	authHandler := AuthMiddleware(bindServerHandler)
-	authHandler(w, r)
+	authHandler := AuthMiddlewareGin(bindServerHandlerGin)
+	authHandler(c)
 }
 
-// bindServerHandler BIND服务器管理API处理函数
-func bindServerHandler(w http.ResponseWriter, r *http.Request) {
+// bindServerHandlerGin BIND服务器管理API处理函数（Gin版本）
+func bindServerHandlerGin(c *gin.Context) {
 	// 获取BIND管理器实例
 	bindManager := bind.NewBindManager()
 
 	// 解析请求路径
-	path := strings.TrimPrefix(r.URL.Path, "/api/bind-server/")
+	path := strings.TrimPrefix(c.Request.URL.Path, "/api/bind-server/")
 
 	// 根据请求路径和方法处理不同的API端点
 	switch {
-	case path == "status" && r.Method == http.MethodGet:
+	case path == "status" && c.Request.Method == http.MethodGet:
 		// 获取BIND服务器状态
-		handleBindServerStatus(w, r, bindManager)
+		handleBindServerStatusGin(c, bindManager)
 
-	case path == "start" && r.Method == http.MethodPost:
+	case path == "start" && c.Request.Method == http.MethodPost:
 		// 启动BIND服务器
-		handleBindServerAction(w, r, bindManager, "start")
+		handleBindServerActionGin(c, bindManager, "start")
 
-	case path == "stop" && r.Method == http.MethodPost:
+	case path == "stop" && c.Request.Method == http.MethodPost:
 		// 停止BIND服务器
-		handleBindServerAction(w, r, bindManager, "stop")
+		handleBindServerActionGin(c, bindManager, "stop")
 
-	case path == "restart" && r.Method == http.MethodPost:
+	case path == "restart" && c.Request.Method == http.MethodPost:
 		// 重启BIND服务器
-		handleBindServerAction(w, r, bindManager, "restart")
+		handleBindServerActionGin(c, bindManager, "restart")
 
-	case path == "reload" && r.Method == http.MethodPost:
+	case path == "reload" && c.Request.Method == http.MethodPost:
 		// 重载BIND服务器
-		handleBindServerAction(w, r, bindManager, "reload")
+		handleBindServerActionGin(c, bindManager, "reload")
 
-	case path == "stats" && r.Method == http.MethodGet:
+	case path == "stats" && c.Request.Method == http.MethodGet:
 		// 获取BIND服务器统计信息
-		handleBindServerStats(w, r, bindManager)
+		handleBindServerStatsGin(c, bindManager)
 
-	case path == "health" && r.Method == http.MethodGet:
+	case path == "health" && c.Request.Method == http.MethodGet:
 		// 检查BIND服务健康状态
-		handleBindServerHealth(w, r, bindManager)
+		handleBindServerHealthGin(c, bindManager)
 
-	case path == "validate" && r.Method == http.MethodPost:
+	case path == "validate" && c.Request.Method == http.MethodPost:
 		// 验证BIND配置
-		handleBindServerValidate(w, r, bindManager)
+		handleBindServerValidateGin(c, bindManager)
 
-	case path == "config" && r.Method == http.MethodGet:
+	case path == "config" && c.Request.Method == http.MethodGet:
 		// 获取BIND配置
-		handleBindServerConfig(w, r, bindManager)
+		handleBindServerConfigGin(c, bindManager)
 
-	case path == "named-conf/content" && r.Method == http.MethodGet:
+	case path == "named-conf/content" && c.Request.Method == http.MethodGet:
 		// 获取 named.conf 文件内容
-		handleGetNamedConfContent(w, r, bindManager)
+		handleGetNamedConfContentGin(c, bindManager)
 
-	case path == "named-conf" && r.Method == http.MethodPut:
+	case path == "named-conf" && c.Request.Method == http.MethodPut:
 		// 更新 named.conf 文件内容
-		handleUpdateNamedConfContent(w, r, bindManager)
+		handleUpdateNamedConfContentGin(c, bindManager)
 
-	case path == "named-conf/validate" && r.Method == http.MethodPost:
+	case path == "named-conf/validate" && c.Request.Method == http.MethodPost:
 		// 验证 named.conf 配置内容
-		handleValidateNamedConfContent(w, r, bindManager)
+		handleValidateNamedConfContentGin(c, bindManager)
 
-	case path == "named-conf/diff" && r.Method == http.MethodPost:
+	case path == "named-conf/diff" && c.Request.Method == http.MethodPost:
 		// 获取配置差异
-		handleDiffNamedConf(w, r, bindManager)
+		handleDiffNamedConfGin(c, bindManager)
 
-	case path == "named-conf/parse" && r.Method == http.MethodGet:
+	case path == "named-conf/parse" && c.Request.Method == http.MethodGet:
 		// 解析 named.conf 配置结构
-		handleParseNamedConf(w, r, bindManager)
+		handleParseNamedConfGin(c, bindManager)
 
 	default:
 		// 未找到的API端点
-		http.Error(w, "Not Found", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found"})
 	}
 }
 
-// handleBindServerStatus 处理获取BIND服务器状态的请求
-func handleBindServerStatus(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleBindServerStatusGin 处理获取BIND服务器状态的请求（Gin版本）
+func handleBindServerStatusGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 获取BIND服务器状态
 	status, err := bindManager.GetBindStatus()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -106,8 +106,7 @@ func handleBindServerStatus(w http.ResponseWriter, r *http.Request, bindManager 
 	}
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": map[string]string{
 			"status": status,
@@ -115,8 +114,8 @@ func handleBindServerStatus(w http.ResponseWriter, r *http.Request, bindManager 
 	})
 }
 
-// handleBindServerAction 处理BIND服务器操作的请求
-func handleBindServerAction(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager, action string) {
+// handleBindServerActionGin 处理BIND服务器操作的请求（Gin版本）
+func handleBindServerActionGin(c *gin.Context, bindManager *bind.BindManager, action string) {
 	var err error
 
 	// 根据操作类型执行相应的操作
@@ -130,14 +129,13 @@ func handleBindServerAction(w http.ResponseWriter, r *http.Request, bindManager 
 	case "reload":
 		err = bindManager.ReloadBind()
 	default:
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action"})
 		return
 	}
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -145,22 +143,20 @@ func handleBindServerAction(w http.ResponseWriter, r *http.Request, bindManager 
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "BIND server " + action + "ed successfully",
 	})
 }
 
-// handleBindServerStats 处理获取BIND服务器统计信息的请求
-func handleBindServerStats(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleBindServerStatsGin 处理获取BIND服务器统计信息的请求（Gin版本）
+func handleBindServerStatsGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 获取BIND服务器统计信息
 	stats, err := bindManager.GetBindStats()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -168,22 +164,20 @@ func handleBindServerStats(w http.ResponseWriter, r *http.Request, bindManager *
 	}
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    stats,
 	})
 }
 
-// handleBindServerHealth 处理检查BIND服务健康状态的请求
-func handleBindServerHealth(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleBindServerHealthGin 处理检查BIND服务健康状态的请求（Gin版本）
+func handleBindServerHealthGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 检查BIND服务健康状态
 	health, err := bindManager.CheckBindHealth()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -191,22 +185,20 @@ func handleBindServerHealth(w http.ResponseWriter, r *http.Request, bindManager 
 	}
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    health,
 	})
 }
 
-// handleBindServerValidate 处理验证BIND配置的请求
-func handleBindServerValidate(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleBindServerValidateGin 处理验证BIND配置的请求（Gin版本）
+func handleBindServerValidateGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 验证BIND配置
 	err := bindManager.ValidateConfig()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -214,22 +206,20 @@ func handleBindServerValidate(w http.ResponseWriter, r *http.Request, bindManage
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "BIND configuration validated successfully",
 	})
 }
 
-// handleBindServerConfig 处理获取BIND配置的请求
-func handleBindServerConfig(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleBindServerConfigGin 处理获取BIND配置的请求（Gin版本）
+func handleBindServerConfigGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 获取BIND配置
 	config, err := bindManager.GetBindConfig()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -237,22 +227,20 @@ func handleBindServerConfig(w http.ResponseWriter, r *http.Request, bindManager 
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    config,
 	})
 }
 
-// handleGetNamedConfContent 处理获取 named.conf 文件内容的请求
-func handleGetNamedConfContent(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleGetNamedConfContentGin 处理获取 named.conf 文件内容的请求（Gin版本）
+func handleGetNamedConfContentGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 获取 named.conf 文件内容
 	content, err := bindManager.GetNamedConfContent()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -260,8 +248,7 @@ func handleGetNamedConfContent(w http.ResponseWriter, r *http.Request, bindManag
 	}
 
 	// 返回 JSON 响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": map[string]string{
 			"content": content,
@@ -269,16 +256,14 @@ func handleGetNamedConfContent(w http.ResponseWriter, r *http.Request, bindManag
 	})
 }
 
-// handleUpdateNamedConfContent 处理更新 named.conf 文件内容的请求
-func handleUpdateNamedConfContent(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleUpdateNamedConfContentGin 处理更新 named.conf 文件内容的请求（Gin版本）
+func handleUpdateNamedConfContentGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 解析请求体
 	var request struct {
 		Content string `json:"content"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&request); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "无效的请求体",
 		})
@@ -287,8 +272,7 @@ func handleUpdateNamedConfContent(w http.ResponseWriter, r *http.Request, bindMa
 
 	// 验证输入
 	if request.Content == "" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "配置内容不能为空",
 		})
@@ -297,8 +281,7 @@ func handleUpdateNamedConfContent(w http.ResponseWriter, r *http.Request, bindMa
 
 	// 更新 named.conf 文件内容
 	if err := bindManager.UpdateNamedConfContent(request.Content); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -306,23 +289,20 @@ func handleUpdateNamedConfContent(w http.ResponseWriter, r *http.Request, bindMa
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "named.conf 配置文件更新成功",
 	})
 }
 
-// handleValidateNamedConfContent 处理验证 named.conf 配置内容的请求
-func handleValidateNamedConfContent(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleValidateNamedConfContentGin 处理验证 named.conf 配置内容的请求（Gin版本）
+func handleValidateNamedConfContentGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 解析请求体
 	var request struct {
 		Content string `json:"content"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&request); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "无效的请求体",
 		})
@@ -331,8 +311,7 @@ func handleValidateNamedConfContent(w http.ResponseWriter, r *http.Request, bind
 
 	// 验证输入
 	if request.Content == "" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "配置内容不能为空",
 		})
@@ -342,8 +321,7 @@ func handleValidateNamedConfContent(w http.ResponseWriter, r *http.Request, bind
 	// 验证配置内容
 	validationResult, err := bindManager.ValidateNamedConfContent(request.Content)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -351,24 +329,21 @@ func handleValidateNamedConfContent(w http.ResponseWriter, r *http.Request, bind
 	}
 
 	// 返回验证结果
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": validationResult.Valid,
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
 		"data":    validationResult,
 	})
 }
 
-// handleDiffNamedConf 处理获取配置差异的请求
-func handleDiffNamedConf(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleDiffNamedConfGin 处理获取配置差异的请求（Gin版本）
+func handleDiffNamedConfGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 解析请求体
 	var request struct {
 		OldContent string `json:"oldContent"`
 		NewContent string `json:"newContent"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&request); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "无效的请求体",
 		})
@@ -377,8 +352,7 @@ func handleDiffNamedConf(w http.ResponseWriter, r *http.Request, bindManager *bi
 
 	// 验证输入
 	if request.OldContent == "" || request.NewContent == "" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "旧内容和新内容不能为空",
 		})
@@ -393,22 +367,20 @@ func handleDiffNamedConf(w http.ResponseWriter, r *http.Request, bindManager *bi
 		diffResult.Stats.Unchanged, diffResult.Stats.Added, diffResult.Stats.Removed, diffResult.Stats.Total)
 
 	// 返回差异结果
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    diffResult,
 	})
 }
 
-// handleParseNamedConf 处理解析 named.conf 配置结构的请求
-func handleParseNamedConf(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+// handleParseNamedConfGin 处理解析 named.conf 配置结构的请求（Gin版本）
+func handleParseNamedConfGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 解析 named.conf 文件
 	config, err := bindManager.ParseNamedConf()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -416,8 +388,7 @@ func handleParseNamedConf(w http.ResponseWriter, r *http.Request, bindManager *b
 	}
 
 	// 返回解析结果
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    config,
 	})

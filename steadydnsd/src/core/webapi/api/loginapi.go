@@ -3,12 +3,13 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"SteadyDNS/core/database"
 	"SteadyDNS/core/webapi/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
 // User 用户模型
@@ -37,39 +38,36 @@ type LoginResponse struct {
 var jwtManager = middleware.GetJWTManager()
 
 // LoginHandler 处理登录请求
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+func LoginHandler(c *gin.Context) {
 	// 只接受POST请求
-	if r.Method != http.MethodPost {
-		middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+	if c.Request.Method != http.MethodPost {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 		return
 	}
 
 	var req LoginRequest
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
-		middleware.SendErrorResponse(w, "无效的请求体", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求体"})
 		return
 	}
 
 	// 验证输入
 	if req.Username == "" || req.Password == "" {
-		middleware.SendErrorResponse(w, "用户名和密码不能为空", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名和密码不能为空"})
 		return
 	}
 
 	// 使用数据库验证用户凭据
 	user, valid := database.ValidateUserWithDB(req.Username, req.Password)
 	if !valid {
-		middleware.SendErrorResponse(w, "用户名或密码错误", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户名或密码错误"})
 		return
 	}
 
 	// 生成JWT token
 	accessToken, refreshToken, err := jwtManager.GenerateToken(user)
 	if err != nil {
-		middleware.SendErrorResponse(w, "生成token失败", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
 	}
 
@@ -88,7 +86,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 返回成功响应
-	middleware.SendSuccessResponse(w, resp, "登录成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": resp, "message": "登录成功"})
 }
 
 // LogoutRequest 登出请求结构体
@@ -97,26 +95,23 @@ type LogoutRequest struct {
 }
 
 // LogoutHandler 处理登出请求
-func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+func LogoutHandler(c *gin.Context) {
 	// 只接受POST请求
-	if r.Method != http.MethodPost {
-		middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+	if c.Request.Method != http.MethodPost {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 		return
 	}
 
 	var req LogoutRequest
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
-		middleware.SendErrorResponse(w, "无效的请求体", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求体"})
 		return
 	}
 
 	// 验证刷新令牌
 	_, valid := middleware.ValidateRefreshToken(req.RefreshToken)
 	if !valid {
-		middleware.SendErrorResponse(w, "无效的刷新令牌", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的刷新令牌"})
 		return
 	}
 
@@ -124,5 +119,5 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	delete(jwtManager.RefreshTokens, req.RefreshToken)
 
 	// 返回成功响应
-	middleware.SendSuccessResponse(w, nil, "登出成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "登出成功"})
 }

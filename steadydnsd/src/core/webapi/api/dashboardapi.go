@@ -12,66 +12,65 @@ import (
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/database"
 	"SteadyDNS/core/sdns"
-	"SteadyDNS/core/webapi/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
-// DashboardAPIHandler 处理dashboard相关的API请求
-func DashboardAPIHandler(w http.ResponseWriter, r *http.Request) {
+// DashboardAPIHandlerGin 处理dashboard相关的API请求（Gin版本）
+func DashboardAPIHandlerGin(c *gin.Context) {
 	// 应用认证中间件
-	authHandler := AuthMiddleware(dashboardHandler)
-	authHandler(w, r)
+	authHandler := AuthMiddlewareGin(dashboardHandlerGin)
+	authHandler(c)
 }
 
-// dashboardHandler 实际处理dashboard请求的函数
-func dashboardHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+// dashboardHandlerGin 实际处理dashboard请求的函数（Gin版本）
+func dashboardHandlerGin(c *gin.Context) {
 	// 获取路径参数
-	path := r.URL.Path
+	path := c.Request.URL.Path
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	// 检查路径长度
 	if len(parts) < 2 || parts[0] != "api" || parts[1] != "dashboard" {
-		middleware.SendErrorResponse(w, "无效的API端点", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "无效的API端点"})
 		return
 	}
 
 	switch len(parts) {
 	case 2: // /api/dashboard
-		switch r.Method {
+		switch c.Request.Method {
 		case http.MethodGet:
-			middleware.SendErrorResponse(w, "需要指定具体的dashboard API端点", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "需要指定具体的dashboard API端点"})
 			return
 		default:
-			middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 			return
 		}
 	case 3: // /api/dashboard/{endpoint}
 		endpoint := parts[2]
 		switch endpoint {
 		case "summary":
-			if r.Method == http.MethodGet {
-				getDashboardSummary(w, r)
+			if c.Request.Method == http.MethodGet {
+				getDashboardSummaryGin(c)
 				return
 			}
 		case "trends":
-			if r.Method == http.MethodGet {
-				getDashboardTrends(w, r)
+			if c.Request.Method == http.MethodGet {
+				getDashboardTrendsGin(c)
 				return
 			}
 		case "top":
-			if r.Method == http.MethodGet {
-				getDashboardTop(w, r)
+			if c.Request.Method == http.MethodGet {
+				getDashboardTopGin(c)
 				return
 			}
 		default:
-			middleware.SendErrorResponse(w, "无效的dashboard API端点", http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": "无效的dashboard API端点"})
 			return
 		}
-		middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 		return
 	default:
-		middleware.SendErrorResponse(w, "无效的API端点", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "无效的API端点"})
 		return
 	}
 }
@@ -171,8 +170,8 @@ type DashboardTopResponse struct {
 	TopClients []TopClient `json:"topClients"`
 }
 
-// getDashboardSummary 获取dashboard综合数据
-func getDashboardSummary(w http.ResponseWriter, r *http.Request) {
+// getDashboardSummaryGin 获取dashboard综合数据（Gin版本）
+func getDashboardSummaryGin(c *gin.Context) {
 	// 获取系统概览统计
 	systemStats := getSystemStats()
 
@@ -194,13 +193,17 @@ func getDashboardSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 发送成功响应
-	middleware.SendSuccessResponse(w, response, "获取dashboard综合数据成功")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    response,
+		"message": "获取dashboard综合数据成功",
+	})
 }
 
-// getDashboardTrends 获取dashboard趋势数据
-func getDashboardTrends(w http.ResponseWriter, r *http.Request) {
+// getDashboardTrendsGin 获取dashboard趋势数据（Gin版本）
+func getDashboardTrendsGin(c *gin.Context) {
 	// 获取时间范围参数
-	timeRange := r.URL.Query().Get("timeRange")
+	timeRange := c.Query("timeRange")
 	if timeRange == "" {
 		timeRange = "1h"
 	}
@@ -222,13 +225,17 @@ func getDashboardTrends(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 发送成功响应
-	middleware.SendSuccessResponse(w, response, "获取dashboard趋势数据成功")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    response,
+		"message": "获取dashboard趋势数据成功",
+	})
 }
 
-// getDashboardTop 获取dashboard排行榜数据
-func getDashboardTop(w http.ResponseWriter, r *http.Request) {
+// getDashboardTopGin 获取dashboard排行榜数据（Gin版本）
+func getDashboardTopGin(c *gin.Context) {
 	// 获取限制参数
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := c.Query("limit")
 	limit := 10
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -249,7 +256,11 @@ func getDashboardTop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 发送成功响应
-	middleware.SendSuccessResponse(w, response, "获取dashboard排行榜数据成功")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    response,
+		"message": "获取dashboard排行榜数据成功",
+	})
 }
 
 // getSystemStats 获取系统概览统计

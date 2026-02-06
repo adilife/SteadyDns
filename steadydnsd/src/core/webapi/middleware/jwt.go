@@ -5,13 +5,13 @@ package middleware
 import (
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/database"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -247,40 +247,37 @@ type RefreshTokenRequest struct {
 }
 
 // RefreshTokenHandler 处理令牌刷新请求
-func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+func RefreshTokenHandler(c *gin.Context) {
 	// 只接受POST请求
-	if r.Method != http.MethodPost {
-		SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+	if c.Request.Method != http.MethodPost {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 		return
 	}
 
 	var req RefreshTokenRequest
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
-		SendErrorResponse(w, "无效的请求体", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求体"})
 		return
 	}
 
 	// 验证刷新令牌
 	userID, valid := ValidateRefreshToken(req.RefreshToken)
 	if !valid {
-		SendErrorResponse(w, "无效的刷新令牌", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的刷新令牌"})
 		return
 	}
 
 	// 获取用户信息
 	user, err := database.GetUserByID(userID)
 	if err != nil {
-		SendErrorResponse(w, "用户不存在", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
 	}
 
 	// 生成新的访问令牌和刷新令牌
 	accessToken, refreshToken, err := jwtManager.GenerateToken(user)
 	if err != nil {
-		SendErrorResponse(w, "生成token失败", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
 	}
 
@@ -302,7 +299,7 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 返回成功响应
-	SendSuccessResponse(w, resp, "令牌刷新成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": resp, "message": "令牌刷新成功"})
 }
 
 // ValidateRefreshToken 验证刷新令牌

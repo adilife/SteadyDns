@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -47,19 +46,10 @@ func main() {
 		logger.Info("数据库文件已存在，使用现有数据库")
 	}
 
-	// 启动DNS服务器
-	logger.Info("启动DNS服务器...")
 	// 获取ServerManager实例
 	serverManager := api.GetServerManager()
 	if err := serverManager.StartDNSServer(); err != nil {
 		log.Fatalf("DNS服务器启动失败: %v", err)
-	} else {
-		// 检查DNS服务器是否正在运行
-		if serverManager.IsDNSServerRunning() {
-			logger.Info("DNS服务器启动成功")
-		} else {
-			logger.Warn("DNS服务器已启动，但状态检查显示未运行，可能存在启动问题")
-		}
 	}
 
 	// 检查并启动BIND服务
@@ -70,16 +60,8 @@ func main() {
 		logger.Info("BIND服务状态检查完成")
 	}
 
-	// 创建一个新的 ServeMux
-	mux := http.NewServeMux()
-
-	// 设置路由
-	api.SetupRoutes(mux)
-
 	// 获取服务器管理器实例
 	httpServerInstance := api.GetHTTPServer()
-	// 设置HTTP处理器
-	httpServerInstance.SetHandler(mux)
 
 	// 启动HTTP服务器
 	if err := httpServerInstance.Start(); err != nil {

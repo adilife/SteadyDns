@@ -6,9 +6,10 @@ import (
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/sdns"
 
-	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ServerManager 服务器管理器
@@ -34,16 +35,8 @@ func GetServerManager() *ServerManager {
 	return globalServerManager
 }
 
-// SetHTTPServer 设置HTTP服务器实例
-func (sm *ServerManager) SetHTTPServer(server *http.Server) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	httpServer.SetServer(server)
-}
-
-// SetHTTPHandler 设置HTTP处理器
-func (sm *ServerManager) SetHTTPHandler(handler http.Handler) {
+// SetHTTPHandlerGin 设置HTTP处理器
+func (sm *ServerManager) SetHTTPHandlerGin(handler *gin.Engine) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

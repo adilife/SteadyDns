@@ -4,10 +4,10 @@
 package api
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 
 	"SteadyDNS/core/bind"
 	"SteadyDNS/core/common"
@@ -35,18 +35,18 @@ func initBindManager() {
 	}
 }
 
-// BindAPIHandler BIND权威域API请求处理函数
-func BindAPIHandler(w http.ResponseWriter, r *http.Request) {
+// BindAPIHandlerGin BIND权威域API请求处理函数
+func BindAPIHandlerGin(c *gin.Context) {
 	// 记录API请求信息
 	apiLogger.Debug("API请求: %s %s, 客户端IP: %s",
-		r.Method, r.URL.Path, r.RemoteAddr)
+		c.Request.Method, c.Request.URL.Path, c.ClientIP())
 
 	// 初始化BIND管理器
 	initBindManager()
 
 	// 获取路径参数
-	path := r.URL.Path
-	method := r.Method
+	path := c.Request.URL.Path
+	method := c.Request.Method
 
 	// 解析域名参数
 	domain := ""
@@ -63,51 +63,51 @@ func BindAPIHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		if domain == "" {
 			// 获取所有权威域
-			GetBindZones(w, r)
+			GetBindZonesGin(c)
 		} else if domain == "history" {
 			// 获取操作历史
-			GetBindHistory(w, r)
+			GetBindHistoryGin(c)
 		} else {
 			// 获取单个权威域
-			GetBindZone(w, r, domain)
+			GetBindZoneGin(c, domain)
 		}
 	case http.MethodPost:
 		if domain == "" {
 			// 创建权威域
-			CreateBindZone(w, r)
+			CreateBindZoneGin(c)
 		} else if strings.HasSuffix(domain, "/reload") {
 			// 刷新权威域
 			domain = strings.TrimSuffix(domain, "/reload")
-			ReloadBindZone(w, r, domain)
+			ReloadBindZoneGin(c, domain)
 		} else if strings.HasPrefix(domain, "history/") {
 			// 恢复历史记录
 			historyID := strings.TrimPrefix(domain, "history/")
-			RestoreBindHistory(w, r, historyID)
+			RestoreBindHistoryGin(c, historyID)
 		} else {
 			// 不支持的POST请求
-			http.Error(w, "不支持的请求", http.StatusMethodNotAllowed)
+			c.JSON(http.StatusMethodNotAllowed, gin.H{"success": false, "error": "不支持的请求"})
 		}
 	case http.MethodPut:
 		if domain != "" {
 			// 更新权威域
-			UpdateBindZone(w, r, domain)
+			UpdateBindZoneGin(c, domain)
 		} else {
-			http.Error(w, "缺少域名参数", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "缺少域名参数"})
 		}
 	case http.MethodDelete:
 		if domain != "" {
 			// 删除权威域
-			DeleteBindZone(w, r, domain)
+			DeleteBindZoneGin(c, domain)
 		} else {
-			http.Error(w, "缺少域名参数", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "缺少域名参数"})
 		}
 	default:
-		http.Error(w, "不支持的请求方法", http.StatusMethodNotAllowed)
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"success": false, "error": "不支持的请求方法"})
 	}
 }
 
-// GetBindZones 获取所有权威域
-func GetBindZones(w http.ResponseWriter, r *http.Request) {
+// GetBindZonesGin 获取所有权威域
+func GetBindZonesGin(c *gin.Context) {
 	apiLogger.Debug("获取所有权威域请求")
 	// 初始化BIND管理器
 	initBindManager()
@@ -115,16 +115,22 @@ func GetBindZones(w http.ResponseWriter, r *http.Request) {
 	// 获取所有权威域
 	zones, err := bindManager.GetAuthZones()
 	if err != nil {
-		SendErrorResponse(w, http.StatusInternalServerError, "获取权威域列表失败: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "获取权威域列表失败: " + err.Error(),
+		})
 		return
 	}
 
 	// 返回成功响应
-	SendSuccessResponse(w, zones)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    zones,
+	})
 }
 
-// GetBindZone 获取单个权威域
-func GetBindZone(w http.ResponseWriter, r *http.Request, domain string) {
+// GetBindZoneGin 获取单个权威域
+func GetBindZoneGin(c *gin.Context, domain string) {
 	apiLogger.Debug("获取单个权威域请求，域名: %s", domain)
 	// 初始化BIND管理器
 	initBindManager()
@@ -132,38 +138,42 @@ func GetBindZone(w http.ResponseWriter, r *http.Request, domain string) {
 	// 获取权威域
 	zone, err := bindManager.GetAuthZone(domain)
 	if err != nil {
-		SendErrorResponse(w, http.StatusNotFound, "权威域不存在: "+err.Error())
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "权威域不存在: " + err.Error(),
+		})
 		return
 	}
 
 	// 返回成功响应
-	SendSuccessResponse(w, zone)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    zone,
+	})
 }
 
-// CreateBindZone 创建权威域
-func CreateBindZone(w http.ResponseWriter, r *http.Request) {
+// CreateBindZoneGin 创建权威域
+func CreateBindZoneGin(c *gin.Context) {
 	apiLogger.Debug("创建权威域请求")
 	// 初始化BIND管理器
 	initBindManager()
 
 	// 读取请求体
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		SendErrorResponse(w, http.StatusBadRequest, "读取请求体失败: "+err.Error())
-		return
-	}
-	defer r.Body.Close()
-
-	// 直接解析请求体到AuthZone结构体
 	var zone bind.AuthZone
-	if err := json.Unmarshal(body, &zone); err != nil {
-		SendErrorResponse(w, http.StatusBadRequest, "解析请求体失败: "+err.Error())
+	if err := c.ShouldBindJSON(&zone); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "解析请求体失败: " + err.Error(),
+		})
 		return
 	}
 
 	// 验证必填字段
 	if zone.Domain == "" {
-		SendErrorResponse(w, http.StatusBadRequest, "缺少域名参数")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "缺少域名参数",
+		})
 		return
 	}
 
@@ -172,9 +182,15 @@ func CreateBindZone(w http.ResponseWriter, r *http.Request) {
 		errMsg := "创建权威域失败: " + err.Error()
 		// 检查是否为CNAME冲突错误，如果是则返回400状态码
 		if strings.Contains(err.Error(), "CNAME") || strings.Contains(err.Error(), "记录名称冲突") {
-			SendErrorResponse(w, http.StatusBadRequest, errMsg)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   errMsg,
+			})
 		} else {
-			SendErrorResponse(w, http.StatusInternalServerError, errMsg)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   errMsg,
+			})
 		}
 		return
 	}
@@ -183,30 +199,28 @@ func CreateBindZone(w http.ResponseWriter, r *http.Request) {
 	clearCacheAsync(zone.Domain)
 
 	// 返回成功响应
-	SendSuccessResponse(w, map[string]string{
-		"message": "权威域创建成功",
-		"domain":  zone.Domain,
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]string{
+			"message": "权威域创建成功",
+			"domain":  zone.Domain,
+		},
 	})
 }
 
-// UpdateBindZone 更新权威域
-func UpdateBindZone(w http.ResponseWriter, r *http.Request, domain string) {
+// UpdateBindZoneGin 更新权威域
+func UpdateBindZoneGin(c *gin.Context, domain string) {
 	apiLogger.Debug("更新权威域请求，域名: %s", domain)
 	// 初始化BIND管理器
 	initBindManager()
 
 	// 读取请求体
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		SendErrorResponse(w, http.StatusBadRequest, "读取请求体失败: "+err.Error())
-		return
-	}
-	defer r.Body.Close()
-
-	// 直接解析请求体到AuthZone结构体
 	var zone bind.AuthZone
-	if err := json.Unmarshal(body, &zone); err != nil {
-		SendErrorResponse(w, http.StatusBadRequest, "解析请求体失败: "+err.Error())
+	if err := c.ShouldBindJSON(&zone); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "解析请求体失败: " + err.Error(),
+		})
 		return
 	}
 
@@ -218,9 +232,15 @@ func UpdateBindZone(w http.ResponseWriter, r *http.Request, domain string) {
 		errMsg := "更新权威域失败: " + err.Error()
 		// 检查是否为CNAME冲突错误，如果是则返回400状态码
 		if strings.Contains(err.Error(), "CNAME") || strings.Contains(err.Error(), "记录名称冲突") {
-			SendErrorResponse(w, http.StatusBadRequest, errMsg)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   errMsg,
+			})
 		} else {
-			SendErrorResponse(w, http.StatusInternalServerError, errMsg)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   errMsg,
+			})
 		}
 		return
 	}
@@ -229,21 +249,27 @@ func UpdateBindZone(w http.ResponseWriter, r *http.Request, domain string) {
 	clearCacheAsync(zone.Domain)
 
 	// 返回成功响应
-	SendSuccessResponse(w, map[string]string{
-		"message": "权威域更新成功",
-		"domain":  zone.Domain,
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]string{
+			"message": "权威域更新成功",
+			"domain":  zone.Domain,
+		},
 	})
 }
 
-// DeleteBindZone 删除权威域
-func DeleteBindZone(w http.ResponseWriter, r *http.Request, domain string) {
+// DeleteBindZoneGin 删除权威域
+func DeleteBindZoneGin(c *gin.Context, domain string) {
 	apiLogger.Debug("删除权威域请求，域名: %s", domain)
 	// 初始化BIND管理器
 	initBindManager()
 
 	// 删除权威域
 	if err := bindManager.DeleteAuthZone(domain); err != nil {
-		SendErrorResponse(w, http.StatusInternalServerError, "删除权威域失败: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "删除权威域失败: " + err.Error(),
+		})
 		return
 	}
 
@@ -251,33 +277,42 @@ func DeleteBindZone(w http.ResponseWriter, r *http.Request, domain string) {
 	clearCacheAsync(domain)
 
 	// 返回成功响应
-	SendSuccessResponse(w, map[string]string{
-		"message": "权威域删除成功",
-		"domain":  domain,
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]string{
+			"message": "权威域删除成功",
+			"domain":  domain,
+		},
 	})
 }
 
-// ReloadBindZone 刷新权威域
-func ReloadBindZone(w http.ResponseWriter, r *http.Request, domain string) {
+// ReloadBindZoneGin 刷新权威域
+func ReloadBindZoneGin(c *gin.Context, domain string) {
 	apiLogger.Debug("刷新权威域请求，域名: %s", domain)
 	// 初始化BIND管理器
 	initBindManager()
 
 	// 刷新BIND服务器
 	if err := bindManager.ReloadBind(); err != nil {
-		SendErrorResponse(w, http.StatusInternalServerError, "刷新BIND服务器失败: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "刷新BIND服务器失败: " + err.Error(),
+		})
 		return
 	}
 
 	// 返回成功响应
-	SendSuccessResponse(w, map[string]string{
-		"message": "BIND服务器刷新成功",
-		"domain":  domain,
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]string{
+			"message": "BIND服务器刷新成功",
+			"domain":  domain,
+		},
 	})
 }
 
-// GetBindHistory 获取操作历史
-func GetBindHistory(w http.ResponseWriter, r *http.Request) {
+// GetBindHistoryGin 获取操作历史
+func GetBindHistoryGin(c *gin.Context) {
 	apiLogger.Debug("获取操作历史请求")
 	// 初始化BIND管理器
 	initBindManager()
@@ -286,57 +321,24 @@ func GetBindHistory(w http.ResponseWriter, r *http.Request) {
 	history, _ := bindManager.HistoryMgr.GetHistoryRecords()
 
 	// 返回成功响应
-	SendSuccessResponse(w, history)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    history,
+	})
 }
 
-// RestoreBindHistory 恢复历史记录
-func RestoreBindHistory(w http.ResponseWriter, r *http.Request, historyID string) {
+// RestoreBindHistoryGin 恢复历史记录
+func RestoreBindHistoryGin(c *gin.Context, historyID string) {
 	apiLogger.Debug("恢复历史记录请求，历史ID: %s", historyID)
 	// 初始化BIND管理器
 	initBindManager()
 
 	// 返回成功响应（暂时不实现具体的恢复逻辑）
-	SendSuccessResponse(w, map[string]string{
-		"message":    "历史记录恢复功能暂未实现",
-		"history_id": historyID,
-	})
-}
-
-// SendSuccessResponse 发送成功响应
-func SendSuccessResponse(w http.ResponseWriter, data interface{}) {
-	apiLogger.Debug("API响应成功")
-	response := map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data":    data,
-	}
-
-	// 设置响应头
-	w.Header().Set("Content-Type", "application/json")
-
-	// 编码响应
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "编码响应失败: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-// SendErrorResponse 发送错误响应
-func SendErrorResponse(w http.ResponseWriter, statusCode int, message string) {
-	apiLogger.Debug("API响应错误，状态码: %d, 错误信息: %s", statusCode, message)
-	response := map[string]interface{}{
-		"success": false,
-		"error":   message,
-	}
-
-	// 设置响应头
-	w.Header().Set("Content-Type", "application/json")
-
-	// 设置状态码
-	w.WriteHeader(statusCode)
-
-	// 编码响应
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "编码响应失败: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+		"data": map[string]string{
+			"message":    "历史记录恢复功能暂未实现",
+			"history_id": historyID,
+		},
+	})
 }
