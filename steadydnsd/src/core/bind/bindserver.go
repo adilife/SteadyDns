@@ -6,9 +6,13 @@ package bind
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"SteadyDNS/core/bind/namedconf"
 )
 
 // ReloadBind 刷新BIND服务器配置
@@ -728,49 +732,192 @@ func (bm *BindManager) GetBindConfig() (map[string]string, error) {
 	return config, nil
 }
 
-// UpdateBindConfig 更新BIND配置
-func (bm *BindManager) UpdateBindConfig(config map[string]string) error {
+// GetNamedConfPath 获取 named.conf 文件路径
+func (bm *BindManager) GetNamedConfPath() string {
+	return filepath.Join(bm.config.NamedConfPath, "named.conf")
+}
+
+// GetNamedConfContent 读取 named.conf 文件内容
+func (bm *BindManager) GetNamedConfContent() (string, error) {
 	// 记录方法调用
-	bm.logger.Debug("更新BIND配置")
+	bm.logger.Debug("读取 named.conf 文件内容")
 
-	// 更新配置实例中的BIND相关配置
-	if value, ok := config["BIND_ADDRESS"]; ok {
-		bm.config.Address = value
-	}
-	if value, ok := config["RNDC_KEY"]; ok {
-		bm.config.RNDCKey = value
-	}
-	if value, ok := config["ZONE_FILE_PATH"]; ok {
-		bm.config.ZoneFilePath = value
-	}
-	if value, ok := config["NAMED_CONF_PATH"]; ok {
-		bm.config.NamedConfPath = value
-	}
-	if value, ok := config["RNDC_PORT"]; ok {
-		bm.config.RNDPort = value
-	}
-	if value, ok := config["BIND_USER"]; ok {
-		bm.config.BindUser = value
-	}
-	if value, ok := config["BIND_GROUP"]; ok {
-		bm.config.BindGroup = value
-	}
-	if value, ok := config["BIND_EXEC_START"]; ok {
-		bm.config.BindExecStart = value
-	}
-	if value, ok := config["BIND_EXEC_RELOAD"]; ok {
-		bm.config.BindExecReload = value
-	}
-	if value, ok := config["BIND_EXEC_STOP"]; ok {
-		bm.config.BindExecStop = value
-	}
-	if value, ok := config["NAMED_CHECKCONF"]; ok {
-		bm.config.NamedCheckConf = value
-	}
-	if value, ok := config["NAMED_CHECKZONE"]; ok {
-		bm.config.NamedCheckZone = value
+	// 获取文件路径
+	namedConfPath := bm.GetNamedConfPath()
+
+	// 读取文件内容
+	content, err := os.ReadFile(namedConfPath)
+	if err != nil {
+		bm.logger.Error("读取 named.conf 文件失败: %v", err)
+		return "", fmt.Errorf("读取 named.conf 文件失败: %v", err)
 	}
 
-	bm.logger.Info("BIND配置更新成功")
+	bm.logger.Debug("读取 named.conf 文件内容成功")
+	return string(content), nil
+}
+
+// UpdateNamedConfContent 更新 named.conf 文件内容
+func (bm *BindManager) UpdateNamedConfContent(content string) error {
+	// 记录方法调用
+	bm.logger.Debug("更新 named.conf 文件内容")
+
+	// 获取文件路径
+	namedConfPath := bm.GetNamedConfPath()
+
+	// 获取互斥锁，实现事务性操作
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+
+	// 1. 备份原始配置
+	backupManager := namedconf.NewBackupManager("./backup", 10)
+	if _, err := backupManager.BackupFile(namedConfPath); err != nil {
+		bm.logger.Warn("备份 named.conf 文件失败: %v", err)
+		// 继续执行，不因为备份失败而中断
+	}
+
+	// 2. 生成临时文件并验证
+	validator := namedconf.NewValidator(bm.config.NamedCheckConf)
+	validationResult, err := validator.ValidateContent(content)
+	if err != nil {
+		bm.logger.Error("验证配置内容失败: %v", err)
+		return fmt.Errorf("验证配置内容失败: %v", err)
+	}
+
+	if !validationResult.Valid {
+		bm.logger.Error("配置验证失败: %s", validationResult.Error)
+		return fmt.Errorf("配置验证失败: %s", validationResult.Error)
+	}
+
+	// 3. 写入新配置
+	if err := os.WriteFile(namedConfPath, []byte(content), 0644); err != nil {
+		bm.logger.Error("写入 named.conf 文件失败: %v", err)
+		return fmt.Errorf("写入 named.conf 文件失败: %v", err)
+	}
+
+	// 4. 重载 BIND 服务
+	if err := bm.ReloadBind(); err != nil {
+		bm.logger.Error("重载 BIND 服务失败: %v", err)
+		// 不回滚，因为配置本身是有效的，只是重载失败
+	}
+
+	bm.logger.Info("更新 named.conf 文件内容成功")
 	return nil
+}
+
+// ValidateNamedConfContent 验证配置内容
+func (bm *BindManager) ValidateNamedConfContent(content string) (*namedconf.ValidationResult, error) {
+	// 记录方法调用
+	bm.logger.Debug("验证 named.conf 配置内容")
+
+	validator := namedconf.NewValidator(bm.config.NamedCheckConf)
+	result, err := validator.ValidateContent(content)
+	if err != nil {
+		bm.logger.Error("验证配置内容失败: %v", err)
+		return nil, fmt.Errorf("验证配置内容失败: %v", err)
+	}
+
+	bm.logger.Debug("验证 named.conf 配置内容完成")
+	return result, nil
+}
+
+// BackupNamedConf 备份 named.conf 文件
+func (bm *BindManager) BackupNamedConf() (*namedconf.BackupInfo, error) {
+	// 记录方法调用
+	bm.logger.Debug("备份 named.conf 文件")
+
+	// 获取文件路径
+	namedConfPath := bm.GetNamedConfPath()
+
+	backupManager := namedconf.NewBackupManager("./backup", 10)
+	backupInfo, err := backupManager.BackupFile(namedConfPath)
+	if err != nil {
+		bm.logger.Error("备份 named.conf 文件失败: %v", err)
+		return nil, fmt.Errorf("备份 named.conf 文件失败: %v", err)
+	}
+
+	bm.logger.Info("备份 named.conf 文件成功: %s", backupInfo.FilePath)
+	return backupInfo, nil
+}
+
+// GenerateTempNamedConf 生成临时配置文件
+func (bm *BindManager) GenerateTempNamedConf(content string) (string, error) {
+	// 记录方法调用
+	bm.logger.Debug("生成临时 named.conf 文件")
+
+	// 创建临时文件
+	tempFile, err := os.CreateTemp("", "named-conf-*.conf")
+	if err != nil {
+		bm.logger.Error("创建临时文件失败: %v", err)
+		return "", fmt.Errorf("创建临时文件失败: %v", err)
+	}
+	defer tempFile.Close()
+
+	// 写入内容
+	if _, err := tempFile.WriteString(content); err != nil {
+		bm.logger.Error("写入临时文件失败: %v", err)
+		return "", fmt.Errorf("写入临时文件失败: %v", err)
+	}
+
+	// 设置文件权限
+	if err := tempFile.Chmod(0644); err != nil {
+		bm.logger.Warn("设置临时文件权限失败: %v", err)
+		// 继续执行，不因为权限设置失败而中断
+	}
+
+	bm.logger.Debug("生成临时 named.conf 文件成功: %s", tempFile.Name())
+	return tempFile.Name(), nil
+}
+
+// DiffNamedConf 比较配置差异
+func (bm *BindManager) DiffNamedConf(oldContent, newContent string) *namedconf.DiffResult {
+	// 记录方法调用
+	bm.logger.Debug("比较 named.conf 配置差异")
+
+	result := namedconf.Diff(oldContent, newContent)
+
+	bm.logger.Debug("比较 named.conf 配置差异完成")
+	return result
+}
+
+// ParseNamedConf 解析 named.conf 文件
+func (bm *BindManager) ParseNamedConf() (*namedconf.ConfigElement, error) {
+	// 记录方法调用
+	bm.logger.Debug("解析 named.conf 文件")
+
+	// 获取文件路径
+	namedConfPath := bm.GetNamedConfPath()
+
+	parser := namedconf.NewParser(namedConfPath)
+	root, err := parser.Parse()
+	if err != nil {
+		bm.logger.Error("解析 named.conf 文件失败: %v", err)
+		return nil, fmt.Errorf("解析 named.conf 文件失败: %v", err)
+	}
+
+	bm.logger.Debug("解析 named.conf 文件成功")
+	return root, nil
+}
+
+// GenerateNamedConf 生成 named.conf 文件内容
+func (bm *BindManager) GenerateNamedConf(config interface{}) (string, error) {
+	// 记录方法调用
+	bm.logger.Debug("生成 named.conf 文件内容")
+
+	generator := namedconf.NewGenerator()
+	
+	// 确保 config 是 *namedconf.ConfigElement 类型
+	root, ok := config.(*namedconf.ConfigElement)
+	if !ok {
+		bm.logger.Error("无效的配置类型")
+		return "", fmt.Errorf("无效的配置类型")
+	}
+
+	content, err := generator.Generate(root)
+	if err != nil {
+		bm.logger.Error("生成 named.conf 文件内容失败: %v", err)
+		return "", fmt.Errorf("生成 named.conf 文件内容失败: %v", err)
+	}
+
+	bm.logger.Debug("生成 named.conf 文件内容成功")
+	return content, nil
 }
