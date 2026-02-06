@@ -38,7 +38,7 @@ GIN_MODE=debug
 # JWT secret key for authentication
 # Default: your-default-jwt-secret-key-change-this-in-production
 # Recommended: Use a strong, unique secret key in production
-JWT_SECRET_KEY=your_jwt_secret_key_here
+JWT_SECRET_KEY=your-default-jwt-secret-key-change-this-in-production
 # Access token expiration (minutes)
 # Default: 30, Recommended: 15-60
 ACCESS_TOKEN_EXPIRATION=30
@@ -152,9 +152,9 @@ DNS_LOG_LEVEL=DEBUG
 
 [Security]
 # DNS query rate limit per IP (queries per minute)
-# Default: 60, Recommended: 30-120
+# Default: 300, Recommended: 120-600
 # Maximum number of DNS queries allowed per IP address per minute
-DNS_RATE_LIMIT_PER_IP=60
+DNS_RATE_LIMIT_PER_IP=300
 # Global DNS query rate limit (queries per minute)
 # Default: 10000, Recommended: 5000-20000
 # Maximum number of DNS queries allowed globally per minute
@@ -348,7 +348,7 @@ func setDefaultConfig() {
 	setDefault("Logging", "QUERY_LOG_MAX_SIZE", "10")
 	setDefault("Logging", "QUERY_LOG_MAX_FILES", "10")
 	setDefault("Logging", "DNS_LOG_LEVEL", "DEBUG")
-	setDefault("Security", "DNS_RATE_LIMIT_PER_IP", "60")
+	setDefault("Security", "DNS_RATE_LIMIT_PER_IP", "300")
 	setDefault("Security", "DNS_RATE_LIMIT_GLOBAL", "10000")
 	setDefault("Security", "DNS_BAN_DURATION", "5")
 	setDefault("Security", "DNS_MESSAGE_SIZE_LIMIT", "4096")
