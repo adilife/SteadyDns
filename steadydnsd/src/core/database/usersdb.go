@@ -3,7 +3,6 @@
 package database
 
 import (
-	"SteadyDNS/core/common"
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
@@ -109,7 +108,7 @@ func ValidateUserWithDB(username, password string) (*User, bool) {
 			return nil, false
 		}
 		// 记录错误日志
-		common.NewLogger().Warn("查询用户失败: %v", err)
+		GetLogManager().logger.Warn("查询用户失败: %v", err)
 		return nil, false
 	}
 
@@ -149,7 +148,7 @@ func CreateDefaultAdminUser() error {
 	var count int64
 	DB.Model(&User{}).Where("username = ?", username).Count(&count)
 	if count > 0 {
-		common.NewLogger().Warn("管理员用户已存在")
+		GetLogManager().logger.Warn("管理员用户已存在")
 		return nil
 	}
 
@@ -164,6 +163,6 @@ func CreateDefaultAdminUser() error {
 		return fmt.Errorf("创建管理员用户失败: %v", err)
 	}
 
-	common.NewLogger().Info("默认管理员用户创建成功: %s / %s", username, password)
+	GetLogManager().logger.Info("默认管理员用户创建成功: %s / %s", username, password)
 	return nil
 }

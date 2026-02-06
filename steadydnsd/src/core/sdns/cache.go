@@ -15,7 +15,8 @@ type CacheUpdater struct {
 // NewCacheUpdater 创建缓存更新器
 func NewCacheUpdater() *CacheUpdater {
 	return &CacheUpdater{
-		cache: NewMemoryCache(),
+		cache:  NewMemoryCache(),
+		logger: common.NewLogger(),
 	}
 }
 
@@ -41,29 +42,33 @@ func (c *CacheUpdater) ClearCacheByDomain(domain string) {
 
 // ClearCache 清空缓存
 func ClearCache() error {
-	GlobalCacheUpdater.logger.Info("清空缓存...")
-
 	if GlobalCacheUpdater != nil {
+		if GlobalCacheUpdater.logger != nil {
+			GlobalCacheUpdater.logger.Info("清空缓存...")
+		}
 		GlobalCacheUpdater.cache.Clear()
-		GlobalCacheUpdater.logger.Info("缓存清空成功")
+		if GlobalCacheUpdater.logger != nil {
+			GlobalCacheUpdater.logger.Info("缓存清空成功")
+		}
 		return nil
 	}
 
-	GlobalCacheUpdater.logger.Error("缓存更新器未初始化")
 	return nil
 }
 
 // ClearCacheByDomain 按域名清空缓存
 func ClearCacheByDomain(domain string) error {
-	GlobalCacheUpdater.logger.Info("按域名清空缓存: %s", domain)
-
 	if GlobalCacheUpdater != nil {
+		if GlobalCacheUpdater.logger != nil {
+			GlobalCacheUpdater.logger.Info("按域名清空缓存: %s", domain)
+		}
 		GlobalCacheUpdater.ClearCacheByDomain(domain)
-		GlobalCacheUpdater.logger.Info("按域名清空缓存成功: %s", domain)
+		if GlobalCacheUpdater.logger != nil {
+			GlobalCacheUpdater.logger.Info("按域名清空缓存成功: %s", domain)
+		}
 		return nil
 	}
 
-	GlobalCacheUpdater.logger.Error("缓存更新器未初始化")
 	return nil
 }
 

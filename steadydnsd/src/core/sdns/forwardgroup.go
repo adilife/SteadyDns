@@ -394,3 +394,12 @@ func (f *DNSForwarder) clearMatchCache() {
 	f.matchCache = make(map[string]*cacheEntry)
 	f.logger.Debug("清除了所有域名匹配缓存")
 }
+
+// SetLogLevel 设置日志级别
+func (f *DNSForwarder) SetLogLevel(level string) {
+	// 解析日志级别
+	logLevel := common.ParseLogLevel(level)
+	// 更新内部logger的级别
+	f.logger.SetLevel(logLevel)
+	f.logger.Info("DNSForwarder日志级别设置为: %s", level)
+}

@@ -4,6 +4,8 @@ package database
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"SteadyDNS/core/common"
@@ -16,6 +18,93 @@ import (
 // DB 数据库实例
 var DB *gorm.DB
 
+// LogManager 日志管理器
+type LogManager struct {
+	logger              *common.Logger
+	gormLogger          logger.Interface
+	mutex               sync.RWMutex
+	currentGORMLogLevel logger.LogLevel
+}
+
+// 全局日志管理器实例
+var logManager *LogManager
+
+// 初始化日志管理器
+func init() {
+	logManager = &LogManager{
+		logger:              common.NewLogger(),
+		currentGORMLogLevel: logger.Silent,
+	}
+}
+
+// GetLogManager 获取日志管理器实例
+func GetLogManager() *LogManager {
+	return logManager
+}
+
+// SetGORMLogLevel 设置 GORM 日志级别
+func (lm *LogManager) SetGORMLogLevel(level logger.LogLevel) {
+	lm.mutex.Lock()
+	defer lm.mutex.Unlock()
+
+	lm.currentGORMLogLevel = level
+	lm.gormLogger = logger.Default.LogMode(level)
+
+	// 如果 DB 已初始化，更新其日志级别
+	if DB != nil {
+		// 重新设置 GORM 实例的日志
+		DB = DB.Session(&gorm.Session{
+			Logger: lm.gormLogger,
+		})
+	}
+}
+
+// GetGORMLogLevel 获取当前 GORM 日志级别
+func (lm *LogManager) GetGORMLogLevel() logger.LogLevel {
+	lm.mutex.RLock()
+	defer lm.mutex.RUnlock()
+
+	return lm.currentGORMLogLevel
+}
+
+// UpdateGORMLogLevelFromConfig 从配置更新 GORM 日志级别
+func (lm *LogManager) UpdateGORMLogLevelFromConfig() {
+	logLevelStr := common.GetConfig("Logging", "DNS_LOG_LEVEL")
+	if logLevelStr == "" {
+		logLevelStr = "INFO" // 默认INFO级别
+	}
+
+	lm.SetGORMLogLevel(lm.mapToGORMLogLevel(logLevelStr))
+}
+
+// SetLogLevel 设置包内日志级别并同步更新 GORM 日志级别
+func (lm *LogManager) SetLogLevel(level string) {
+	// 设置包内日志级别
+	lm.logger.SetLevel(common.ParseLogLevel(level))
+	// 同步更新 GORM 日志级别
+	lm.SetGORMLogLevel(lm.mapToGORMLogLevel(level))
+}
+
+// mapToGORMLogLevel 将字符串日志级别映射到 GORM 日志级别
+func (lm *LogManager) mapToGORMLogLevel(levelStr string) logger.LogLevel {
+	levelUpper := strings.ToUpper(levelStr)
+
+	switch levelUpper {
+	case "DEBUG":
+		return logger.Info
+	case "INFO":
+		return logger.Silent
+	case "WARN", "WARNING":
+		return logger.Warn
+	case "ERROR":
+		return logger.Error
+	case "FATAL":
+		return logger.Error
+	default:
+		return logger.Silent
+	}
+}
+
 // InitDB 初始化数据库连接
 // 从环境变量获取数据库文件路径，如果没有则使用默认路径
 // 设置GORM日志级别和连接池参数
@@ -26,35 +115,21 @@ func InitDB() {
 		dbPath = "steadydns.db" // 默认SQLite数据库文件
 	}
 
-	// 设置GORM日志级别
-	logLevel := common.GetLogLevelFromEnv()
-	newLogger := logger.Default.LogMode(logger.Silent)
-
-	switch logLevel {
-	case common.DEBUG:
-		newLogger = logger.Default.LogMode(logger.Info)
-	case common.INFO:
-		newLogger = logger.Default.LogMode(logger.Silent)
-	case common.WARN:
-		newLogger = logger.Default.LogMode(logger.Warn)
-	case common.ERROR:
-		newLogger = logger.Default.LogMode(logger.Error)
-	default:
-		newLogger = logger.Default.LogMode(logger.Silent)
-	}
+	// 使用 LogManager 设置 GORM 日志
+	logManager.UpdateGORMLogLevelFromConfig()
 
 	// 连接SQLite数据库
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: newLogger,
+		Logger: logManager.gormLogger,
 	})
 	if err != nil {
-		common.NewLogger().Fatal("连接数据库失败: %v", err)
+		logManager.logger.Fatal("连接数据库失败: %v", err)
 	}
 
 	// 设置连接池
 	sqlDB, err := db.DB()
 	if err != nil {
-		common.NewLogger().Fatal("获取数据库连接池失败: %v", err)
+		logManager.logger.Fatal("获取数据库连接池失败: %v", err)
 	}
 
 	// 设置连接池参数
@@ -64,7 +139,7 @@ func InitDB() {
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // 设置连接最大空闲时间
 
 	DB = db
-	common.NewLogger().Info("SQLite数据库连接成功")
+	logManager.logger.Info("SQLite数据库连接成功")
 }
 
 // CheckConnection 检查数据库连接是否正常
