@@ -15,11 +15,14 @@ import (
 // GlobalDNSForwarder 全局DNS转发器实例，用于在webapi中调用LoadForwardGroups方法
 var GlobalDNSForwarder *DNSForwarder
 
-// globalUDPServer 全局UDP DNS服务器实例，用于在webapi中获取统计信息
-var globalUDPServer *CustomDNSServer
+// GlobalCacheUpdater 全局缓存更新器实例，用于在webapi中清除缓存
+var GlobalCacheUpdater *CacheUpdater
 
-// globalTCPServer 全局TCP DNS服务器实例，用于在webapi中获取统计信息
-var globalTCPServer *CustomDNSServer
+// GlobalUDPServer 全局UDP DNS服务器实例，用于在webapi中获取统计信息
+var GlobalUDPServer *CustomDNSServer
+
+// GlobalTCPServer 全局TCP DNS服务器实例，用于在webapi中获取统计信息
+var GlobalTCPServer *CustomDNSServer
 
 // ReloadForwardGroups 重新加载转发组配置
 func ReloadForwardGroups() error {
@@ -218,29 +221,32 @@ func (h *PooledDNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 // GetStatsManager 获取统计管理器
 func GetStatsManager() *StatsManager {
-	if globalUDPServer != nil {
-		return globalUDPServer.GetStatsManager()
+	if GlobalUDPServer != nil {
+		return GlobalUDPServer.GetStatsManager()
 	}
 	return nil
 }
 
 // GetUDPServer 获取UDP DNS服务器
 func GetUDPServer() *CustomDNSServer {
-	return globalUDPServer
+	return GlobalUDPServer
 }
 
 // GetTCPServer 获取TCP DNS服务器
 func GetTCPServer() *CustomDNSServer {
-	return globalTCPServer
+	return GlobalTCPServer
 }
 
 // IsDNSServerRunning 检查DNS服务器是否运行
 func IsDNSServerRunning() bool {
-	return globalUDPServer != nil || globalTCPServer != nil
+	return GlobalUDPServer != nil || GlobalTCPServer != nil
 }
 
 // StartDNSServer 启动DNS服务器
 func StartDNSServer(logger *common.Logger) error {
+	// 重新加载配置文件，确保使用最新的配置参数
+	common.LoadConfig()
+
 	// 从配置获取协程池配置
 	clientWorkersStr := common.GetConfig("DNS", "DNS_CLIENT_WORKERS")
 	queueMultiplierStr := common.GetConfig("DNS", "DNS_QUEUE_MULTIPLIER")
@@ -286,12 +292,6 @@ func StartDNSServer(logger *common.Logger) error {
 		queueMultiplier = 2 // 默认值
 	}
 
-	// 从配置获取 BIND 服务器地址
-	bindAddr := common.GetConfig("BIND", "BIND_ADDRESS")
-	if bindAddr == "" {
-		bindAddr = "127.0.0.1:5300" // 默认值
-	}
-
 	// 构建完整的DNS监听地址
 	listenAddr := fmt.Sprintf("%s:%d", dnsAddr, dnsPort)
 
@@ -299,6 +299,8 @@ func StartDNSServer(logger *common.Logger) error {
 	handler := NewDNSHandler("8.8.8.8:53", logger)
 	// 设置全局DNS转发器实例
 	GlobalDNSForwarder = handler.forwarder
+	// 设置全局缓存更新器实例
+	GlobalCacheUpdater = handler.cacheUpdater
 
 	// 创建协程池（使用固定大小）
 	pool := NewWorkerPool(clientWorkers, queueMultiplier)
@@ -307,11 +309,11 @@ func StartDNSServer(logger *common.Logger) error {
 
 	// 创建自定义UDP DNS服务器
 	udpServer := NewCustomDNSServer(listenAddr, "udp", handler, pool, logger)
-	globalUDPServer = udpServer
+	GlobalUDPServer = udpServer
 
 	// 创建自定义TCP DNS服务器
 	tcpServer := NewCustomDNSServer(listenAddr, "tcp", handler, pool, logger)
-	globalTCPServer = tcpServer
+	GlobalTCPServer = tcpServer
 
 	// 尝试创建UDP监听器，确保端口可用
 	udpListener, err := net.ListenPacket("udp", listenAddr)

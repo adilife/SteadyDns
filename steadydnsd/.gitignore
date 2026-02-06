@@ -1,0 +1,29 @@
+# 忽略doc目录
+docs/
+
+# 忽略bin目录
+bin/
+
+# 忽略可执行文件
+src/cmd/steadydns
+
+# 忽略备份目录
+src/cmd/backup/
+
+# 忽略JSON测试文件
+localhost_current.json
+
+# 忽略临时文件
+*.tmp
+*.temp
+
+# 忽略编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 忽略环境文件
+.env
+.env.local
+.env.*.local

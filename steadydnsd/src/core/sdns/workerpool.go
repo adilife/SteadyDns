@@ -42,6 +42,8 @@ type WorkerPool struct {
 	queueMultiplier int
 	wg              sync.WaitGroup
 	shutdown        bool
+	stmu            sync.Mutex
+	statsMu         sync.Mutex
 	mu              sync.RWMutex
 	stats           *PoolStats
 }
@@ -269,8 +271,13 @@ func (a taskAdapter) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 // Close 关闭协程池
 func (p *WorkerPool) Close() {
+	if !p.shutdown {
+		close(p.taskChan)
+	}
+	p.stmu.Lock()
 	p.shutdown = true
-	close(p.taskChan)
+	p.stmu.Unlock()
+
 	p.wg.Wait()
 }
 

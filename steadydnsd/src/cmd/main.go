@@ -3,15 +3,17 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
+	"SteadyDNS/core/bind"
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/database"
-	"SteadyDNS/core/sdns"
-	"SteadyDNS/core/webapi"
+	"SteadyDNS/core/webapi/api"
 )
 
 func main() {
@@ -47,33 +49,46 @@ func main() {
 
 	// 启动DNS服务器
 	logger.Info("启动DNS服务器...")
-	if err := sdns.StartDNSServer(logger); err != nil {
+	// 获取ServerManager实例
+	serverManager := api.GetServerManager()
+	if err := serverManager.StartDNSServer(); err != nil {
 		log.Fatalf("DNS服务器启动失败: %v", err)
 	} else {
 		// 检查DNS服务器是否正在运行
-		if sdns.IsDNSServerRunning() {
+		if serverManager.IsDNSServerRunning() {
 			logger.Info("DNS服务器启动成功")
 		} else {
 			logger.Warn("DNS服务器已启动，但状态检查显示未运行，可能存在启动问题")
 		}
 	}
 
-	// 设置路由
-	setupRoutes()
-
-	// 获取端口，优先从配置文件读取，其次是环境变量，最后使用默认值8080
-	port := common.GetConfig("Server", "PORT")
-	if port == "" {
-		port = os.Getenv("PORT")
-		if port == "" {
-			port = "8080"
-		}
+	// 检查并启动BIND服务
+	logger.Info("检查BIND服务状态...")
+	if err := checkAndStartBindService(logger); err != nil {
+		logger.Warn("BIND服务检查和启动失败: %v，将继续启动steadydns服务", err)
+	} else {
+		logger.Info("BIND服务状态检查完成")
 	}
 
-	logger.Info("API服务器启动...")
-	logger.Info("API服务器启动成功，监听端口: %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	// 创建一个新的 ServeMux
+	mux := http.NewServeMux()
+
+	// 设置路由
+	api.SetupRoutes(mux)
+
+	// 获取服务器管理器实例
+	httpServerInstance := api.GetHTTPServer()
+	// 设置HTTP处理器
+	httpServerInstance.SetHandler(mux)
+
+	// 启动HTTP服务器
+	if err := httpServerInstance.Start(); err != nil {
 		logger.Error("API服务器启动失败: %v", err)
+	}
+
+	// 等待服务器运行
+	select {
+	// 这里可以添加一个通道来等待退出信号
 	}
 }
 
@@ -101,35 +116,59 @@ func checkDBFileExists(dbPath string) bool {
 	return true
 }
 
-// setupRoutes 设置API路由
-// 配置登录、转发组和转发服务器的API路由
-func setupRoutes() {
-	// 健康检查API路由 - 无需认证，应用日志、频率限制和超时中间件
-	http.HandleFunc("/api/health", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.HealthCheckHandler))))
-	// 登录API路由 - 应用频率限制、日志和超时中间件
-	http.HandleFunc("/api/login", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.LoginHandler))))
+// checkAndStartBindService 检查并启动BIND服务
+// 参数:
+//
+//	logger: 日志记录器实例
+//
+// 返回值:
+//
+//	error: 操作过程中遇到的错误
+func checkAndStartBindService(logger *common.Logger) error {
+	// 创建BIND管理器实例
+	bindManager := bind.NewBindManager()
 
-	// 令牌刷新API路由 - 应用频率限制、日志和超时中间件
-	http.HandleFunc("/api/refresh-token", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.RefreshTokenHandler))))
+	// 检查BIND服务状态
+	status, err := bindManager.GetBindStatus()
+	if err != nil {
+		logger.Error("检查BIND服务状态失败: %v", err)
+		return fmt.Errorf("检查BIND服务状态失败: %v", err)
+	}
 
-	// 登出API路由 - 应用日志和超时中间件
-	http.HandleFunc("/api/logout", webapi.LoggerMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.LogoutHandler)))
+	logger.Info("当前BIND服务状态: %s", status)
 
-	// 转发组API路由 - 需要认证，应用所有中间件
-	http.HandleFunc("/api/forward-groups/", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.ForwardGroupAPIHandler))))
-	http.HandleFunc("/api/forward-groups", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.ForwardGroupAPIHandler))))
+	// 如果服务已经在运行，直接返回
+	if status == "running" {
+		logger.Info("BIND服务已经在运行中")
+		return nil
+	}
 
-	// 服务器API路由 - 需要认证，应用所有中间件
-	http.HandleFunc("/api/forward-servers/", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.ForwardServerAPIHandler))))
-	http.HandleFunc("/api/forward-servers", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.ForwardServerAPIHandler))))
+	// 服务未运行，尝试启动
+	logger.Info("BIND服务未运行，尝试启动...")
+	if err := bindManager.StartBind(); err != nil {
+		logger.Error("启动BIND服务失败: %v", err)
+		return fmt.Errorf("启动BIND服务失败: %v", err)
+	}
 
-	// 缓存API路由 - 需要认证，应用所有中间件
-	http.HandleFunc("/api/cache/", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.CacheAPIHandler))))
-	http.HandleFunc("/api/cache", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.CacheAPIHandler))))
+	// 等待几秒钟，确保服务完全启动
+	logger.Info("BIND服务启动命令执行完成，等待服务完全启动...")
+	time.Sleep(3 * time.Second)
 
-	// Dashboard API路由 - 需要认证，应用所有中间件
-	http.HandleFunc("/api/dashboard/", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.DashboardAPIHandler))))
-	http.HandleFunc("/api/dashboard", webapi.LoggerMiddleware(webapi.RateLimitMiddleware(webapi.TimeoutMiddlewareWithPath(webapi.DashboardAPIHandler))))
+	// 再次检查服务状态
+	status, err = bindManager.GetBindStatus()
+	if err != nil {
+		logger.Error("再次检查BIND服务状态失败: %v", err)
+		return fmt.Errorf("再次检查BIND服务状态失败: %v", err)
+	}
 
-	// 其他API路由...
+	logger.Info("启动后的BIND服务状态: %s", status)
+
+	// 验证服务是否成功启动
+	if status == "running" {
+		logger.Info("BIND服务启动成功")
+		return nil
+	} else {
+		logger.Warn("BIND服务启动命令执行完成，但状态检查显示服务未运行")
+		return fmt.Errorf("BIND服务启动命令执行完成，但状态检查显示服务未运行，状态: %s", status)
+	}
 }
