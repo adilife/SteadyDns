@@ -1,5 +1,5 @@
-# 忽略doc目录
-docs/
+# 忽略priv_docs目录
+priv_docs/
 
 # 忽略bin目录
 bin/

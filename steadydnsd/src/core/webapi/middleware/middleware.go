@@ -1,3 +1,19 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/webapi/middleWare/middleware.go
 
 package middleware
@@ -6,11 +22,12 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"SteadyDNS/core/common"
+
+	"github.com/gin-gonic/gin"
 )
 
 // RateLimiter 请求频率限制器
@@ -163,28 +180,29 @@ func (rl *RateLimiter) GetUserLimit(userID uint) *LimitCounter {
 }
 
 // RateLimitMiddleware 请求频率限制中间件
-func RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func RateLimitMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
 		// 检查是否启用了速率限制
 		if !isRateLimitEnabled() {
-			next.ServeHTTP(w, r)
+			c.Next()
 			return
 		}
 
 		// 获取客户端IP
-		clientIP := getClientIP(r)
+		clientIP := c.ClientIP()
 
 		// 获取限制器
 		limiter := GetRateLimiter()
 
 		// 检查IP是否被封禁
 		if limiter.IsBanned(clientIP) {
-			SendErrorResponse(w, "请求过于频繁，请稍后再试", http.StatusTooManyRequests)
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试"})
+			c.Abort()
 			return
 		}
 
 		// 获取请求路径
-		path := r.URL.Path
+		path := c.Request.URL.Path
 
 		// 根据路径设置不同的限制策略
 		var ipLimit *LimitCounter
@@ -253,38 +271,45 @@ func RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			// 检查是否需要封禁
 			if ipLimit.failCount >= ipLimit.maxFailures {
 				limiter.BanIP(clientIP, ipLimit.banDuration)
-				SendErrorResponse(w, "请求过于频繁，已被临时封禁", http.StatusTooManyRequests)
+				c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，已被临时封禁"})
+				c.Abort()
 				return
 			}
 
-			SendErrorResponse(w, "请求过于频繁，请稍后再试", http.StatusTooManyRequests)
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试"})
+			c.Abort()
 			return
 		}
 
 		// 对于已认证的用户，检查用户级别的限制
-		token := GetTokenFromRequest(r)
+		token := c.GetHeader("Authorization")
 		if token != "" {
-			claims, err := jwtManager.GetUserFromToken(token)
+			// 移除Bearer前缀
+			if len(token) > 7 && token[:7] == "Bearer " {
+				token = token[7:]
+			}
+			claims, err := GetJWTManager().GetUserFromToken(token)
 			if err == nil {
 				userLimit := limiter.GetUserLimit(claims.UserID)
 				if !userLimit.AddRequest() {
-					SendErrorResponse(w, "请求过于频繁，请稍后再试", http.StatusTooManyRequests)
+					c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试"})
+					c.Abort()
 					return
 				}
 			}
 		}
 
 		// 继续处理请求
-		next.ServeHTTP(w, r)
+		c.Next()
 	}
 }
 
 // LoggerMiddleware 请求日志中间件
-func LoggerMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func LoggerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
 		// 检查是否启用了日志
 		if !isLogEnabled() {
-			next.ServeHTTP(w, r)
+			c.Next()
 			return
 		}
 
@@ -292,39 +317,37 @@ func LoggerMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		startTime := time.Now()
 
 		// 获取客户端IP
-		clientIP := getClientIP(r)
+		clientIP := c.ClientIP()
 
 		// 获取请求信息
-		method := r.Method
-		path := r.URL.Path
-		query := r.URL.RawQuery
+		method := c.Request.Method
+		path := c.Request.URL.Path
+		query := c.Request.URL.RawQuery
 
 		// 获取用户信息（如果已认证）
 		userID := uint(0)
 		username := ""
-		token := GetTokenFromRequest(r)
+		token := c.GetHeader("Authorization")
 		if token != "" {
-			claims, err := jwtManager.GetUserFromToken(token)
+			// 移除Bearer前缀
+			if len(token) > 7 && token[:7] == "Bearer " {
+				token = token[7:]
+			}
+			claims, err := GetJWTManager().GetUserFromToken(token)
 			if err == nil {
 				userID = claims.UserID
 				username = claims.Username
 			}
 		}
 
-		// 创建响应记录器
-		rr := &responseRecorder{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK,
-		}
-
 		// 处理请求
-		next.ServeHTTP(rr, r)
+		c.Next()
 
 		// 计算响应时间
 		responseTime := time.Since(startTime)
 
 		// 获取响应状态码
-		statusCode := rr.statusCode
+		statusCode := c.Writer.Status()
 
 		// 创建日志记录器
 		logger := common.NewLogger()
@@ -348,39 +371,6 @@ func LoggerMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			logger.Info("%s", logMessage)
 		}
 	}
-}
-
-// getClientIP 获取客户端IP地址
-func getClientIP(r *http.Request) string {
-	// 优先从X-Forwarded-For头获取
-	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-		return ip
-	}
-
-	// 从X-Real-IP头获取
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return ip
-	}
-
-	// 从RemoteAddr获取，只提取IP部分
-	remoteAddr := r.RemoteAddr
-	// 查找冒号位置，提取IP部分
-	if idx := strings.LastIndex(remoteAddr, ":"); idx != -1 {
-		return remoteAddr[:idx]
-	}
-	return remoteAddr
-}
-
-// responseRecorder 响应记录器，用于捕获响应状态码
-type responseRecorder struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-// WriteHeader 重写WriteHeader方法，捕获状态码
-func (rr *responseRecorder) WriteHeader(code int) {
-	rr.statusCode = code
-	rr.ResponseWriter.WriteHeader(code)
 }
 
 // isRateLimitEnabled 检查是否启用了速率限制

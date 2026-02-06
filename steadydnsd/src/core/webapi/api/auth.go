@@ -1,29 +1,69 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/webapi/auth.go
 package api
 
 import (
-	"SteadyDNS/core/webapi/middleware"
 	"context"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
-// AuthMiddleware 认证中间件
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		token := middleware.GetTokenFromRequest(r)
+// AuthMiddlewareGin 认证中间件（Gin版本）
+func AuthMiddlewareGin(next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := GetTokenFromRequest(c.Request)
 		if token == "" {
-			middleware.SendErrorResponse(w, "未提供访问令牌", http.StatusUnauthorized)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "未提供访问令牌"})
+			c.Abort()
 			return
 		}
 
 		claims, err := jwtManager.GetUserFromToken(token)
 		if err != nil {
-			middleware.SendErrorResponse(w, "无效的访问令牌", http.StatusUnauthorized)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的访问令牌"})
+			c.Abort()
 			return
 		}
 
 		// 将用户信息添加到请求上下文（如果需要）
-		ctx := context.WithValue(r.Context(), "user", claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		ctx := context.WithValue(c.Request.Context(), "user", claims)
+		c.Request = c.Request.WithContext(ctx)
+		next(c)
 	}
+}
+
+// GetTokenFromRequest 从请求中获取令牌
+func GetTokenFromRequest(r *http.Request) string {
+	// 从Authorization头获取令牌
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		// 检查Authorization头格式
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			return authHeader[7:]
+		}
+	}
+
+	// 从查询参数获取令牌
+	token := r.URL.Query().Get("token")
+	if token != "" {
+		return token
+	}
+
+	return ""
 }

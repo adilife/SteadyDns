@@ -1,3 +1,19 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/webapi/server_api.go
 
 package api
@@ -6,20 +22,21 @@ import (
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/database"
 	"SteadyDNS/core/sdns"
-	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ServerAPIHandler 处理服务器管理API请求
-func ServerAPIHandler(w http.ResponseWriter, r *http.Request) {
+func ServerAPIHandler(c *gin.Context) {
 	// 应用认证中间件
-	authHandler := AuthMiddleware(serverHandler)
-	authHandler(w, r)
+	authHandler := AuthMiddlewareGin(serverHandlerGin)
+	authHandler(c)
 }
 
-// serverHandler 服务器管理API处理函数
-func serverHandler(w http.ResponseWriter, r *http.Request) {
+// serverHandlerGin 服务器管理API处理函数（Gin版本）
+func serverHandlerGin(c *gin.Context) {
 	// 获取服务器管理器实例
 	serverManager := GetServerManager()
 
@@ -27,54 +44,71 @@ func serverHandler(w http.ResponseWriter, r *http.Request) {
 	var httpServer = GetHTTPServer()
 
 	// 解析请求路径
-	path := strings.TrimPrefix(r.URL.Path, "/api/server/")
+	path := c.Request.URL.Path
+	// 移除前缀，处理带斜杠和不带斜杠的情况
+	path = strings.TrimPrefix(path, "/api/server")
+	path = strings.TrimPrefix(path, "/")
 	pathParts := strings.Split(path, "/")
 
 	// 根据请求路径和方法处理不同的API端点
 	switch {
-	case path == "status" && r.Method == http.MethodGet:
+	case (path == "" || path == "status") && c.Request.Method == http.MethodGet:
 		// 获取服务器状态
-		handleServerStatus(w, r, serverManager)
+		handleServerStatusGin(c, serverManager)
 
-	case strings.HasPrefix(path, "sdnsd/") && r.Method == http.MethodPost:
+	case path == "restart" && c.Request.Method == http.MethodPost:
+		// 重启HTTP服务器
+		err := httpServer.Restart()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "HTTP server restarted successfully",
+		})
+
+	case strings.HasPrefix(path, "sdnsd/") && c.Request.Method == http.MethodPost:
 		// DNS服务器操作
 		action := pathParts[1]
-		handleDNSServerAction(w, r, serverManager, action)
+		handleDNSServerActionGin(c, serverManager, action)
 
-	case strings.HasPrefix(path, "httpd/") && r.Method == http.MethodPost:
+	case strings.HasPrefix(path, "httpd/") && c.Request.Method == http.MethodPost:
 		// HTTP服务器操作
 		action := pathParts[1]
-		handleHTTPServerAction(w, r, httpServer, action)
+		handleHTTPServerActionGin(c, httpServer, action)
 
-	case path == "reload-forward-groups" && r.Method == http.MethodPost:
+	case path == "reload-forward-groups" && c.Request.Method == http.MethodPost:
 		// 重载转发组
-		handleReloadForwardGroups(w, r, serverManager)
+		handleReloadForwardGroupsGin(c, serverManager)
 
-	case strings.HasPrefix(path, "logging/level") && r.Method == http.MethodPost:
+	case strings.HasPrefix(path, "logging/level") && c.Request.Method == http.MethodPost:
 		// 设置日志级别
-		handleSetLogLevel(w, r, serverManager)
+		handleSetLogLevelGin(c, serverManager)
 
 	default:
 		// 未找到的API端点
-		http.Error(w, "Not Found", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found"})
 	}
 }
 
-// handleServerStatus 处理获取服务器状态的请求
-func handleServerStatus(w http.ResponseWriter, r *http.Request, serverManager *ServerManager) {
+// handleServerStatusGin 处理获取服务器状态的请求（Gin版本）
+func handleServerStatusGin(c *gin.Context, serverManager *ServerManager) {
 	// 获取服务器状态
 	status := serverManager.GetServerStatus()
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    status,
 	})
 }
 
-// handleDNSServerAction 处理DNS服务器操作的请求
-func handleDNSServerAction(w http.ResponseWriter, r *http.Request, serverManager *ServerManager, action string) {
+// handleDNSServerActionGin 处理DNS服务器操作的请求（Gin版本）
+func handleDNSServerActionGin(c *gin.Context, serverManager *ServerManager, action string) {
 	var err error
 
 	// 根据操作类型执行相应的操作
@@ -86,14 +120,13 @@ func handleDNSServerAction(w http.ResponseWriter, r *http.Request, serverManager
 	case "restart":
 		err = serverManager.RestartDNSServer()
 	default:
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action"})
 		return
 	}
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -114,15 +147,14 @@ func handleDNSServerAction(w http.ResponseWriter, r *http.Request, serverManager
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "DNS server " + actionPastTense + " successfully",
 	})
 }
 
-// handleHTTPServerAction 处理HTTP服务器操作的请求
-func handleHTTPServerAction(w http.ResponseWriter, r *http.Request, httpServer *HTTPServer, action string) {
+// handleHTTPServerActionGin 处理HTTP服务器操作的请求（Gin版本）
+func handleHTTPServerActionGin(c *gin.Context, httpServer *HTTPServer, action string) {
 	var err error
 
 	// 根据操作类型执行相应的操作
@@ -130,14 +162,13 @@ func handleHTTPServerAction(w http.ResponseWriter, r *http.Request, httpServer *
 	case "restart":
 		err = httpServer.Restart()
 	default:
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action"})
 		return
 	}
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -145,22 +176,20 @@ func handleHTTPServerAction(w http.ResponseWriter, r *http.Request, httpServer *
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "HTTP server restarted successfully",
 	})
 }
 
-// handleReloadForwardGroups 处理重载转发组的请求
-func handleReloadForwardGroups(w http.ResponseWriter, r *http.Request, serverManager *ServerManager) {
+// handleReloadForwardGroupsGin 处理重载转发组的请求（Gin版本）
+func handleReloadForwardGroupsGin(c *gin.Context, serverManager *ServerManager) {
 	// 执行重载转发组操作
 	err := serverManager.ReloadForwardGroups()
 
 	// 处理错误
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -168,23 +197,22 @@ func handleReloadForwardGroups(w http.ResponseWriter, r *http.Request, serverMan
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Forward groups reloaded successfully",
 	})
 }
 
-// handleSetLogLevel 处理设置日志级别的请求
-func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *ServerManager) {
+// handleSetLogLevelGin 处理设置日志级别的请求（Gin版本）
+func handleSetLogLevelGin(c *gin.Context, serverManager *ServerManager) {
 	// 解析请求体
 	var request struct {
 		APILogLevel string `json:"api_log_level"`
 		DNSLogLevel string `json:"dns_log_level"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
@@ -200,31 +228,30 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *Se
 
 	// 验证API日志级别
 	if request.APILogLevel == "" {
-		http.Error(w, "API log level is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "API log level is required"})
 		return
 	}
 	apiLogLevelUpper := strings.ToUpper(request.APILogLevel)
 	if !validLevels[apiLogLevelUpper] {
-		http.Error(w, "Invalid API log level", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid API log level"})
 		return
 	}
 
 	// 验证DNS日志级别
 	if request.DNSLogLevel == "" {
-		http.Error(w, "DNS log level is required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "DNS log level is required"})
 		return
 	}
 	dnsLogLevelUpper := strings.ToUpper(request.DNSLogLevel)
 	if !validLevels[dnsLogLevelUpper] {
-		http.Error(w, "Invalid DNS log level", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid DNS log level"})
 		return
 	}
 
 	// 更新配置文件中的API日志级别
 	err := common.UpdateConfig("API", "LOG_LEVEL", apiLogLevelUpper)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Failed to update API log level: " + err.Error(),
 		})
@@ -234,8 +261,7 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *Se
 	// 更新配置文件中的DNS日志级别
 	err = common.UpdateConfig("Logging", "DNS_LOG_LEVEL", dnsLogLevelUpper)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Failed to update DNS log level: " + err.Error(),
 		})
@@ -245,8 +271,7 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *Se
 	// 重载配置
 	err = common.ReloadConfig()
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Failed to reload config: " + err.Error(),
 		})
@@ -256,8 +281,7 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *Se
 	// 执行设置日志级别操作
 	err = serverManager.SetLogLevel(apiLogLevelUpper)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Failed to set API log level: " + err.Error(),
 		})
@@ -275,8 +299,7 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *Se
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Log levels set successfully",
 		"levels": map[string]string{

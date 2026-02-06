@@ -1,3 +1,19 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // cmd/main.go
 
 package main
@@ -5,7 +21,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -47,19 +62,10 @@ func main() {
 		logger.Info("数据库文件已存在，使用现有数据库")
 	}
 
-	// 启动DNS服务器
-	logger.Info("启动DNS服务器...")
 	// 获取ServerManager实例
 	serverManager := api.GetServerManager()
 	if err := serverManager.StartDNSServer(); err != nil {
 		log.Fatalf("DNS服务器启动失败: %v", err)
-	} else {
-		// 检查DNS服务器是否正在运行
-		if serverManager.IsDNSServerRunning() {
-			logger.Info("DNS服务器启动成功")
-		} else {
-			logger.Warn("DNS服务器已启动，但状态检查显示未运行，可能存在启动问题")
-		}
 	}
 
 	// 检查并启动BIND服务
@@ -70,16 +76,8 @@ func main() {
 		logger.Info("BIND服务状态检查完成")
 	}
 
-	// 创建一个新的 ServeMux
-	mux := http.NewServeMux()
-
-	// 设置路由
-	api.SetupRoutes(mux)
-
 	// 获取服务器管理器实例
 	httpServerInstance := api.GetHTTPServer()
-	// 设置HTTP处理器
-	httpServerInstance.SetHandler(mux)
 
 	// 启动HTTP服务器
 	if err := httpServerInstance.Start(); err != nil {

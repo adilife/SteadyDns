@@ -3,126 +3,134 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
 	"SteadyDNS/core/common"
+
+	"github.com/gin-gonic/gin"
 )
 
-// ConfigAPIHandler 处理配置管理API请求
-func ConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
+
+
+// ConfigAPIHandlerGin 处理配置管理API请求（Gin版本）
+func ConfigAPIHandlerGin(c *gin.Context) {
 	// 应用认证中间件
-	authHandler := AuthMiddleware(configHandler)
-	authHandler(w, r)
+	authHandler := AuthMiddlewareGin(configHandlerGin)
+	authHandler(c)
 }
 
-// configHandler 配置管理API处理函数
-func configHandler(w http.ResponseWriter, r *http.Request) {
+
+
+// configHandlerGin 配置管理API处理函数（Gin版本）
+func configHandlerGin(c *gin.Context) {
 	// 获取配置管理器实例
 	configManager := common.GetConfigManager()
 
 	// 解析请求路径
 	var path string
-	if r.URL.Path == "/api/config" {
+	if c.Request.URL.Path == "/api/config" {
 		path = ""
 	} else {
-		path = strings.TrimPrefix(r.URL.Path, "/api/config/")
+		path = strings.TrimPrefix(c.Request.URL.Path, "/api/config/")
 	}
 	pathParts := strings.Split(path, "/")
 
 	// 根据请求路径和方法处理不同的API端点
 	switch {
-	case path == "" && r.Method == http.MethodGet:
+	case path == "" && c.Request.Method == http.MethodGet:
 		// 获取所有配置
-		handleGetAllConfig(w, r, configManager)
+		handleGetAllConfigGin(c, configManager)
 
-	case len(pathParts) == 1 && r.Method == http.MethodGet:
+	case len(pathParts) == 1 && c.Request.Method == http.MethodGet:
 		// 获取指定节的配置
 		section := pathParts[0]
-		handleGetSectionConfig(w, r, configManager, section)
+		handleGetSectionConfigGin(c, configManager, section)
 
-	case len(pathParts) == 2 && r.Method == http.MethodGet:
+	case len(pathParts) == 2 && c.Request.Method == http.MethodGet:
 		// 获取指定配置项
 		section := pathParts[0]
 		key := pathParts[1]
-		handleGetConfigItem(w, r, configManager, section, key)
+		handleGetConfigItemGin(c, configManager, section, key)
 
-	case len(pathParts) == 2 && r.Method == http.MethodPut:
+	case len(pathParts) == 2 && c.Request.Method == http.MethodPut:
 		// 更新配置项
 		section := pathParts[0]
 		key := pathParts[1]
-		handleUpdateConfigItem(w, r, configManager, section, key)
+		handleUpdateConfigItemGin(c, configManager, section, key)
 
-	case path == "reload" && r.Method == http.MethodPost:
+	case path == "reload" && c.Request.Method == http.MethodPost:
 		// 重载配置
-		handleReloadConfig(w, r, configManager)
+		handleReloadConfigGin(c, configManager)
 
-	case path == "defaults" && r.Method == http.MethodGet:
+	case path == "defaults" && c.Request.Method == http.MethodGet:
 		// 获取默认配置
-		handleGetDefaultConfig(w, r, configManager)
+		handleGetDefaultConfigGin(c, configManager)
 
-	case path == "reset" && r.Method == http.MethodPost:
+	case path == "reset" && c.Request.Method == http.MethodPost:
 		// 重置为默认配置
-		handleResetConfig(w, r, configManager)
+		handleResetConfigGin(c, configManager)
 
-	case path == "env" && r.Method == http.MethodGet:
+	case path == "env" && c.Request.Method == http.MethodGet:
 		// 获取环境变量
-		handleGetEnvVars(w, r, configManager)
+		handleGetEnvVarsGin(c, configManager)
 
-	case path == "env" && r.Method == http.MethodPost:
+	case path == "env" && c.Request.Method == http.MethodPost:
 		// 设置环境变量
-		handleSetEnvVar(w, r, configManager)
+		handleSetEnvVarGin(c, configManager)
 
-	case path == "summary" && r.Method == http.MethodGet:
+	case path == "summary" && c.Request.Method == http.MethodGet:
 		// 获取配置摘要
-		handleGetConfigSummary(w, r, configManager)
+		handleGetConfigSummaryGin(c, configManager)
 
-	case path == "validate" && r.Method == http.MethodPost:
+	case path == "validate" && c.Request.Method == http.MethodPost:
 		// 验证配置
-		handleValidateConfig(w, r, configManager)
+		handleValidateConfigGin(c, configManager)
 
 	default:
 		// 未找到的API端点
-		http.Error(w, "Not Found", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found"})
 	}
 }
 
-// handleGetAllConfig 处理获取所有配置的请求
-func handleGetAllConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleGetAllConfigGin 处理获取所有配置的请求（Gin版本）
+func handleGetAllConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 获取所有配置
 	config := common.GetAllConfig()
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    config,
 	})
 }
 
-// handleGetSectionConfig 处理获取指定节的配置的请求
-func handleGetSectionConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager, section string) {
+
+
+// handleGetSectionConfigGin 处理获取指定节的配置的请求（Gin版本）
+func handleGetSectionConfigGin(c *gin.Context, configManager *common.ConfigManager, section string) {
 	// 获取指定节的配置
 	config := common.GetSectionConfig(section)
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"section": section,
 		"data":    config,
 	})
 }
 
-// handleGetConfigItem 处理获取指定配置项的请求
-func handleGetConfigItem(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager, section, key string) {
+
+
+// handleGetConfigItemGin 处理获取指定配置项的请求（Gin版本）
+func handleGetConfigItemGin(c *gin.Context, configManager *common.ConfigManager, section, key string) {
 	// 获取指定配置项
 	value := common.GetConfig(section, key)
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"section": section,
 		"key":     key,
@@ -130,16 +138,18 @@ func handleGetConfigItem(w http.ResponseWriter, r *http.Request, configManager *
 	})
 }
 
-// handleUpdateConfigItem 处理更新配置项的请求
-func handleUpdateConfigItem(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager, section, key string) {
+
+
+// handleUpdateConfigItemGin 处理更新配置项的请求（Gin版本）
+func handleUpdateConfigItemGin(c *gin.Context, configManager *common.ConfigManager, section, key string) {
 	// 解析请求体
 	var request struct {
 		Value string `json:"value"`
 		User  string `json:"user"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
@@ -148,8 +158,7 @@ func handleUpdateConfigItem(w http.ResponseWriter, r *http.Request, configManage
 
 	// 更新配置
 	if err := common.UpdateConfig(section, key, request.Value); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -157,8 +166,7 @@ func handleUpdateConfigItem(w http.ResponseWriter, r *http.Request, configManage
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"message":   "配置更新成功",
 		"section":   section,
@@ -168,12 +176,13 @@ func handleUpdateConfigItem(w http.ResponseWriter, r *http.Request, configManage
 	})
 }
 
-// handleReloadConfig 处理重载配置的请求
-func handleReloadConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleReloadConfigGin 处理重载配置的请求（Gin版本）
+func handleReloadConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 重载配置
 	if err := common.ReloadConfig(); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -182,8 +191,7 @@ func handleReloadConfig(w http.ResponseWriter, r *http.Request, configManager *c
 
 	// 直接返回成功响应，移除历史记录添加
 	// 原因：reload 操作只是重新读取配置文件，没有实际修改配置，不需要记录历史
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "配置重载成功",
 	})
@@ -191,8 +199,10 @@ func handleReloadConfig(w http.ResponseWriter, r *http.Request, configManager *c
 
 
 
-// handleGetDefaultConfig 处理获取默认配置的请求
-func handleGetDefaultConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleGetDefaultConfigGin 处理获取默认配置的请求（Gin版本）
+func handleGetDefaultConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 重置为默认配置（但不保存）
 	// 这里我们创建一个临时的默认配置
 	// 注意：实际实现中，我们应该直接返回默认配置模板，而不是重置当前配置
@@ -204,28 +214,28 @@ func handleGetDefaultConfig(w http.ResponseWriter, r *http.Request, configManage
 	}
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    defaultConfig,
 	})
 }
 
-// handleResetConfig 处理重置为默认配置的请求
-func handleResetConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleResetConfigGin 处理重置为默认配置的请求（Gin版本）
+func handleResetConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 解析请求体
 	var request struct {
 		User string `json:"user"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	if err := c.ShouldBindJSON(&request); err != nil {
 		request.User = "system"
 	}
 
 	// 重置为默认配置
 	if err := common.ResetToDefaults(); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -233,29 +243,31 @@ func handleResetConfig(w http.ResponseWriter, r *http.Request, configManager *co
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "配置已重置为默认值",
 	})
 }
 
-// handleGetEnvVars 处理获取环境变量的请求
-func handleGetEnvVars(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleGetEnvVarsGin 处理获取环境变量的请求（Gin版本）
+func handleGetEnvVarsGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 获取环境变量
 	envVars := configManager.GetEnvVars()
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    envVars,
 		"count":   len(envVars),
 	})
 }
 
-// handleSetEnvVar 处理设置环境变量的请求
-func handleSetEnvVar(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleSetEnvVarGin 处理设置环境变量的请求（Gin版本）
+func handleSetEnvVarGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 解析请求体
 	var request struct {
 		Key   string `json:"key"`
@@ -263,15 +275,14 @@ func handleSetEnvVar(w http.ResponseWriter, r *http.Request, configManager *comm
 		User  string `json:"user"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
 	// 设置环境变量
 	if err := configManager.SetEnvVar(request.Key, request.Value); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -279,8 +290,7 @@ func handleSetEnvVar(w http.ResponseWriter, r *http.Request, configManager *comm
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "环境变量设置成功",
 		"key":     request.Key,
@@ -288,25 +298,27 @@ func handleSetEnvVar(w http.ResponseWriter, r *http.Request, configManager *comm
 	})
 }
 
-// handleGetConfigSummary 处理获取配置摘要的请求
-func handleGetConfigSummary(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleGetConfigSummaryGin 处理获取配置摘要的请求（Gin版本）
+func handleGetConfigSummaryGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 获取配置摘要
 	summary := configManager.GetConfigSummary()
 
 	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    summary,
 	})
 }
 
-// handleValidateConfig 处理验证配置的请求
-func handleValidateConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
+
+
+// handleValidateConfigGin 处理验证配置的请求（Gin版本）
+func handleValidateConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 验证配置
 	if err := configManager.ValidateConfigWithManager(); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
@@ -314,8 +326,7 @@ func handleValidateConfig(w http.ResponseWriter, r *http.Request, configManager 
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "配置验证通过",
 	})

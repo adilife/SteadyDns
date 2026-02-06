@@ -3,15 +3,15 @@ package api
 import (
 	"net/http"
 
-	"SteadyDNS/core/webapi/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 // HealthCheckHandler 健康检查处理函数
 // 检查系统、数据库和DNS服务的健康状态
-func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+func HealthCheckHandler(c *gin.Context) {
 	// 执行健康检查
 	healthStatus := PerformHealthCheck()
 
 	// 发送响应
-	middleware.SendSuccessResponse(w, healthStatus, "健康检查完成")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": healthStatus, "message": "健康检查完成"})
 }

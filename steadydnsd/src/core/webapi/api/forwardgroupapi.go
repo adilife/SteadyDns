@@ -3,7 +3,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,48 +10,47 @@ import (
 
 	"SteadyDNS/core/database"
 	"SteadyDNS/core/sdns"
-	"SteadyDNS/core/webapi/middleware"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ForwardGroupAPIHandler 处理转发组API请求
-func ForwardGroupAPIHandler(w http.ResponseWriter, r *http.Request) {
+func ForwardGroupAPIHandler(c *gin.Context) {
 	// 应用认证中间件
-	authHandler := AuthMiddleware(forwardGroupHandler)
-	authHandler(w, r)
+	authHandler := AuthMiddlewareGin(forwardGroupHandlerGin)
+	authHandler(c)
 }
 
-// forwardGroupHandler 实际处理转发组请求的函数
-func forwardGroupHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+// forwardGroupHandlerGin 实际处理转发组请求的函数（Gin版本）
+func forwardGroupHandlerGin(c *gin.Context) {
 	// 获取路径参数
-	path := r.URL.Path
+	path := c.Request.URL.Path
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	// 检查路径长度
 	if len(parts) < 2 || parts[0] != "api" || parts[1] != "forward-groups" {
-		middleware.SendErrorResponse(w, "无效的API端点", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "无效的API端点"})
 		return
 	}
 
 	switch len(parts) {
 	case 2: // /api/forward-groups
-		switch r.Method {
+		switch c.Request.Method {
 		case http.MethodGet:
-			getForwardGroups(w)
+			getForwardGroupsGin(c)
 			return
 		case http.MethodPost:
-			createForwardGroup(w, r)
+			createForwardGroupGin(c)
 			return
 		case http.MethodDelete:
-			if r.URL.Query().Get("batch") == "true" {
-				batchDeleteForwardGroups(w, r)
+			if c.Request.URL.Query().Get("batch") == "true" {
+				batchDeleteForwardGroupsGin(c)
 				return
 			}
-			middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 			return
 		default:
-			middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 			return
 		}
 	case 3: // /api/forward-groups/{id}
@@ -61,38 +59,38 @@ func forwardGroupHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			// 检查是否为域名匹配测试端点
 			if groupIDStr == "test-domain-match" {
-				testDomainMatchHandler(w, r)
+				testDomainMatchHandlerGin(c)
 				return
 			}
-			middleware.SendErrorResponse(w, "无效的转发组ID", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的转发组ID"})
 			return
 		}
 
-		switch r.Method {
+		switch c.Request.Method {
 		case http.MethodGet:
-			getForwardGroupByID(w, uint(groupID))
+			getForwardGroupByIDGin(c, uint(groupID))
 			return
 		case http.MethodPut:
-			updateForwardGroup(w, r, uint(groupID))
+			updateForwardGroupGin(c, uint(groupID))
 			return
 		case http.MethodDelete:
-			deleteForwardGroup(w, uint(groupID))
+			deleteForwardGroupGin(c, uint(groupID))
 			return
 		default:
-			middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+			c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 			return
 		}
 	default:
-		middleware.SendErrorResponse(w, "无效的API端点", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "无效的API端点"})
 		return
 	}
 }
 
-// getForwardGroups 获取所有转发组
-func getForwardGroups(w http.ResponseWriter) {
+// getForwardGroupsGin 获取所有转发组（Gin版本）
+func getForwardGroupsGin(c *gin.Context) {
 	groups, err := database.GetForwardGroups()
 	if err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("获取转发组列表失败: %v", err), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取转发组列表失败: %v", err)})
 		return
 	}
 
@@ -101,34 +99,33 @@ func getForwardGroups(w http.ResponseWriter) {
 		groups = []database.ForwardGroup{}
 	}
 
-	middleware.SendSuccessResponse(w, groups, "获取转发组列表成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": groups, "message": "获取转发组列表成功"})
 }
 
-// createForwardGroup 创建转发组
-func createForwardGroup(w http.ResponseWriter, r *http.Request) {
+// createForwardGroupGin 创建转发组（Gin版本）
+func createForwardGroupGin(c *gin.Context) {
 	var group database.ForwardGroup
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&group); err != nil {
-		middleware.SendErrorResponse(w, "无效的请求体", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&group); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求体"})
 		return
 	}
 
 	// 验证输入
 	if err := database.ValidateForwardGroupDB(&group); err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("验证失败: %v", err), http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("验证失败: %v", err)})
 		return
 	}
 
 	// 检查域名是否已存在
 	existingGroup, err := database.GetForwardGroupByDomain(group.Domain)
 	if err == nil && existingGroup != nil {
-		middleware.SendErrorResponse(w, "转发组域名已存在", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "转发组域名已存在"})
 		return
 	}
 
 	// 创建转发组
 	if err := database.CreateForwardGroup(&group); err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("创建转发组失败: %v", err), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("创建转发组失败: %v", err)})
 		return
 	}
 
@@ -137,15 +134,14 @@ func createForwardGroup(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("刷新DNS转发器配置失败: %v\n", err)
 	}
 
-	middleware.SendSuccessResponse(w, group, "转发组创建成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": group, "message": "转发组创建成功"})
 }
 
-// updateForwardGroup 更新转发组
-func updateForwardGroup(w http.ResponseWriter, r *http.Request, groupID uint) {
+// updateForwardGroupGin 更新转发组（Gin版本）
+func updateForwardGroupGin(c *gin.Context, groupID uint) {
 	var group database.ForwardGroup
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&group); err != nil {
-		middleware.SendErrorResponse(w, "无效的请求体", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&group); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求体"})
 		return
 	}
 
@@ -157,28 +153,28 @@ func updateForwardGroup(w http.ResponseWriter, r *http.Request, groupID uint) {
 		// 获取当前转发组信息
 		currentGroup, err := database.GetForwardGroupByID(groupID)
 		if err != nil {
-			middleware.SendErrorResponse(w, fmt.Sprintf("获取转发组失败: %v", err), http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("获取转发组失败: %v", err)})
 			return
 		}
 		// 检查是否尝试修改域名或描述
 		if group.Domain != currentGroup.Domain || group.Description != currentGroup.Description {
-			middleware.SendErrorResponse(w, "ID=1的转发组是默认组，域名和描述不可修改", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID=1的转发组是默认组，域名和描述不可修改"})
 			return
 		}
 	}
 
 	// 验证输入
 	if err := database.ValidateForwardGroupDB(&group); err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("验证失败: %v", err), http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("验证失败: %v", err)})
 		return
 	}
 
 	// 更新转发组
 	if err := database.UpdateForwardGroup(&group); err != nil {
 		if strings.Contains(err.Error(), "转发组不存在") {
-			middleware.SendErrorResponse(w, fmt.Sprintf("更新转发组失败: %v", err), http.StatusNotFound)
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("更新转发组失败: %v", err)})
 		} else {
-			middleware.SendErrorResponse(w, fmt.Sprintf("更新转发组失败: %v", err), http.StatusInternalServerError)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新转发组失败: %v", err)})
 		}
 		return
 	}
@@ -188,86 +184,85 @@ func updateForwardGroup(w http.ResponseWriter, r *http.Request, groupID uint) {
 		fmt.Printf("刷新DNS转发器配置失败: %v\n", err)
 	}
 
-	middleware.SendSuccessResponse(w, group, "转发组更新成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": group, "message": "转发组更新成功"})
 }
 
-// deleteForwardGroup 删除转发组
-func deleteForwardGroup(w http.ResponseWriter, groupID uint) {
+// deleteForwardGroupGin 删除转发组（Gin版本）
+func deleteForwardGroupGin(c *gin.Context, groupID uint) {
 	// 检查是否为ID=1的转发组，ID=1的转发组是默认组，不允许删除
 	if groupID == 1 {
-		middleware.SendErrorResponse(w, "ID=1的转发器组是默认组，不允许删除", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID=1的转发器组是默认组，不允许删除"})
 		return
 	}
 
 	// 检查转发组是否存在
 	_, err := database.GetForwardGroupByID(groupID)
 	if err != nil {
-		middleware.SendErrorResponse(w, "转发组不存在", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": "转发组不存在"})
 		return
 	}
 
 	// 删除转发组
 	if err := database.DeleteForwardGroup(groupID); err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("删除转发组失败: %v", err), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除转发组失败: %v", err)})
 		return
 	}
 
-	middleware.SendSuccessResponse(w, nil, "转发组删除成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "转发组删除成功"})
 }
 
-// getForwardGroupByID 根据ID获取转发组
-func getForwardGroupByID(w http.ResponseWriter, groupID uint) {
+// getForwardGroupByIDGin 根据ID获取转发组（Gin版本）
+func getForwardGroupByIDGin(c *gin.Context, groupID uint) {
 	group, err := database.GetForwardGroupByID(groupID)
 	if err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("获取转发组失败: %v", err), http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("获取转发组失败: %v", err)})
 		return
 	}
 
-	middleware.SendSuccessResponse(w, group, "获取转发组成功")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": group, "message": "获取转发组成功"})
 }
 
-// batchDeleteForwardGroups 批量删除转发组
-func batchDeleteForwardGroups(w http.ResponseWriter, r *http.Request) {
+// batchDeleteForwardGroupsGin 批量删除转发组（Gin版本）
+func batchDeleteForwardGroupsGin(c *gin.Context) {
 	var ids []uint
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ids); err != nil {
-		middleware.SendErrorResponse(w, "无效的请求体", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&ids); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求体"})
 		return
 	}
 
 	if len(ids) == 0 {
-		middleware.SendErrorResponse(w, "ID列表不能为空", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID列表不能为空"})
 		return
 	}
 
 	// 检查是否包含ID=1的转发组，ID=1的转发组是默认组，不允许删除
 	for _, id := range ids {
 		if id == 1 {
-			middleware.SendErrorResponse(w, "ID=1的转发器组是默认组，不允许删除", http.StatusBadRequest)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID=1的转发器组是默认组，不允许删除"})
 			return
 		}
 	}
 
 	if err := database.BatchDeleteForwardGroups(ids); err != nil {
-		middleware.SendErrorResponse(w, fmt.Sprintf("批量删除转发组失败: %v", err), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("批量删除转发组失败: %v", err)})
 		return
 	}
 
-	middleware.SendSuccessResponse(w, nil, fmt.Sprintf("成功删除 %d 个转发组", len(ids)))
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": fmt.Sprintf("成功删除 %d 个转发组", len(ids))})
 }
 
-// testDomainMatchHandler 处理域名匹配测试请求
-func testDomainMatchHandler(w http.ResponseWriter, r *http.Request) {
+// testDomainMatchHandlerGin 处理域名匹配测试请求（Gin版本）
+func testDomainMatchHandlerGin(c *gin.Context) {
 	// 只允许GET请求
-	if r.Method != http.MethodGet {
-		middleware.SendErrorResponse(w, "方法不允许", http.StatusMethodNotAllowed)
+	if c.Request.Method != http.MethodGet {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "方法不允许"})
 		return
 	}
 
 	// 获取查询参数中的域名
-	domain := r.URL.Query().Get("domain")
+	domain := c.Request.URL.Query().Get("domain")
 	if domain == "" {
-		middleware.SendErrorResponse(w, "域名参数不能为空", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "域名参数不能为空"})
 		return
 	}
 
@@ -275,8 +270,12 @@ func testDomainMatchHandler(w http.ResponseWriter, r *http.Request) {
 	matchedGroup := sdns.GlobalDNSForwarder.TestDomainMatch(domain)
 
 	// 返回匹配结果
-	middleware.SendSuccessResponse(w, map[string]interface{}{
-		"domain":        domain,
-		"matched_group": matchedGroup,
-	}, "域名匹配测试成功")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"domain":        domain,
+			"matched_group": matchedGroup,
+		},
+		"message": "域名匹配测试成功",
+	})
 }

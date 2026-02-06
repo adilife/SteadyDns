@@ -1,3 +1,19 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/httpd/httpd.go
 
 package api
@@ -11,6 +27,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // HTTPServer HTTP服务器包装器，包含服务器实例和运行状态
@@ -18,7 +36,7 @@ type HTTPServer struct {
 	server      *http.Server
 	ipv6Server  *http.Server
 	servermu    sync.Mutex
-	httpHandler http.Handler
+	httpHandler *gin.Engine
 	handlermu   sync.Mutex
 	running     bool
 	runningmu   sync.Mutex
@@ -51,7 +69,7 @@ func (hs *HTTPServer) SetServer(server *http.Server) {
 }
 
 // SetHandler 设置HTTP处理器
-func (hs *HTTPServer) SetHandler(handler http.Handler) {
+func (hs *HTTPServer) SetHandler(handler *gin.Engine) {
 	hs.handlermu.Lock()
 	defer hs.handlermu.Unlock()
 
@@ -113,9 +131,17 @@ func (hs *HTTPServer) Start() error {
 		ipv6Addr = "::"
 	}
 
-	// 创建一个新的ServeMux并设置路由
-	mux := http.NewServeMux()
-	SetupRoutes(mux)
+	// 获取GIN模式配置
+	ginMode := common.GetConfig("APIServer", "GIN_MODE")
+	if ginMode == "" {
+		ginMode = "debug"
+	}
+	// 设置GIN运行模式
+	gin.SetMode(ginMode)
+
+	// 创建一个新的Gin引擎并设置路由
+	engine := gin.Default()
+	SetupRoutes(engine)
 
 	// 智能创建服务器实例
 	// 情况1：如果IPv6地址为"::"（默认值），则只启动IPv6服务器（双栈监听）
@@ -125,7 +151,7 @@ func (hs *HTTPServer) Start() error {
 		ipv6AddrWithPort := "[" + ipv6Addr + "]:" + port
 		newIPv6Server := &http.Server{
 			Addr:    ipv6AddrWithPort,
-			Handler: mux,
+			Handler: engine,
 		}
 		// 更新服务器实例
 		hs.SetServer(nil)
@@ -138,13 +164,13 @@ func (hs *HTTPServer) Start() error {
 			addr := ipAddr + ":" + port
 			newServer := &http.Server{
 				Addr:    addr,
-				Handler: mux,
+				Handler: engine,
 			}
 			// 创建IPv6服务器实例
 			ipv6AddrWithPort := "[" + ipv6Addr + "]:" + port
 			newIPv6Server := &http.Server{
 				Addr:    ipv6AddrWithPort,
-				Handler: mux,
+				Handler: engine,
 			}
 			// 更新服务器实例
 			hs.SetServer(newServer)
@@ -156,7 +182,7 @@ func (hs *HTTPServer) Start() error {
 			addr := ipAddr + ":" + port
 			newServer := &http.Server{
 				Addr:    addr,
-				Handler: mux,
+				Handler: engine,
 			}
 			// 更新服务器实例
 			hs.SetServer(newServer)
@@ -313,15 +339,15 @@ func (hs *HTTPServer) createHTTPServer() *http.Server {
 	// 构建服务器地址
 	addr := ipAddr + ":" + port
 
-	// 创建一个新的 ServeMux
-	mux := http.NewServeMux()
+	// 创建一个新的Gin引擎
+	engine := gin.Default()
 
-	SetupRoutes(mux)
+	SetupRoutes(engine)
 
 	// 创建HTTP服务器实例
 	return &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: engine,
 	}
 }
 
@@ -345,14 +371,14 @@ func (hs *HTTPServer) createIPv6HTTPServer() *http.Server {
 	// 构建服务器地址
 	addr := "[" + ipv6Addr + "]:" + port
 
-	// 创建一个新的 ServeMux
-	mux := http.NewServeMux()
+	// 创建一个新的Gin引擎
+	engine := gin.Default()
 
-	SetupRoutes(mux)
+	SetupRoutes(engine)
 
 	// 创建HTTP服务器实例
 	return &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: engine,
 	}
 }

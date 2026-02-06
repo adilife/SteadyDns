@@ -3,8 +3,9 @@
 package middleware
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ErrorResponse 错误响应结构
@@ -31,19 +32,21 @@ func GetTokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-// SendErrorResponse 发送错误响应
-func SendErrorResponse(w http.ResponseWriter, message string, statusCode int) {
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ErrorResponse{
+
+
+// SendErrorResponseGin 发送错误响应（Gin版本）
+func SendErrorResponseGin(c *gin.Context, message string, statusCode int) {
+	c.JSON(statusCode, ErrorResponse{
 		Success: false,
 		Message: message,
 		Code:    statusCode,
 	})
 }
 
-// SendDetailedErrorResponse 发送详细错误响应
-func SendDetailedErrorResponse(w http.ResponseWriter, message string, statusCode int, err error) {
-	w.WriteHeader(statusCode)
+
+
+// SendDetailedErrorResponseGin 发送详细错误响应（Gin版本）
+func SendDetailedErrorResponseGin(c *gin.Context, message string, statusCode int, err error) {
 	errorResponse := ErrorResponse{
 		Success: false,
 		Message: message,
@@ -52,23 +55,25 @@ func SendDetailedErrorResponse(w http.ResponseWriter, message string, statusCode
 	if err != nil {
 		errorResponse.Error = err.Error()
 	}
-	json.NewEncoder(w).Encode(errorResponse)
+	c.JSON(statusCode, errorResponse)
 }
 
-// SendSuccessResponse 发送成功响应
-func SendSuccessResponse(w http.ResponseWriter, data interface{}, message string) {
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(SuccessResponse{
+
+
+// SendSuccessResponseGin 发送成功响应（Gin版本）
+func SendSuccessResponseGin(c *gin.Context, data interface{}, message string) {
+	c.JSON(http.StatusOK, SuccessResponse{
 		Success: true,
 		Data:    data,
 		Message: message,
 	})
 }
 
-// RespondWithError 发送错误响应
-func RespondWithError(w http.ResponseWriter, message string, statusCode int) {
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{
+
+
+// RespondWithErrorGin 发送错误响应（Gin版本）
+func RespondWithErrorGin(c *gin.Context, message string, statusCode int) {
+	c.JSON(statusCode, map[string]string{
 		"message": message,
 	})
 }
