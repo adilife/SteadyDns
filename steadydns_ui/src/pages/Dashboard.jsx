@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Card, Row, Col, Statistic, Table, Progress, Select, Space, Typography, Spin, message, Button } from 'antd'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, Row, Col, Statistic, Table, Progress, Select, Space, Typography, Spin, Button } from 'antd'
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line
@@ -30,6 +30,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
       systemHealth: 0,
       activeServers: 0
     },
+    serverStatus: null,
     forwardServers: [],
     cacheStats: {
       size: '0 GB',
@@ -55,60 +56,140 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
   })
 
   // Get summary data from API
-  const fetchSummaryData = async () => {
+  const fetchSummaryData = useCallback(async () => {
     try {
       setError(null)
-      const response = await apiClient.get('/dashboard/summary')
-      if (response.success) {
+      
+      // Fetch server status
+      const serverStatusResponse = await apiClient.getServerStatus()
+      if (serverStatusResponse.success) {
         setDashboardData(prev => ({
           ...prev,
-          systemStats: response.data.systemStats,
-          forwardServers: response.data.forwardServers,
-          cacheStats: response.data.cacheStats,
-          systemResources: response.data.systemResources
+          serverStatus: serverStatusResponse.data
         }))
       }
+      
+      // Fetch health status
+      const healthStatusResponse = await apiClient.getHealthStatus()
+      if (healthStatusResponse.success) {
+        setDashboardData(prev => ({
+          ...prev,
+          systemStats: {
+            totalQueries: 0,
+            qps: 0,
+            cacheHitRate: 0,
+            systemHealth: healthStatusResponse.data.status === 'healthy' ? 100 : 0,
+            activeServers: healthStatusResponse.data.dns.is_running ? 1 : 0
+          },
+          systemResources: {
+            cpu: healthStatusResponse.data.system.cpu || 0,
+            memory: 0,
+            disk: 0,
+            network: {
+              inbound: '0 MB/s',
+              outbound: '0 MB/s'
+            }
+          }
+        }))
+      }
+      
+      // Fetch cache stats
+      const cacheStatsResponse = await apiClient.getCacheStats()
+      if (cacheStatsResponse.success) {
+        const cacheData = cacheStatsResponse.data
+        // Calculate miss rate
+        const missRate = 100 - cacheData.hitRate
+        // Convert bytes to MB
+        const currentSizeMB = (cacheData.currentSize / (1024 * 1024)).toFixed(2)
+        const maxSizeMB = (cacheData.maxSize / (1024 * 1024)).toFixed(2)
+        
+        setDashboardData(prev => ({
+          ...prev,
+          cacheStats: {
+            size: `${currentSizeMB} MB`,
+            maxSize: `${maxSizeMB} MB`,
+            hitRate: cacheData.hitRate,
+            missRate: missRate,
+            items: cacheData.count
+          },
+          systemStats: {
+            ...prev.systemStats,
+            cacheHitRate: cacheData.hitRate
+          }
+        }))
+      }
+      
     } catch (error) {
       console.error('Error fetching summary data:', error)
       setError(t('dashboard.fetchError', currentLanguage) || 'Failed to fetch data')
     }
-  }
+  }, [currentLanguage])
 
   // Get trends data from API
-  const fetchTrendsData = async () => {
+  const fetchTrendsData = useCallback(async () => {
     try {
-      const response = await apiClient.get(`/dashboard/trends?timeRange=${timeRange}`)
-      if (response.success) {
-        setDashboardData(prev => ({
-          ...prev,
-          qpsTrend: response.data.qpsTrend,
-          latencyData: response.data.latencyData,
-          resourceUsage: response.data.resourceUsage
-        }))
-      }
+      // Mock trends data for now
+      const mockQpsTrend = Array.from({ length: 12 }, (_, i) => ({
+        time: `${i}:00`,
+        qps: Math.floor(Math.random() * 100) + 10
+      }))
+      
+      const mockLatencyData = [
+        { range: '< 10ms', count: Math.floor(Math.random() * 500) + 100 },
+        { range: '10-50ms', count: Math.floor(Math.random() * 300) + 50 },
+        { range: '50-100ms', count: Math.floor(Math.random() * 200) + 20 },
+        { range: '100-200ms', count: Math.floor(Math.random() * 100) + 10 },
+        { range: '> 200ms', count: Math.floor(Math.random() * 50) + 5 }
+      ]
+      
+      const mockResourceUsage = Array.from({ length: 12 }, (_, i) => ({
+        time: `${i}:00`,
+        cpu: Math.floor(Math.random() * 50) + 10,
+        memory: Math.floor(Math.random() * 40) + 20,
+        disk: Math.floor(Math.random() * 30) + 10
+      }))
+      
+      setDashboardData(prev => ({
+        ...prev,
+        qpsTrend: mockQpsTrend,
+        latencyData: mockLatencyData,
+        resourceUsage: mockResourceUsage
+      }))
     } catch (error) {
       console.error('Error fetching trends data:', error)
     }
-  }
+  }, [])
 
   // Get top data from API
-  const fetchTopData = async () => {
+  const fetchTopData = useCallback(async () => {
     try {
-      const response = await apiClient.get('/dashboard/top?limit=10')
-      if (response.success) {
-        setDashboardData(prev => ({
-          ...prev,
-          topDomains: response.data.topDomains,
-          topClients: response.data.topClients
-        }))
-      }
+      // Mock top data for now
+      const mockTopDomains = Array.from({ length: 10 }, (_, i) => ({
+        rank: i + 1,
+        domain: `example${i + 1}.com`,
+        queries: Math.floor(Math.random() * 1000) + 100,
+        percentage: (Math.random() * 20).toFixed(1)
+      }))
+      
+      const mockTopClients = Array.from({ length: 10 }, (_, i) => ({
+        rank: i + 1,
+        ip: `192.168.1.${i + 1}`,
+        queries: Math.floor(Math.random() * 500) + 50,
+        percentage: (Math.random() * 15).toFixed(1)
+      }))
+      
+      setDashboardData(prev => ({
+        ...prev,
+        topDomains: mockTopDomains,
+        topClients: mockTopClients
+      }))
     } catch (error) {
       console.error('Error fetching top data:', error)
     }
-  }
+  }, [])
 
   // Refresh all data
-  const refreshAllData = async () => {
+  const refreshAllData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -123,30 +204,30 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentLanguage, fetchSummaryData, fetchTrendsData, fetchTopData])
 
   // Initial load
   useEffect(() => {
     refreshAllData()
-  }, [])
+  }, [refreshAllData])
 
   // Auto refresh summary data every 5 seconds
   useEffect(() => {
     const summaryInterval = setInterval(fetchSummaryData, 5000)
     return () => clearInterval(summaryInterval)
-  }, [])
+  }, [fetchSummaryData])
 
   // Auto refresh trends data every 60 seconds
   useEffect(() => {
     const trendsInterval = setInterval(fetchTrendsData, 60000)
     return () => clearInterval(trendsInterval)
-  }, [timeRange])
+  }, [timeRange, fetchTrendsData])
 
   // Auto refresh top data every 30 seconds
   useEffect(() => {
     const topInterval = setInterval(fetchTopData, 30000)
     return () => clearInterval(topInterval)
-  }, [])
+  }, [fetchTopData])
 
   const handleTimeRangeChange = (value) => {
     setTimeRange(value)
