@@ -202,6 +202,17 @@ func (sm *ServerManager) GetServerStatus() map[string]interface{} {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
+	// 读取日志级别配置
+	apiLogLevel := common.GetConfig("API", "LOG_LEVEL")
+	if apiLogLevel == "" {
+		apiLogLevel = "info" // 默认值
+	}
+
+	dnsLogLevel := common.GetConfig("Logging", "DNS_LOG_LEVEL")
+	if dnsLogLevel == "" {
+		dnsLogLevel = "info" // 默认值
+	}
+
 	status := map[string]interface{}{
 		"dns_server": map[string]interface{}{
 			"running":    sm.dnsServerRunning,
@@ -216,6 +227,10 @@ func (sm *ServerManager) GetServerStatus() map[string]interface{} {
 		},
 		"forwarder": map[string]interface{}{
 			"initialized": sdns.GlobalDNSForwarder != nil,
+		},
+		"logging": map[string]interface{}{
+			"api_log_level": apiLogLevel,
+			"dns_log_level": dnsLogLevel,
 		},
 		"timestamp": time.Now().Unix(),
 	}

@@ -120,7 +120,7 @@ func (hs *HTTPServer) Start() error {
 	// 智能创建服务器实例
 	// 情况1：如果IPv6地址为"::"（默认值），则只启动IPv6服务器（双栈监听）
 	if ipv6Addr == "::" {
-		hs.logger.Info("IPv6地址为默认值::，启动双栈监听...")
+		hs.logger.Info("IPv6地址为默认值[::]，启动双栈监听...")
 		// 创建IPv6服务器实例（双栈监听）
 		ipv6AddrWithPort := "[" + ipv6Addr + "]:" + port
 		newIPv6Server := &http.Server{

@@ -5,9 +5,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"SteadyDNS/core/common"
 )
@@ -25,7 +23,12 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	configManager := common.GetConfigManager()
 
 	// 解析请求路径
-	path := strings.TrimPrefix(r.URL.Path, "/api/config/")
+	var path string
+	if r.URL.Path == "/api/config" {
+		path = ""
+	} else {
+		path = strings.TrimPrefix(r.URL.Path, "/api/config/")
+	}
 	pathParts := strings.Split(path, "/")
 
 	// 根据请求路径和方法处理不同的API端点
@@ -54,18 +57,6 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	case path == "reload" && r.Method == http.MethodPost:
 		// 重载配置
 		handleReloadConfig(w, r, configManager)
-
-	case path == "backup" && r.Method == http.MethodPost:
-		// 备份配置
-		handleBackupConfig(w, r, configManager)
-
-	case path == "restore" && r.Method == http.MethodPost:
-		// 恢复配置
-		handleRestoreConfig(w, r, configManager)
-
-	case path == "history" && r.Method == http.MethodGet:
-		// 获取配置历史
-		handleGetConfigHistory(w, r, configManager)
 
 	case path == "defaults" && r.Method == http.MethodGet:
 		// 获取默认配置
@@ -165,16 +156,6 @@ func handleUpdateConfigItem(w http.ResponseWriter, r *http.Request, configManage
 		return
 	}
 
-	// 添加到历史记录
-	changes := map[string]interface{}{
-		"section":    section,
-		"key":        key,
-		"old_value":  oldValue,
-		"new_value":  request.Value,
-		"updated_by": request.User,
-	}
-	configManager.AddHistory(request.User, "update_config", changes)
-
 	// 返回成功响应
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -199,14 +180,8 @@ func handleReloadConfig(w http.ResponseWriter, r *http.Request, configManager *c
 		return
 	}
 
-	// 添加到历史记录
-	changes := map[string]interface{}{
-		"action": "reload_config",
-		"time":   time.Now(),
-	}
-	configManager.AddHistory("system", "reload_config", changes)
-
-	// 返回成功响应
+	// 直接返回成功响应，移除历史记录添加
+	// 原因：reload 操作只是重新读取配置文件，没有实际修改配置，不需要记录历史
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
@@ -214,107 +189,7 @@ func handleReloadConfig(w http.ResponseWriter, r *http.Request, configManager *c
 	})
 }
 
-// handleBackupConfig 处理备份配置的请求
-func handleBackupConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
-	// 解析请求体
-	var request struct {
-		Comment string `json:"comment"`
-		User    string `json:"user"`
-	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		// 如果请求体为空，使用默认值
-		request.Comment = ""
-		request.User = "system"
-	}
-
-	// 备份配置
-	backupFileName, err := configManager.BackupConfig(request.Comment)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	// 添加到历史记录
-	changes := map[string]interface{}{
-		"backup_file": backupFileName,
-		"comment":     request.Comment,
-		"backup_by":   request.User,
-	}
-	configManager.AddHistory(request.User, "backup_config", changes)
-
-	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":     true,
-		"message":     "配置备份成功",
-		"backup_file": backupFileName,
-	})
-}
-
-// handleRestoreConfig 处理恢复配置的请求
-func handleRestoreConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
-	// 解析请求体
-	var request struct {
-		BackupFile string `json:"backup_file"`
-		User       string `json:"user"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// 恢复配置
-	if err := configManager.RestoreConfig(request.BackupFile); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	// 添加到历史记录
-	changes := map[string]interface{}{
-		"restore_from": request.BackupFile,
-		"restore_by":   request.User,
-	}
-	configManager.AddHistory(request.User, "restore_config", changes)
-
-	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":     true,
-		"message":     "配置恢复成功",
-		"backup_file": request.BackupFile,
-	})
-}
-
-// handleGetConfigHistory 处理获取配置历史的请求
-func handleGetConfigHistory(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
-	// 获取查询参数
-	limitStr := r.URL.Query().Get("limit")
-	limit := 0
-	if limitStr != "" {
-		limit, _ = strconv.Atoi(limitStr)
-	}
-
-	// 获取历史记录
-	history := configManager.GetHistory(limit)
-
-	// 返回JSON响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"data":    history,
-		"count":   len(history),
-	})
-}
 
 // handleGetDefaultConfig 处理获取默认配置的请求
 func handleGetDefaultConfig(w http.ResponseWriter, r *http.Request, configManager *common.ConfigManager) {
@@ -356,13 +231,6 @@ func handleResetConfig(w http.ResponseWriter, r *http.Request, configManager *co
 		})
 		return
 	}
-
-	// 添加到历史记录
-	changes := map[string]interface{}{
-		"action":   "reset_to_defaults",
-		"reset_by": request.User,
-	}
-	configManager.AddHistory(request.User, "reset_config", changes)
 
 	// 返回成功响应
 	w.Header().Set("Content-Type", "application/json")

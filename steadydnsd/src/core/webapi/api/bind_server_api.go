@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -63,9 +64,25 @@ func bindServerHandler(w http.ResponseWriter, r *http.Request) {
 		// 获取BIND配置
 		handleBindServerConfig(w, r, bindManager)
 
-	case path == "config" && r.Method == http.MethodPut:
-		// 更新BIND配置
-		handleBindServerUpdateConfig(w, r, bindManager)
+	case path == "named-conf/content" && r.Method == http.MethodGet:
+		// 获取 named.conf 文件内容
+		handleGetNamedConfContent(w, r, bindManager)
+
+	case path == "named-conf" && r.Method == http.MethodPut:
+		// 更新 named.conf 文件内容
+		handleUpdateNamedConfContent(w, r, bindManager)
+
+	case path == "named-conf/validate" && r.Method == http.MethodPost:
+		// 验证 named.conf 配置内容
+		handleValidateNamedConfContent(w, r, bindManager)
+
+	case path == "named-conf/diff" && r.Method == http.MethodPost:
+		// 获取配置差异
+		handleDiffNamedConf(w, r, bindManager)
+
+	case path == "named-conf/parse" && r.Method == http.MethodGet:
+		// 解析 named.conf 配置结构
+		handleParseNamedConf(w, r, bindManager)
 
 	default:
 		// 未找到的API端点
@@ -219,7 +236,7 @@ func handleBindServerConfig(w http.ResponseWriter, r *http.Request, bindManager 
 		return
 	}
 
-	// 返回JSON响应
+	// 返回成功响应
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
@@ -227,20 +244,59 @@ func handleBindServerConfig(w http.ResponseWriter, r *http.Request, bindManager 
 	})
 }
 
-// handleBindServerUpdateConfig 处理更新BIND配置的请求
-func handleBindServerUpdateConfig(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
-	// 解析请求体
-	var request map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// 执行更新BIND配置操作
-	err := bindManager.UpdateBindConfig(request)
+// handleGetNamedConfContent 处理获取 named.conf 文件内容的请求
+func handleGetNamedConfContent(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+	// 获取 named.conf 文件内容
+	content, err := bindManager.GetNamedConfContent()
 
 	// 处理错误
 	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 返回 JSON 响应
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data": map[string]string{
+			"content": content,
+		},
+	})
+}
+
+// handleUpdateNamedConfContent 处理更新 named.conf 文件内容的请求
+func handleUpdateNamedConfContent(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+	// 解析请求体
+	var request struct {
+		Content string `json:"content"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&request); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "无效的请求体",
+		})
+		return
+	}
+
+	// 验证输入
+	if request.Content == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "配置内容不能为空",
+		})
+		return
+	}
+
+	// 更新 named.conf 文件内容
+	if err := bindManager.UpdateNamedConfContent(request.Content); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
@@ -253,6 +309,116 @@ func handleBindServerUpdateConfig(w http.ResponseWriter, r *http.Request, bindMa
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "BIND configuration updated successfully",
+		"message": "named.conf 配置文件更新成功",
+	})
+}
+
+// handleValidateNamedConfContent 处理验证 named.conf 配置内容的请求
+func handleValidateNamedConfContent(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+	// 解析请求体
+	var request struct {
+		Content string `json:"content"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&request); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "无效的请求体",
+		})
+		return
+	}
+
+	// 验证输入
+	if request.Content == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "配置内容不能为空",
+		})
+		return
+	}
+
+	// 验证配置内容
+	validationResult, err := bindManager.ValidateNamedConfContent(request.Content)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 返回验证结果
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": validationResult.Valid,
+		"data":    validationResult,
+	})
+}
+
+// handleDiffNamedConf 处理获取配置差异的请求
+func handleDiffNamedConf(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+	// 解析请求体
+	var request struct {
+		OldContent string `json:"oldContent"`
+		NewContent string `json:"newContent"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&request); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "无效的请求体",
+		})
+		return
+	}
+
+	// 验证输入
+	if request.OldContent == "" || request.NewContent == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "旧内容和新内容不能为空",
+		})
+		return
+	}
+
+	// 获取配置差异
+	diffResult := bindManager.DiffNamedConf(request.OldContent, request.NewContent)
+
+	// 打印差异结果
+	fmt.Printf("接口返回差异结果: unchanged %d, added %d, removed %d, total %d\n",
+		diffResult.Stats.Unchanged, diffResult.Stats.Added, diffResult.Stats.Removed, diffResult.Stats.Total)
+
+	// 返回差异结果
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    diffResult,
+	})
+}
+
+// handleParseNamedConf 处理解析 named.conf 配置结构的请求
+func handleParseNamedConf(w http.ResponseWriter, r *http.Request, bindManager *bind.BindManager) {
+	// 解析 named.conf 文件
+	config, err := bindManager.ParseNamedConf()
+
+	// 处理错误
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 返回解析结果
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    config,
 	})
 }

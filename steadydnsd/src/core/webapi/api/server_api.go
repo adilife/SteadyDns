@@ -3,6 +3,9 @@
 package api
 
 import (
+	"SteadyDNS/core/common"
+	"SteadyDNS/core/database"
+	"SteadyDNS/core/sdns"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -176,7 +179,8 @@ func handleReloadForwardGroups(w http.ResponseWriter, r *http.Request, serverMan
 func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *ServerManager) {
 	// 解析请求体
 	var request struct {
-		Level string `json:"level"`
+		APILogLevel string `json:"api_log_level"`
+		DNSLogLevel string `json:"dns_log_level"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -186,37 +190,98 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request, serverManager *Se
 
 	// 验证日志级别
 	validLevels := map[string]bool{
-		"debug":   true,
-		"info":    true,
-		"warn":    true,
-		"warning": true,
-		"error":   true,
-		"fatal":   true,
+		"DEBUG":   true,
+		"INFO":    true,
+		"WARN":    true,
+		"WARNING": true,
+		"ERROR":   true,
+		"FATAL":   true,
 	}
 
-	if !validLevels[request.Level] {
-		http.Error(w, "Invalid log level", http.StatusBadRequest)
+	// 验证API日志级别
+	if request.APILogLevel == "" {
+		http.Error(w, "API log level is required", http.StatusBadRequest)
+		return
+	}
+	apiLogLevelUpper := strings.ToUpper(request.APILogLevel)
+	if !validLevels[apiLogLevelUpper] {
+		http.Error(w, "Invalid API log level", http.StatusBadRequest)
 		return
 	}
 
-	// 执行设置日志级别操作
-	err := serverManager.SetLogLevel(request.Level)
+	// 验证DNS日志级别
+	if request.DNSLogLevel == "" {
+		http.Error(w, "DNS log level is required", http.StatusBadRequest)
+		return
+	}
+	dnsLogLevelUpper := strings.ToUpper(request.DNSLogLevel)
+	if !validLevels[dnsLogLevelUpper] {
+		http.Error(w, "Invalid DNS log level", http.StatusBadRequest)
+		return
+	}
 
-	// 处理错误
+	// 更新配置文件中的API日志级别
+	err := common.UpdateConfig("API", "LOG_LEVEL", apiLogLevelUpper)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
-			"error":   err.Error(),
+			"error":   "Failed to update API log level: " + err.Error(),
 		})
 		return
+	}
+
+	// 更新配置文件中的DNS日志级别
+	err = common.UpdateConfig("Logging", "DNS_LOG_LEVEL", dnsLogLevelUpper)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to update DNS log level: " + err.Error(),
+		})
+		return
+	}
+
+	// 重载配置
+	err = common.ReloadConfig()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to reload config: " + err.Error(),
+		})
+		return
+	}
+
+	// 执行设置日志级别操作
+	err = serverManager.SetLogLevel(apiLogLevelUpper)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to set API log level: " + err.Error(),
+		})
+		return
+	}
+
+	// 更新DNSForwarder的日志级别
+	if sdns.GlobalDNSForwarder != nil {
+		sdns.GlobalDNSForwarder.SetLogLevel(dnsLogLevelUpper)
+	}
+
+	// 更新数据库包的日志级别
+	if database.GetLogManager() != nil {
+		database.GetLogManager().SetLogLevel(dnsLogLevelUpper)
 	}
 
 	// 返回成功响应
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "Log level set successfully",
-		"level":   request.Level,
+		"message": "Log levels set successfully",
+		"levels": map[string]string{
+			"api_log_level": request.APILogLevel,
+			"dns_log_level": request.DNSLogLevel,
+		},
 	})
 }
