@@ -80,5 +80,5 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# Ignore docs directory
-docs/
+# Ignore priv_docs directory
+priv_docs/
