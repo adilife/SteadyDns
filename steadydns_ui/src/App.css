@@ -8,3 +8,32 @@
   margin: 16px;
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* 左侧导航栏独立滚动 */
+.ant-layout-sider {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 右侧内容区域独立滚动 */
+.ant-layout-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 确保Layout子元素占满高度 */
+.ant-layout {
+  overflow: hidden;
+}
+
+/* 确保内部Layout占满高度 */
+.ant-layout > .ant-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 确保Content区域占满剩余空间 */
+.ant-layout > .ant-layout > .ant-layout-content {
+  flex: 1;
+  min-height: 0;
+}
