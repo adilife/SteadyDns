@@ -2,7 +2,6 @@
 
 A lightweight DNS solution tailored for small to medium-sized environments. Built with Golang, it boasts extreme concurrent processing capabilities and minimal resource consumption. Core features include intelligent prioritized upstream forwarding, a real-time effective web management panel, and a zero-dependency rapid deployment experience.
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Language](https://img.shields.io/badge/Language-Golang%20%7C%20JavaScript-blue)](https://github.com/adilife/SteadyDns)
 
 专为中小型环境设计的轻量级、高性能 DNS 解决方案，兼顾易用性和稳定性，支持智能优先级转发、实时 Web 管理面板，零依赖快速部署。
