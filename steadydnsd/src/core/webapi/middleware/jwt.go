@@ -28,13 +28,19 @@ const (
 	minSecretKeyLength = 32
 )
 
+// RefreshTokenInfo 刷新令牌信息结构体
+type RefreshTokenInfo struct {
+	UserID    uint  // 用户ID
+	ExpiresAt int64 // 过期时间（Unix时间戳）
+}
+
 type JWTManager struct {
-	logger                 *common.Logger  // 日志记录器
-	jwtKey                 []byte          // JWT密钥，从配置文件读取
-	RefreshTokens          map[string]uint // 刷新令牌存储
-	AccessTokenExpiration  time.Duration   // 访问令牌过期时间
-	RefreshTokenExpiration time.Duration   // 刷新令牌过期时间
-	Claims                 *claims         // 自定义JWT声明
+	logger                 *common.Logger              // 日志记录器
+	jwtKey                 []byte                      // JWT密钥，从配置文件读取
+	RefreshTokens          map[string]RefreshTokenInfo // 刷新令牌存储
+	AccessTokenExpiration  time.Duration               // 访问令牌过期时间
+	RefreshTokenExpiration time.Duration               // 刷新令牌过期时间
+	Claims                 *claims                     // 自定义JWT声明
 }
 
 // 全局JWT管理器实例
@@ -67,7 +73,7 @@ func newJWTManager() *JWTManager {
 	j := &JWTManager{
 		logger:                 common.NewLogger(),
 		jwtKey:                 jwtKey,
-		RefreshTokens:          make(map[string]uint),
+		RefreshTokens:          make(map[string]RefreshTokenInfo),
 		AccessTokenExpiration:  0,
 		RefreshTokenExpiration: 0,
 		Claims:                 &claims{},
@@ -75,6 +81,9 @@ func newJWTManager() *JWTManager {
 
 	// 从配置文件读取JWT过期时间
 	j.loadJWTExpirationConfig()
+
+	// 启动定期清理过期令牌的后台任务
+	StartTokenCleanupTask()
 
 	return j
 }
@@ -212,8 +221,14 @@ func (j *JWTManager) GenerateRefreshToken(userID uint) string {
 	// 生成基于时间戳和用户ID的刷新令牌
 	refreshToken := fmt.Sprintf("%d_%d_%d", userID, time.Now().UnixNano(), time.Now().Unix())
 
-	// 存储刷新令牌
-	j.RefreshTokens[refreshToken] = userID
+	// 计算过期时间
+	expiresAt := time.Now().Add(j.RefreshTokenExpiration).Unix()
+
+	// 存储刷新令牌和过期信息
+	j.RefreshTokens[refreshToken] = RefreshTokenInfo{
+		UserID:    userID,
+		ExpiresAt: expiresAt,
+	}
 
 	return refreshToken
 }
@@ -292,6 +307,39 @@ func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 
 // ValidateRefreshToken 验证刷新令牌
 func ValidateRefreshToken(refreshToken string) (uint, bool) {
-	userID, exists := jwtManager.RefreshTokens[refreshToken]
-	return userID, exists
+	tokenInfo, exists := jwtManager.RefreshTokens[refreshToken]
+	if !exists {
+		return 0, false
+	}
+
+	// 检查是否过期
+	if time.Now().Unix() > tokenInfo.ExpiresAt {
+		// 过期的令牌，从映射中删除
+		delete(jwtManager.RefreshTokens, refreshToken)
+		return 0, false
+	}
+
+	return tokenInfo.UserID, true
+}
+
+// StartTokenCleanupTask 启动定期清理过期令牌的后台任务
+func StartTokenCleanupTask() {
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			cleanupExpiredTokens()
+		}
+	}()
+}
+
+// cleanupExpiredTokens 清理过期的刷新令牌
+func cleanupExpiredTokens() {
+	now := time.Now().Unix()
+	for token, info := range jwtManager.RefreshTokens {
+		if now > info.ExpiresAt {
+			delete(jwtManager.RefreshTokens, token)
+		}
+	}
 }
