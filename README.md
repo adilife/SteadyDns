@@ -35,11 +35,7 @@ SteadyDns 由两个核心子项目组成，前后端分离架构：
 - DNS 服务状态实时监控面板
 - 配置导入/导出功能
 
-## 快速开始
 ### 环境要求
 - 操作系统：Linux
 - 架构支持：x86_64
 - 端口要求：需开放 53（DNS 服务）、8080（Web 面板，可自定义）端口
-
-# Windows
-./steadydnsd.exe --config ./config.yaml
