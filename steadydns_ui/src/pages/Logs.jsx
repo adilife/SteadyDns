@@ -48,17 +48,13 @@ const generateMockLogs = () => {
   return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 }
 
-const Logs = ({ currentLanguage, userInfo }) => {
+const Logs = ({ currentLanguage }) => {
   const [logs, setLogs] = useState([])
   const [filteredLogs, setFilteredLogs] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [resultFilter, setResultFilter] = useState('')
   const [dateRange, setDateRange] = useState(null)
-
-  useEffect(() => {
-    loadLogs()
-  }, [])
 
   const loadLogs = () => {
     setLoading(true)
@@ -70,6 +66,14 @@ const Logs = ({ currentLanguage, userInfo }) => {
       setLoading(false)
     }, 500)
   }
+
+  useEffect(() => {
+    // 使用异步方式调用loadLogs，避免同步setState
+    const fetchLogs = async () => {
+      await loadLogs()
+    }
+    fetchLogs()
+  }, [])
 
   const handleSearch = () => {
     let filtered = logs
