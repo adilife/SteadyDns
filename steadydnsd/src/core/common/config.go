@@ -53,6 +53,54 @@ JWT_ALGORITHM=HS256
 # API rate limit enabled
 # Default: true, Recommended: true
 RATE_LIMIT_ENABLED=true
+# Rate limit window size (seconds)
+# Default: 60, Recommendation: 30-300
+RATE_LIMIT_WINDOW_SECONDS=60
+# General API limit (requests per minute)
+# Default: 300, Recommendation: 100-500
+RATE_LIMIT_API=300
+# General API maximum failures (trigger ban)
+# Default: 10, Recommendation: 5-20
+RATE_LIMIT_MAX_FAILURES=10
+# General API ban duration (minutes)
+# Default: 10, Recommendation: 5-30
+RATE_LIMIT_BAN_MINUTES=10
+# Login API limit (requests per minute)
+# Default: 60, Recommendation: 30-120
+RATE_LIMIT_LOGIN=60
+# Login API maximum failures (trigger ban)
+# Default: 10, Recommendation: 3-10
+RATE_LIMIT_LOGIN_MAX_FAILURES=10
+# Login API ban duration (minutes)
+# Default: 5, Recommendation: 3-15
+RATE_LIMIT_LOGIN_BAN_MINUTES=5
+# Token refresh API limit (requests per minute)
+# Default: 5, Recommendation: 3-10
+RATE_LIMIT_REFRESH=5
+# Token refresh API maximum failures (trigger ban)
+# Default: 3, Recommendation: 2-5
+RATE_LIMIT_REFRESH_MAX_FAILURES=3
+# Token refresh API ban duration (minutes)
+# Default: 3, Recommendation: 2-10
+RATE_LIMIT_REFRESH_BAN_MINUTES=3
+# Health check API limit (requests per minute)
+# Default: 500, Recommendation: 200-1000
+RATE_LIMIT_HEALTH=500
+# Health check API maximum failures (trigger ban)
+# Default: 20, Recommendation: 10-30
+RATE_LIMIT_HEALTH_MAX_FAILURES=20
+# Health check API ban duration (minutes)
+# Default: 10, Recommendation: 5-30
+RATE_LIMIT_HEALTH_BAN_MINUTES=10
+# User-level API limit (requests per minute)
+# Default: 500, Recommendation: 200-1000
+RATE_LIMIT_USER=500
+# User-level API maximum failures (trigger ban)
+# Default: 20, Recommendation: 10-30
+RATE_LIMIT_USER_MAX_FAILURES=20
+# User-level API ban duration (minutes)
+# Default: 15, Recommendation: 5-30
+RATE_LIMIT_USER_BAN_MINUTES=15
 # API log enabled
 # Default: true, Recommended: true
 LOG_ENABLED=true
@@ -320,8 +368,25 @@ func setDefaultConfig() {
 	setDefault("JWT", "REFRESH_TOKEN_EXPIRATION", "7")
 	setDefault("JWT", "JWT_ALGORITHM", "HS256")
 
-	// API 安全配置
+	// API 速率限制配置
 	setDefault("API", "RATE_LIMIT_ENABLED", "true")
+	setDefault("API", "RATE_LIMIT_WINDOW_SECONDS", "60")
+	setDefault("API", "RATE_LIMIT_API", "300")
+	setDefault("API", "RATE_LIMIT_MAX_FAILURES", "10")
+	setDefault("API", "RATE_LIMIT_BAN_MINUTES", "10")
+	setDefault("API", "RATE_LIMIT_LOGIN", "60")
+	setDefault("API", "RATE_LIMIT_LOGIN_MAX_FAILURES", "10")
+	setDefault("API", "RATE_LIMIT_LOGIN_BAN_MINUTES", "5")
+	setDefault("API", "RATE_LIMIT_REFRESH", "5")
+	setDefault("API", "RATE_LIMIT_REFRESH_MAX_FAILURES", "3")
+	setDefault("API", "RATE_LIMIT_REFRESH_BAN_MINUTES", "3")
+	setDefault("API", "RATE_LIMIT_HEALTH", "500")
+	setDefault("API", "RATE_LIMIT_HEALTH_MAX_FAILURES", "20")
+	setDefault("API", "RATE_LIMIT_HEALTH_BAN_MINUTES", "10")
+	setDefault("API", "RATE_LIMIT_USER", "500")
+	setDefault("API", "RATE_LIMIT_USER_MAX_FAILURES", "20")
+	setDefault("API", "RATE_LIMIT_USER_BAN_MINUTES", "15")
+	// API 日志配置
 	setDefault("API", "LOG_ENABLED", "true")
 	setDefault("API", "LOG_LEVEL", "INFO")
 	setDefault("API", "LOG_REQUEST_BODY", "false")
