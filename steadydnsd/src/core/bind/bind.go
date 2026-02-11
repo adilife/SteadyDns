@@ -149,6 +149,18 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 		}
 	}
 
+	// 处理AllowQuery为空的情况
+	if zone.AllowQuery == "" {
+		// 从全局配置中获取
+		globalAllowQuery := common.GetConfig("BIND", "ALLOW_QUERY")
+		if globalAllowQuery != "" {
+			zone.AllowQuery = globalAllowQuery
+		} else {
+			// 如果全局配置中也没有设置，使用默认值"any"
+			zone.AllowQuery = "any"
+		}
+	}
+
 	// 检查NS记录是否为空，如果为空则使用SOA记录中的PrimaryNS作为默认值
 	hasNSRecord := false
 	for _, record := range zone.Records {

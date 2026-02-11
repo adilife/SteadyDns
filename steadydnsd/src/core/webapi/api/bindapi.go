@@ -195,6 +195,13 @@ func CreateBindZoneGin(c *gin.Context) {
 		return
 	}
 
+	// 刷新权威域转发列表
+	if sdns.GlobalDNSForwarder != nil {
+		if err := sdns.GlobalDNSForwarder.GetAuthorityForwarder().ReloadAuthorityZones(); err != nil {
+			apiLogger.Warn("刷新权威域转发列表失败: %v", err)
+		}
+	}
+
 	// 清除与域名相关的缓存
 	clearCacheAsync(zone.Domain)
 
@@ -245,6 +252,13 @@ func UpdateBindZoneGin(c *gin.Context, domain string) {
 		return
 	}
 
+	// 刷新权威域转发列表
+	if sdns.GlobalDNSForwarder != nil {
+		if err := sdns.GlobalDNSForwarder.GetAuthorityForwarder().ReloadAuthorityZones(); err != nil {
+			apiLogger.Warn("刷新权威域转发列表失败: %v", err)
+		}
+	}
+
 	// 清除与域名相关的缓存
 	clearCacheAsync(zone.Domain)
 
@@ -271,6 +285,13 @@ func DeleteBindZoneGin(c *gin.Context, domain string) {
 			"error":   "删除权威域失败: " + err.Error(),
 		})
 		return
+	}
+
+	// 刷新权威域转发列表
+	if sdns.GlobalDNSForwarder != nil {
+		if err := sdns.GlobalDNSForwarder.GetAuthorityForwarder().ReloadAuthorityZones(); err != nil {
+			apiLogger.Warn("刷新权威域转发列表失败: %v", err)
+		}
 	}
 
 	// 清除与域名相关的缓存
