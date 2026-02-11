@@ -191,8 +191,9 @@ func isValidQueryType(qtype uint16) bool {
 // DNSRateLimiter DNS查询速率限制器
 type DNSRateLimiter struct {
 	// IP级别的限制
-	ipLimits map[string]*LimitCounter
-	ipMutex  sync.Mutex
+	ipLimits   []map[string]*LimitCounter
+	ipMutexes  []sync.RWMutex
+	shardCount int
 
 	// 全局限制
 	globalLimit *LimitCounter
@@ -214,6 +215,7 @@ type LimitCounter struct {
 	failCount   int
 	maxFailures int
 	banDuration time.Duration
+	lastCleanup time.Time
 }
 
 // NewLimitCounter 创建新的限制计数器
@@ -224,6 +226,7 @@ func NewLimitCounter(limit int, window time.Duration, maxFailures int, banDurati
 		window:      window,
 		maxFailures: maxFailures,
 		banDuration: banDuration,
+		lastCleanup: time.Now(),
 	}
 }
 
@@ -232,18 +235,22 @@ func (lc *LimitCounter) AddRequest() (bool, bool) {
 	lc.mutex.Lock()
 	defer lc.mutex.Unlock()
 
-	// 清理过期的请求
 	now := time.Now()
-	cutoff := now.Add(-lc.window)
-	validRequests := make([]time.Time, 0)
 
-	for _, reqTime := range lc.requests {
-		if reqTime.After(cutoff) {
-			validRequests = append(validRequests, reqTime)
+	// 定期清理过期请求（每10秒清理一次）
+	if now.Sub(lc.lastCleanup) > 10*time.Second {
+		cutoff := now.Add(-lc.window)
+		validRequests := make([]time.Time, 0, len(lc.requests))
+
+		for _, reqTime := range lc.requests {
+			if reqTime.After(cutoff) {
+				validRequests = append(validRequests, reqTime)
+			}
 		}
-	}
 
-	lc.requests = validRequests
+		lc.requests = validRequests
+		lc.lastCleanup = now
+	}
 
 	// 检查是否超出限制
 	if len(lc.requests) >= lc.limit {
@@ -265,14 +272,38 @@ func NewDNSRateLimiter(logger *common.Logger) *DNSRateLimiter {
 
 	banDuration := time.Duration(banDurationMinutes) * time.Minute
 
+	// 使用16个分片减少锁竞争
+	shardCount := 16
+	ipLimits := make([]map[string]*LimitCounter, shardCount)
+	ipMutexes := make([]sync.RWMutex, shardCount)
+
+	for i := 0; i < shardCount; i++ {
+		ipLimits[i] = make(map[string]*LimitCounter)
+	}
+
 	return &DNSRateLimiter{
-		ipLimits:                  make(map[string]*LimitCounter),
+		ipLimits:                  ipLimits,
+		ipMutexes:                 ipMutexes,
+		shardCount:                shardCount,
 		globalLimit:               NewLimitCounter(globalLimit, time.Minute, 0, 0),
 		maxQueriesPerMinuteIP:     ipLimit,     // 每IP每分钟查询限制
 		maxQueriesPerMinuteGlobal: globalLimit, // 全局每分钟查询限制
 		banDuration:               banDuration,
 		logger:                    logger,
 	}
+}
+
+// getIPShard 获取IP对应的分片索引
+func (rl *DNSRateLimiter) getIPShard(ip string) int {
+	// 使用简单的哈希函数计算分片索引
+	hash := 0
+	for _, char := range ip {
+		hash = (hash << 5) - hash + int(char)
+	}
+	if hash < 0 {
+		hash = -hash
+	}
+	return hash % rl.shardCount
 }
 
 // CheckAndLimit 检查并限制查询速率
@@ -287,13 +318,14 @@ func (rl *DNSRateLimiter) CheckAndLimit(clientIP string) (bool, string) {
 	}
 
 	// 检查IP限制
-	rl.ipMutex.Lock()
-	counter, exists := rl.ipLimits[clientIP]
+	shardIndex := rl.getIPShard(clientIP)
+	rl.ipMutexes[shardIndex].Lock()
+	counter, exists := rl.ipLimits[shardIndex][clientIP]
 	if !exists {
 		counter = NewLimitCounter(rl.maxQueriesPerMinuteIP, time.Minute, 10, rl.banDuration)
-		rl.ipLimits[clientIP] = counter
+		rl.ipLimits[shardIndex][clientIP] = counter
 	}
-	rl.ipMutex.Unlock()
+	rl.ipMutexes[shardIndex].Unlock()
 
 	allowed, banned := counter.AddRequest()
 	if !allowed {
@@ -308,27 +340,29 @@ func (rl *DNSRateLimiter) CheckAndLimit(clientIP string) (bool, string) {
 
 // CleanupExpired 清理过期的限制计数器
 func (rl *DNSRateLimiter) CleanupExpired() {
-	rl.ipMutex.Lock()
-	defer rl.ipMutex.Unlock()
-
 	now := time.Now()
 	cutoff := now.Add(-time.Hour)
 
-	for ip, counter := range rl.ipLimits {
-		counter.mutex.Lock()
-		// 检查是否有最近一小时的请求
-		hasRecent := false
-		for _, reqTime := range counter.requests {
-			if reqTime.After(cutoff) {
-				hasRecent = true
-				break
+	// 遍历所有分片进行清理
+	for i := 0; i < rl.shardCount; i++ {
+		rl.ipMutexes[i].Lock()
+		for ip, counter := range rl.ipLimits[i] {
+			counter.mutex.Lock()
+			// 检查是否有最近一小时的请求
+			hasRecent := false
+			for _, reqTime := range counter.requests {
+				if reqTime.After(cutoff) {
+					hasRecent = true
+					break
+				}
+			}
+			counter.mutex.Unlock()
+
+			if !hasRecent {
+				delete(rl.ipLimits[i], ip)
 			}
 		}
-		counter.mutex.Unlock()
-
-		if !hasRecent {
-			delete(rl.ipLimits, ip)
-		}
+		rl.ipMutexes[i].Unlock()
 	}
 }
 
@@ -344,9 +378,7 @@ func (rl *DNSRateLimiter) StartCleanupTimer() {
 
 // SetLimits 设置限制参数
 func (rl *DNSRateLimiter) SetLimits(ipLimit, globalLimit int, banDuration time.Duration) {
-	rl.ipMutex.Lock()
 	rl.maxQueriesPerMinuteIP = ipLimit
-	rl.ipMutex.Unlock()
 
 	rl.globalMutex.Lock()
 	rl.maxQueriesPerMinuteGlobal = globalLimit
@@ -358,9 +390,13 @@ func (rl *DNSRateLimiter) SetLimits(ipLimit, globalLimit int, banDuration time.D
 
 // GetStats 获取速率限制统计信息
 func (rl *DNSRateLimiter) GetStats() map[string]interface{} {
-	rl.ipMutex.Lock()
-	ipCount := len(rl.ipLimits)
-	rl.ipMutex.Unlock()
+	// 统计所有分片中的IP数量
+	ipCount := 0
+	for i := 0; i < rl.shardCount; i++ {
+		rl.ipMutexes[i].RLock()
+		ipCount += len(rl.ipLimits[i])
+		rl.ipMutexes[i].RUnlock()
+	}
 
 	rl.globalMutex.Lock()
 	globalRequests := len(rl.globalLimit.requests)

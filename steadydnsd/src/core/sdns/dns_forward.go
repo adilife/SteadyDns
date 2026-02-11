@@ -153,6 +153,9 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 
 		// 为当前优先级队列中的所有健康服务器创建任务
 		for i, server := range healthyServers {
+
+			server = servers[0]
+
 			addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
 			f.logger.Debug("转发查询 - 尝试服务器 %d: %s (优先级 %d)", i+1, addr, priority)
 
@@ -193,12 +196,6 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 				// 等待完成，继续启动下一优先级队列
 			}
 		}
-	}
-
-	// 如果没有健康服务器，返回错误
-	if totalHealthyServers == 0 {
-		close(cancelChan)
-		return nil, fmt.Errorf("没有健康的转发服务器")
 	}
 
 	// 如果没有健康服务器，返回错误
@@ -296,7 +293,7 @@ func (f *DNSForwarder) forwardToServer(addr string, query *dns.Msg, cancelChan c
 	errorChan := make(chan error, 1)
 
 	// 在goroutine中执行DNS查询
-	go func() {
+	func() {
 		f.logger.Debug("转发查询 - 开始执行DNS查询，服务器: %s", addr)
 		c := new(dns.Client)
 		c.Timeout = 5 * time.Second
