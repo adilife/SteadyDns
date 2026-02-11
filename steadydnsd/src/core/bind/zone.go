@@ -98,7 +98,15 @@ func (bm *BindManager) parseZoneFile(filePath, domain string) (*AuthZone, error)
 			continue
 		}
 
-		fields := strings.Fields(line)
+		// 分离注释和记录内容
+		var comment string
+		parts := strings.SplitN(line, ";", 2)
+		recordContent := parts[0]
+		if len(parts) > 1 {
+			comment = strings.TrimSpace(parts[1])
+		}
+
+		fields := strings.Fields(recordContent)
 		if len(fields) < 3 {
 			continue
 		}
@@ -148,6 +156,7 @@ func (bm *BindManager) parseZoneFile(filePath, domain string) (*AuthZone, error)
 			Value:    value,
 			Priority: priority,
 			TTL:      ttl,
+			Comment:  comment,
 		}
 
 		// 添加到通用记录切片
@@ -256,7 +265,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("NS")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN NS\t%s\n", record.Name, ttl, ensureDotSuffix(record.Value)))
+			line := fmt.Sprintf("%s\t%d\tIN NS\t%s", record.Name, ttl, ensureDotSuffix(record.Value))
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -270,7 +283,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("A")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN A\t%s\n", record.Name, ttl, record.Value))
+			line := fmt.Sprintf("%s\t%d\tIN A\t%s", record.Name, ttl, record.Value)
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -284,7 +301,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("AAAA")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN AAAA\t%s\n", record.Name, ttl, record.Value))
+			line := fmt.Sprintf("%s\t%d\tIN AAAA\t%s", record.Name, ttl, record.Value)
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -298,7 +319,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("CNAME")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN CNAME\t%s\n", record.Name, ttl, ensureDotSuffix(record.Value)))
+			line := fmt.Sprintf("%s\t%d\tIN CNAME\t%s", record.Name, ttl, ensureDotSuffix(record.Value))
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -312,7 +337,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("MX")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN MX %d\t%s\n", record.Name, ttl, record.Priority, ensureDotSuffix(record.Value)))
+			line := fmt.Sprintf("%s\t%d\tIN MX %d\t%s", record.Name, ttl, record.Priority, ensureDotSuffix(record.Value))
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -326,7 +355,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("TXT")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN TXT\t%s\n", record.Name, ttl, record.Value))
+			line := fmt.Sprintf("%s\t%d\tIN TXT\t%s", record.Name, ttl, record.Value)
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -340,7 +373,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 			if ttl == 0 {
 				ttl = getDefaultTTL("PTR")
 			}
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN PTR\t%s\n", record.Name, ttl, ensureDotSuffix(record.Value)))
+			line := fmt.Sprintf("%s\t%d\tIN PTR\t%s", record.Name, ttl, ensureDotSuffix(record.Value))
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}
@@ -360,7 +397,11 @@ func (bm *BindManager) generateZoneContent(zone AuthZone) string {
 				ttl = getDefaultTTL(recordType)
 			}
 			// 对于其他可能需要加点的记录类型，也使用ensureDotSuffix
-			buffer.WriteString(fmt.Sprintf("%s\t%d\tIN %s\t%s\n", record.Name, ttl, record.Type, ensureDotSuffix(record.Value)))
+			line := fmt.Sprintf("%s\t%d\tIN %s\t%s", record.Name, ttl, record.Type, ensureDotSuffix(record.Value))
+			if record.Comment != "" {
+				line += fmt.Sprintf(" ; %s", record.Comment)
+			}
+			buffer.WriteString(line + "\n")
 		}
 		buffer.WriteString("\n")
 	}

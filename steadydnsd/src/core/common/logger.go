@@ -65,12 +65,43 @@ func GetLogLevelFromEnv() LogLevel {
 	return ParseLogLevel(levelStr)
 }
 
-// Logger 日志管理器
+// 全局日志输出器
+var globalLogger LoggerInterface
+
+// SetGlobalLogger 设置全局日志输出器
+func SetGlobalLogger(logger LoggerInterface) {
+	globalLogger = logger
+}
+
+// GetGlobalLogger 获取全局日志输出器
+func GetGlobalLogger() LoggerInterface {
+	if globalLogger == nil {
+		// 如果没有设置全局日志器，创建一个默认的终端日志器
+		return NewDefaultLogger()
+	}
+	return globalLogger
+}
+
+// LoggerInterface 日志接口
+type LoggerInterface interface {
+	Debug(format string, args ...interface{})
+	Info(format string, args ...interface{})
+	Warn(format string, args ...interface{})
+	Error(format string, args ...interface{})
+	Fatal(format string, args ...interface{})
+	LogError(format string, err error, args ...interface{})
+	Printf(format string, args ...interface{})
+	SetLevel(level LogLevel)
+	GetLevel() LogLevel
+}
+
+// Logger 日志管理器 - 现在作为 LoggerInterface 的适配器
 type Logger struct {
 	level LogLevel
 }
 
 // NewLogger 创建新的日志管理器
+// 现在返回的 Logger 会使用全局日志输出器
 func NewLogger() *Logger {
 	return &Logger{
 		level: GetLogLevelFromEnv(),
@@ -87,6 +118,10 @@ func NewLoggerWithLevel(level LogLevel) *Logger {
 // SetLevel 设置日志级别
 func (l *Logger) SetLevel(level LogLevel) {
 	l.level = level
+	// 同时设置全局日志器的级别
+	if globalLogger != nil {
+		globalLogger.SetLevel(level)
+	}
 }
 
 // GetLevel 获取当前日志级别
@@ -97,48 +132,110 @@ func (l *Logger) GetLevel() LogLevel {
 // Debug 打印DEBUG级别日志
 func (l *Logger) Debug(format string, args ...interface{}) {
 	if l.level <= DEBUG {
-		l.log("DEBUG", format, args...)
+		GetGlobalLogger().Debug(format, args...)
 	}
 }
 
 // Info 打印INFO级别日志
 func (l *Logger) Info(format string, args ...interface{}) {
 	if l.level <= INFO {
-		l.log("INFO", format, args...)
+		GetGlobalLogger().Info(format, args...)
 	}
 }
 
 // Warn 打印WARN级别日志
 func (l *Logger) Warn(format string, args ...interface{}) {
 	if l.level <= WARN {
-		l.log("WARN", format, args...)
+		GetGlobalLogger().Warn(format, args...)
 	}
 }
 
 // Error 打印ERROR级别日志
 func (l *Logger) Error(format string, args ...interface{}) {
 	if l.level <= ERROR {
-		l.log("ERROR", format, args...)
+		GetGlobalLogger().Error(format, args...)
 	}
 }
 
 // Fatal 打印FATAL级别日志并退出程序
 func (l *Logger) Fatal(format string, args ...interface{}) {
 	if l.level <= FATAL {
+		GetGlobalLogger().Fatal(format, args...)
+	}
+}
+
+// LogError 记录错误日志，包含错误详情
+func (l *Logger) LogError(format string, err error, args ...interface{}) {
+	if l.level <= ERROR {
+		GetGlobalLogger().LogError(format, err, args...)
+	}
+}
+
+// Printf 兼容旧的日志打印方法
+func (l *Logger) Printf(format string, args ...interface{}) {
+	l.Info(format, args...)
+}
+
+// DefaultLogger 默认的终端日志实现
+type DefaultLogger struct {
+	level LogLevel
+}
+
+// NewDefaultLogger 创建默认的终端日志器
+func NewDefaultLogger() *DefaultLogger {
+	return &DefaultLogger{
+		level: INFO,
+	}
+}
+
+// SetLevel 设置日志级别
+func (l *DefaultLogger) SetLevel(level LogLevel) {
+	l.level = level
+}
+
+// GetLevel 获取日志级别
+func (l *DefaultLogger) GetLevel() LogLevel {
+	return l.level
+}
+
+// Debug 打印DEBUG级别日志
+func (l *DefaultLogger) Debug(format string, args ...interface{}) {
+	if l.level <= DEBUG {
+		l.log("DEBUG", format, args...)
+	}
+}
+
+// Info 打印INFO级别日志
+func (l *DefaultLogger) Info(format string, args ...interface{}) {
+	if l.level <= INFO {
+		l.log("INFO", format, args...)
+	}
+}
+
+// Warn 打印WARN级别日志
+func (l *DefaultLogger) Warn(format string, args ...interface{}) {
+	if l.level <= WARN {
+		l.log("WARN", format, args...)
+	}
+}
+
+// Error 打印ERROR级别日志
+func (l *DefaultLogger) Error(format string, args ...interface{}) {
+	if l.level <= ERROR {
+		l.log("ERROR", format, args...)
+	}
+}
+
+// Fatal 打印FATAL级别日志并退出程序
+func (l *DefaultLogger) Fatal(format string, args ...interface{}) {
+	if l.level <= FATAL {
 		l.log("FATAL", format, args...)
 	}
 	os.Exit(1)
 }
 
-// log 内部日志打印方法
-func (l *Logger) log(level string, format string, args ...interface{}) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	message := fmt.Sprintf(format, args...)
-	fmt.Printf("[%s] [%s] %s\n", timestamp, level, message)
-}
-
 // LogError 记录错误日志，包含错误详情
-func (l *Logger) LogError(format string, err error, args ...interface{}) {
+func (l *DefaultLogger) LogError(format string, err error, args ...interface{}) {
 	if l.level <= ERROR {
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
 		message := fmt.Sprintf(format, args...)
@@ -151,6 +248,13 @@ func (l *Logger) LogError(format string, err error, args ...interface{}) {
 }
 
 // Printf 兼容旧的日志打印方法
-func (l *Logger) Printf(format string, args ...interface{}) {
+func (l *DefaultLogger) Printf(format string, args ...interface{}) {
 	l.Info(format, args...)
+}
+
+// log 内部日志打印方法
+func (l *DefaultLogger) log(level string, format string, args ...interface{}) {
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	message := fmt.Sprintf(format, args...)
+	fmt.Printf("[%s] [%s] %s\n", timestamp, level, message)
 }

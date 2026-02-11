@@ -303,20 +303,10 @@ func NewDNSForwarder(forwardAddr string) *DNSForwarder {
 	forwarder.LoadConfig()
 
 	// 从配置获取客户端协程池配置
-	clientWorkersStr := common.GetConfig("DNS", "DNS_CLIENT_WORKERS")
-	var clientWorkers int
-	if clientWorkersStr != "" {
-		if cw, err := strconv.Atoi(clientWorkersStr); err == nil && cw > 0 {
-			clientWorkers = cw
-		} else {
-			clientWorkers = 10000 // 默认值
-		}
-	} else {
-		clientWorkers = 10000 // 默认值
-	}
+	clientWorkers := common.GetConfigInt("DNS", "DNS_CLIENT_WORKERS", 10000)
 
-	// 创建专用的DNS转发协程池（客户端协程池的5倍）
-	forwardPoolSize := clientWorkers * 5
+	// 创建专用的DNS转发协程池（客户端协程池的3倍）
+	forwardPoolSize := clientWorkers * 3
 	forwarder.forwardPool = NewForwardWorkerPool(forwardPoolSize)
 	forwarder.logger.Debug("创建专用DNS转发协程池，大小: %d", forwardPoolSize)
 
@@ -402,4 +392,9 @@ func (f *DNSForwarder) SetLogLevel(level string) {
 	// 更新内部logger的级别
 	f.logger.SetLevel(logLevel)
 	f.logger.Info("DNSForwarder日志级别设置为: %s", level)
+}
+
+// GetAuthorityForwarder 获取权威域转发管理器
+func (f *DNSForwarder) GetAuthorityForwarder() *AuthorityForwarder {
+	return f.authorityForwarder
 }

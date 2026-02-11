@@ -14,9 +14,8 @@ import (
 
 // BindServerAPIHandlerGin 处理BIND服务器管理API请求（Gin版本）
 func BindServerAPIHandlerGin(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(bindServerHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	bindServerHandlerGin(c)
 }
 
 // bindServerHandlerGin BIND服务器管理API处理函数（Gin版本）

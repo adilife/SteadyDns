@@ -17,9 +17,8 @@ import (
 
 // ForwardServerAPIHandlerGin 处理服务器API请求
 func ForwardServerAPIHandlerGin(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(forwardServerHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	forwardServerHandlerGin(c)
 }
 
 // forwardServerHandlerGin 实际处理服务器请求的函数

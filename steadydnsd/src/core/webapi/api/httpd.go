@@ -110,6 +110,10 @@ func (hs *HTTPServer) Start() error {
 	hs.logger.Info("重新加载JWT配置...")
 	middleware.GetJWTManager().ReloadConfig()
 
+	// 重新加载速率限制配置
+	hs.logger.Info("重新加载速率限制配置...")
+	middleware.ReloadRateLimitConfig()
+
 	// 获取端口，优先从配置文件读取，其次是环境变量，最后使用默认值8080
 	port := common.GetConfig("APIServer", "API_SERVER_PORT")
 	if port == "" {

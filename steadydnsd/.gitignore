@@ -27,3 +27,8 @@ localhost_current.json
 .env
 .env.local
 .env.*.local
+
+# 忽略运行时文件
+steadydns.db
+steadydns.pid
+steadydns.startargs

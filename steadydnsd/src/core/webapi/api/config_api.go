@@ -7,20 +7,16 @@ import (
 	"strings"
 
 	"SteadyDNS/core/common"
+	"SteadyDNS/core/webapi/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
-
-
 // ConfigAPIHandlerGin 处理配置管理API请求（Gin版本）
 func ConfigAPIHandlerGin(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(configHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	configHandlerGin(c)
 }
-
-
 
 // configHandlerGin 配置管理API处理函数（Gin版本）
 func configHandlerGin(c *gin.Context) {
@@ -93,8 +89,6 @@ func configHandlerGin(c *gin.Context) {
 	}
 }
 
-
-
 // handleGetAllConfigGin 处理获取所有配置的请求（Gin版本）
 func handleGetAllConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 获取所有配置
@@ -106,8 +100,6 @@ func handleGetAllConfigGin(c *gin.Context, configManager *common.ConfigManager) 
 		"data":    config,
 	})
 }
-
-
 
 // handleGetSectionConfigGin 处理获取指定节的配置的请求（Gin版本）
 func handleGetSectionConfigGin(c *gin.Context, configManager *common.ConfigManager, section string) {
@@ -122,8 +114,6 @@ func handleGetSectionConfigGin(c *gin.Context, configManager *common.ConfigManag
 	})
 }
 
-
-
 // handleGetConfigItemGin 处理获取指定配置项的请求（Gin版本）
 func handleGetConfigItemGin(c *gin.Context, configManager *common.ConfigManager, section, key string) {
 	// 获取指定配置项
@@ -137,8 +127,6 @@ func handleGetConfigItemGin(c *gin.Context, configManager *common.ConfigManager,
 		"value":   value,
 	})
 }
-
-
 
 // handleUpdateConfigItemGin 处理更新配置项的请求（Gin版本）
 func handleUpdateConfigItemGin(c *gin.Context, configManager *common.ConfigManager, section, key string) {
@@ -176,8 +164,6 @@ func handleUpdateConfigItemGin(c *gin.Context, configManager *common.ConfigManag
 	})
 }
 
-
-
 // handleReloadConfigGin 处理重载配置的请求（Gin版本）
 func handleReloadConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 重载配置
@@ -189,6 +175,9 @@ func handleReloadConfigGin(c *gin.Context, configManager *common.ConfigManager) 
 		return
 	}
 
+	// 重载速率限制配置
+	middleware.ReloadRateLimitConfig()
+
 	// 直接返回成功响应，移除历史记录添加
 	// 原因：reload 操作只是重新读取配置文件，没有实际修改配置，不需要记录历史
 	c.JSON(http.StatusOK, gin.H{
@@ -196,10 +185,6 @@ func handleReloadConfigGin(c *gin.Context, configManager *common.ConfigManager) 
 		"message": "配置重载成功",
 	})
 }
-
-
-
-
 
 // handleGetDefaultConfigGin 处理获取默认配置的请求（Gin版本）
 func handleGetDefaultConfigGin(c *gin.Context, configManager *common.ConfigManager) {
@@ -219,8 +204,6 @@ func handleGetDefaultConfigGin(c *gin.Context, configManager *common.ConfigManag
 		"data":    defaultConfig,
 	})
 }
-
-
 
 // handleResetConfigGin 处理重置为默认配置的请求（Gin版本）
 func handleResetConfigGin(c *gin.Context, configManager *common.ConfigManager) {
@@ -249,8 +232,6 @@ func handleResetConfigGin(c *gin.Context, configManager *common.ConfigManager) {
 	})
 }
 
-
-
 // handleGetEnvVarsGin 处理获取环境变量的请求（Gin版本）
 func handleGetEnvVarsGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 获取环境变量
@@ -263,8 +244,6 @@ func handleGetEnvVarsGin(c *gin.Context, configManager *common.ConfigManager) {
 		"count":   len(envVars),
 	})
 }
-
-
 
 // handleSetEnvVarGin 处理设置环境变量的请求（Gin版本）
 func handleSetEnvVarGin(c *gin.Context, configManager *common.ConfigManager) {
@@ -298,8 +277,6 @@ func handleSetEnvVarGin(c *gin.Context, configManager *common.ConfigManager) {
 	})
 }
 
-
-
 // handleGetConfigSummaryGin 处理获取配置摘要的请求（Gin版本）
 func handleGetConfigSummaryGin(c *gin.Context, configManager *common.ConfigManager) {
 	// 获取配置摘要
@@ -311,8 +288,6 @@ func handleGetConfigSummaryGin(c *gin.Context, configManager *common.ConfigManag
 		"data":    summary,
 	})
 }
-
-
 
 // handleValidateConfigGin 处理验证配置的请求（Gin版本）
 func handleValidateConfigGin(c *gin.Context, configManager *common.ConfigManager) {

@@ -24,11 +24,10 @@ type BufferPool struct {
 
 // UDPPacket UDP 数据包任务
 type UDPPacket struct {
-	buf      []byte
-	n        int
-	writer   *UDPResponseWriter
-	msg      *dns.Msg
-	clientIP string
+	buf     []byte
+	n       int
+	addr    net.Addr
+	udpConn *net.UDPConn
 }
 
 // NewBufferPool 创建缓冲区池
@@ -130,6 +129,9 @@ type CustomDNSServer struct {
 	packetConn net.PacketConn // UDP数据包连接
 	isShutdown bool           // 服务器是否已关闭
 	shutdownMu sync.Mutex     // 关闭操作互斥锁
+	// 数据包计数管理
+	packetCount   int        // 并发数据包计数
+	packetCountMu sync.Mutex // 数据包计数互斥锁
 }
 
 // NewCustomDNSServer 创建自定义DNS服务器
@@ -155,7 +157,7 @@ func NewCustomDNSServer(addr, net string, handler dns.Handler, pool *WorkerPool,
 		poolSize := workers * multiplier
 
 		server.bufPool = NewBufferPool(
-			512,      // DNS消息最大长度
+			4096,     // DNS消息最大长度
 			poolSize, // 与任务队列大小匹配
 		)
 	}
@@ -260,74 +262,25 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 
 	// 流量控制参数
 	const maxConcurrentPackets = 10000 // 最大并发数据包数
-	var packetCount int
-	var packetCountMu sync.Mutex
 
 	// 从配置文件获取参数
 	workers := common.GetConfigInt("DNS", "DNS_CLIENT_WORKERS", 10000)
 	multiplier := common.GetConfigInt("DNS", "DNS_QUEUE_MULTIPLIER", 2)
 	channelSize := workers * multiplier
 
-	// 计算工作协程数量
-	cpuCount := runtime.NumCPU()
-	workerCount := cpuCount * 4
-	if workerCount > workers {
-		workerCount = workers
-	}
-	if workerCount < 100 {
-		workerCount = 100
-	}
-
-	s.logger.Info("启动UDP处理工作协程，数量: %d，任务通道大小: %d", workerCount, channelSize)
-
 	// 创建任务通道
 	taskChan := make(chan *UDPPacket, channelSize)
 
-	// 启动工作协程
-	var wg sync.WaitGroup
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			for {
-				select {
-				case <-s.shutdown:
-					return
-				case task, ok := <-taskChan:
-					if !ok {
-						return
-					}
-
-					// 处理完成后归还缓冲区
-					defer func() {
-						if s.bufPool != nil {
-							s.bufPool.Put(task.buf)
-						}
-						// 减少数据包计数
-						packetCountMu.Lock()
-						packetCount--
-						packetCountMu.Unlock()
-					}()
-
-					// 记录开始时间
-					startTime := time.Now()
-					// 提交到协程池处理
-					s.pool.SubmitWithClientIP(s.handler, task.writer, task.msg, task.clientIP)
-					// 计算响应时间
-					responseTime := time.Since(startTime)
-					// 更新统计信息
-					s.updateStats(task.n, 0, true, responseTime)
-				}
-			}
-		}()
-	}
+	// 启动工作协程池
+	wg := s.startUDPWorkerPool(pc, udpConn, taskChan)
 
 	for {
 		// 检查是否收到关闭信号
 		select {
 		case <-s.shutdown:
 			s.logger.Info("收到关闭信号，退出UDP处理协程")
+			// 关闭任务通道
+			close(taskChan)
 			// 等待所有工作协程退出
 			wg.Wait()
 			return
@@ -336,11 +289,7 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 		}
 
 		// 流量控制
-		packetCountMu.Lock()
-		currentCount := packetCount
-		packetCountMu.Unlock()
-
-		if currentCount > maxConcurrentPackets {
+		if s.getPacketCount() > maxConcurrentPackets {
 			// 短暂休眠，降低处理速度
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -397,45 +346,15 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 			return
 		}
 
-		// 提取客户端IP地址
-		clientIP := addr.String()
-		if udpAddr, ok := addr.(*net.UDPAddr); ok {
-			clientIP = udpAddr.IP.String()
-		} else if tcpAddr, ok := addr.(*net.TCPAddr); ok {
-			clientIP = tcpAddr.IP.String()
-		}
-
-		// 解析DNS消息
-		var msg dns.Msg
-		if err := msg.Unpack(buf[:n]); err != nil {
-			s.logger.Error("解析DNS消息失败: %v", err)
-			// 归还缓冲区
-			if s.bufPool != nil {
-				s.bufPool.Put(buf)
-			}
-			continue
-		}
-
-		// 创建UDP响应 writer
-		writer := &UDPResponseWriter{
-			pc:       pc,
-			udpConn:  udpConn,
-			addr:     addr,
-			clientIP: clientIP,
-		}
-
 		// 增加数据包计数
-		packetCountMu.Lock()
-		packetCount++
-		packetCountMu.Unlock()
+		s.incrementPacketCount()
 
 		// 创建任务并发送到通道
 		task := &UDPPacket{
-			buf:      buf,
-			n:        n,
-			writer:   writer,
-			msg:      &msg,
-			clientIP: clientIP,
+			buf:     buf,
+			n:       n,
+			addr:    addr,
+			udpConn: udpConn,
 		}
 
 		select {
@@ -446,6 +365,10 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 			if s.bufPool != nil {
 				s.bufPool.Put(buf)
 			}
+			// 减少数据包计数
+			s.decrementPacketCount()
+			// 关闭任务通道
+			close(taskChan)
 			// 等待所有工作协程退出
 			wg.Wait()
 			return
@@ -459,9 +382,7 @@ func (s *CustomDNSServer) handleUDPPackets(pc net.PacketConn) {
 				s.bufPool.Put(buf)
 			}
 			// 减少数据包计数
-			packetCountMu.Lock()
-			packetCount--
-			packetCountMu.Unlock()
+			s.decrementPacketCount()
 		}
 	}
 }
@@ -668,6 +589,123 @@ func (s *CustomDNSServer) GetStats() *NetworkStats {
 // GetStatsManager 获取统计管理器
 func (s *CustomDNSServer) GetStatsManager() *StatsManager {
 	return s.statsManager
+}
+
+// incrementPacketCount 增加数据包计数
+func (s *CustomDNSServer) incrementPacketCount() {
+	s.packetCountMu.Lock()
+	s.packetCount++
+	s.packetCountMu.Unlock()
+}
+
+// decrementPacketCount 减少数据包计数
+func (s *CustomDNSServer) decrementPacketCount() {
+	s.packetCountMu.Lock()
+	s.packetCount--
+	s.packetCountMu.Unlock()
+}
+
+// getPacketCount 获取当前数据包计数
+func (s *CustomDNSServer) getPacketCount() int {
+	s.packetCountMu.Lock()
+	defer s.packetCountMu.Unlock()
+	return s.packetCount
+}
+
+// startUDPWorkerPool 启动UDP工作协程池
+func (s *CustomDNSServer) startUDPWorkerPool(pc net.PacketConn, udpConn *net.UDPConn, taskChan chan *UDPPacket) *sync.WaitGroup {
+	// 从配置文件获取参数
+	workers := common.GetConfigInt("DNS", "DNS_CLIENT_WORKERS", 10000)
+	multiplier := common.GetConfigInt("DNS", "DNS_QUEUE_MULTIPLIER", 2)
+	channelSize := workers * multiplier
+
+	// 计算工作协程数量
+	cpuCount := runtime.NumCPU()
+	workerCount := cpuCount * 4
+	if workerCount > workers {
+		workerCount = workers
+	}
+	if workerCount < 100 {
+		workerCount = 1000
+	}
+
+	s.logger.Info("启动UDP处理工作协程，数量: %d，任务通道大小: %d", workerCount, channelSize)
+
+	// 启动工作协程
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go s.udpWorker(pc, udpConn, taskChan, &wg)
+	}
+
+	return &wg
+}
+
+// udpWorker UDP工作协程
+func (s *CustomDNSServer) udpWorker(pc net.PacketConn, udpConn *net.UDPConn, taskChan chan *UDPPacket, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-s.shutdown:
+			return
+		case task, ok := <-taskChan:
+			if !ok {
+				return
+			}
+
+			// 处理UDP数据包
+			s.processUDPPacket(pc, udpConn, task)
+		}
+	}
+}
+
+// processUDPPacket 处理UDP数据包
+func (s *CustomDNSServer) processUDPPacket(pc net.PacketConn, udpConn *net.UDPConn, task *UDPPacket) {
+	// 提取客户端IP地址
+	clientIP := task.addr.String()
+	if udpAddr, ok := task.addr.(*net.UDPAddr); ok {
+		clientIP = udpAddr.IP.String()
+	} else if tcpAddr, ok := task.addr.(*net.TCPAddr); ok {
+		clientIP = tcpAddr.IP.String()
+	}
+
+	// 解析DNS消息
+	var msg dns.Msg
+	if err := msg.Unpack(task.buf[:task.n]); err != nil {
+		s.logger.Error("解析DNS消息失败: %v", err)
+		// 归还缓冲区
+		if s.bufPool != nil {
+			s.bufPool.Put(task.buf)
+		}
+		// 减少数据包计数
+		s.decrementPacketCount()
+		return
+	}
+
+	// 创建UDP响应 writer
+	writer := &UDPResponseWriter{
+		pc:       pc,
+		udpConn:  udpConn,
+		addr:     task.addr,
+		clientIP: clientIP,
+	}
+
+	// 记录开始时间
+	startTime := time.Now()
+	// 提交到协程池处理
+	s.pool.SubmitWithClientIP(s.handler, writer, &msg, clientIP)
+	// 计算响应时间
+	responseTime := time.Since(startTime)
+	// 更新统计信息
+	s.updateStats(task.n, 0, true, responseTime)
+
+	// 处理完成后归还缓冲区
+	if s.bufPool != nil {
+		s.bufPool.Put(task.buf)
+	}
+	// 减少数据包计数
+	s.decrementPacketCount()
 }
 
 // Close 关闭DNS服务器

@@ -34,6 +34,7 @@ type Record struct {
 	Value    string `json:"value"`
 	Priority int    `json:"priority,omitempty"` // 可选，用于MX记录
 	TTL      int    `json:"ttl,omitempty"`      // 可选，记录的生存时间
+	Comment  string `json:"comment,omitempty"`   // 可选，记录后的注释信息
 }
 
 // AuthZone 权威域信息

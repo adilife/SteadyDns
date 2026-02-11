@@ -303,7 +303,7 @@ func StartDNSServer(logger *common.Logger) error {
 	GlobalCacheUpdater = handler.cacheUpdater
 
 	// 创建协程池（使用固定大小）
-	pool := NewWorkerPool(clientWorkers, queueMultiplier)
+	pool := NewWorkerPool(clientWorkers, queueMultiplier, 5*time.Second)
 
 	logger.Info("准备启动DNS服务器，监听地址: %s", listenAddr)
 

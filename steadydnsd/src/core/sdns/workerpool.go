@@ -3,7 +3,9 @@
 package sdns
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/miekg/dns"
@@ -40,6 +42,7 @@ type WorkerPool struct {
 	taskChan        chan *DNSWorker
 	workerCount     int
 	queueMultiplier int
+	timeout         time.Duration
 	wg              sync.WaitGroup
 	shutdown        bool
 	stmu            sync.Mutex
@@ -55,18 +58,21 @@ type PoolStats struct {
 	FailedTasks    int64         `json:"failedTasks"`
 	AverageLatency time.Duration `json:"averageLatency"`
 	QueueLength    int           `json:"queueLength"`
-	ActiveWorkers  int           `json:"activeWorkers"`
+	ActiveWorkers  int32         `json:"activeWorkers"`
 	StartTime      time.Time     `json:"startTime"`
 	LastTaskTime   time.Time     `json:"lastTaskTime"`
 }
 
 // NewWorkerPool 创建新的协程池
-func NewWorkerPool(workerCount, queueMultiplier int) *WorkerPool {
+func NewWorkerPool(workerCount, queueMultiplier int, timeout time.Duration) *WorkerPool {
 	if workerCount <= 0 {
 		workerCount = 1000 // 默认值
 	}
 	if queueMultiplier <= 0 {
 		queueMultiplier = 2 // 默认值
+	}
+	if timeout <= 0 {
+		timeout = 5 * time.Second // 默认值
 	}
 
 	// 队列大小为当前协程数的 queueMultiplier 倍
@@ -76,6 +82,7 @@ func NewWorkerPool(workerCount, queueMultiplier int) *WorkerPool {
 		taskChan:        make(chan *DNSWorker, queueSize),
 		workerCount:     workerCount,
 		queueMultiplier: queueMultiplier,
+		timeout:         timeout,
 		shutdown:        false,
 		stats: &PoolStats{
 			StartTime: time.Now(),
@@ -95,36 +102,64 @@ func NewWorkerPool(workerCount, queueMultiplier int) *WorkerPool {
 func (p *WorkerPool) worker() {
 	defer p.wg.Done()
 
+	// 批量处理任务
+	tasks := make([]*DNSWorker, 0, 20) // 预分配容量
+
 	for {
 		select {
 		case task, ok := <-p.taskChan:
 			if !ok {
+				// 处理剩余任务
+				for _, t := range tasks {
+					p.processTask(t)
+				}
 				return
 			}
 
-			// 处理任务
-			p.processTask(task)
+			// 收集任务
+			tasks = append(tasks, task)
+
+			// 批量处理条件：任务数达到阈值或通道为空
+			if len(tasks) >= 20 {
+				for _, t := range tasks {
+					p.processTask(t)
+				}
+				tasks = tasks[:0] // 重置任务列表
+			}
+		default:
+			// 通道为空，处理已收集的任务
+			if len(tasks) > 0 {
+				for _, t := range tasks {
+					p.processTask(t)
+				}
+				tasks = tasks[:0] // 重置任务列表
+			}
+			// 短暂休眠，避免忙等
+			time.Sleep(1 * time.Millisecond)
 		}
 	}
 }
 
 // processTask 处理单个任务
 func (p *WorkerPool) processTask(task *DNSWorker) {
-	p.mu.Lock()
-	p.stats.ActiveWorkers++
-	p.mu.Unlock()
+	// 使用原子操作增加活跃工作协程计数
+	atomic.AddInt32(&p.stats.ActiveWorkers, 1)
 
 	defer func() {
+		// 使用原子操作减少活跃工作协程计数
+		atomic.AddInt32(&p.stats.ActiveWorkers, -1)
+		// 使用原子操作增加完成任务计数
+		completed := atomic.AddInt64(&p.stats.CompletedTasks, 1)
+
+		// 更新时间相关统计信息（需要锁保护）
 		p.mu.Lock()
-		p.stats.ActiveWorkers--
-		p.stats.CompletedTasks++
 		p.stats.LastTaskTime = time.Now()
 		if !task.startTime.IsZero() {
 			// 计算任务处理时间
 			latency := time.Since(task.startTime)
 			// 更新平均延迟（简单移动平均）
-			if p.stats.CompletedTasks > 1 {
-				p.stats.AverageLatency = (p.stats.AverageLatency*time.Duration(p.stats.CompletedTasks-1) + latency) / time.Duration(p.stats.CompletedTasks)
+			if completed > 1 {
+				p.stats.AverageLatency = (p.stats.AverageLatency*time.Duration(completed-1) + latency) / time.Duration(completed)
 			} else {
 				p.stats.AverageLatency = latency
 			}
@@ -144,27 +179,39 @@ func (p *WorkerPool) processTask(task *DNSWorker) {
 
 	// 处理任务
 	if task != nil {
-		// 设置任务超时控制（5秒）
-		done := make(chan struct{})
-		go func() {
-			// 检查是否是Task接口的实现
-			if taskHandler, ok := task.handler.(Task); ok {
-				taskHandler.Process()
-			} else {
-				task.Process()
+		// 记录任务开始时间
+		startTime := time.Now()
+		task.startTime = startTime
+
+		// 执行任务并处理错误
+		var taskErr error
+		defer func() {
+			if r := recover(); r != nil {
+				taskErr = fmt.Errorf("task panicked: %v", r)
 			}
-			close(done)
 		}()
 
-		// 等待任务完成或超时
-		select {
-		case <-done:
-			// 任务正常完成
-		case <-time.After(5 * time.Second):
-			// 任务超时
-			p.mu.Lock()
-			p.stats.FailedTasks++
-			p.mu.Unlock()
+		// 检查是否是Task接口的实现
+		if taskHandler, ok := task.handler.(Task); ok {
+			taskHandler.Process()
+		} else {
+			task.Process()
+		}
+
+		// 检查任务执行时间是否超过超时时间
+		if time.Since(startTime) > p.timeout {
+			// 任务执行时间超过超时时间，使用原子操作增加失败任务计数
+			atomic.AddInt64(&p.stats.FailedTasks, 1)
+
+			// 返回服务器失败错误
+			if task.w != nil && task.r != nil {
+				m := new(dns.Msg)
+				m.SetRcode(task.r, dns.RcodeServerFailure)
+				task.w.WriteMsg(m)
+			}
+		} else if taskErr != nil {
+			// 处理任务执行错误，使用原子操作增加失败任务计数
+			atomic.AddInt64(&p.stats.FailedTasks, 1)
 
 			// 返回服务器失败错误
 			if task.w != nil && task.r != nil {
@@ -202,9 +249,8 @@ func (p *WorkerPool) SubmitWithClientIP(handler dns.Handler, w dns.ResponseWrite
 
 // submitTask 提交任务到队列
 func (p *WorkerPool) submitTask(task *DNSWorker) {
-	p.mu.Lock()
-	p.stats.TotalTasks++
-	p.mu.Unlock()
+	// 使用原子操作增加总任务计数
+	atomic.AddInt64(&p.stats.TotalTasks, 1)
 
 	// 带超时的提交
 	select {
@@ -225,9 +271,8 @@ func (p *WorkerPool) handleQueueFull(task *DNSWorker) {
 		m.SetRcode(task.r, dns.RcodeServerFailure)
 		task.w.WriteMsg(m)
 
-		p.mu.Lock()
-		p.stats.FailedTasks++
-		p.mu.Unlock()
+		// 使用原子操作增加失败任务计数
+		atomic.AddInt64(&p.stats.FailedTasks, 1)
 	}
 
 	// 重置并回收DNSWorker对象到对象池

@@ -53,13 +53,15 @@ func NewDNSLogger(logDir string, maxFileSize int64, maxFiles int) *DNSLogger {
 		logFile:     filepath.Join(logDir, "dns_query.log"),
 		maxFileSize: maxFileSize,
 		maxFiles:    maxFiles,
-		logChan:     make(chan string, 1000),
+		logChan:     make(chan string, 5000),
 		shutdown:    false,
 	}
 
+	logger.mu.Lock()
 	if err := logger.openLogFile(); err != nil {
 		fmt.Printf("打开日志文件失败: %v\n", err)
 	}
+	logger.mu.Unlock()
 
 	logger.wg.Add(1)
 	go logger.logWriter()
@@ -68,10 +70,8 @@ func NewDNSLogger(logDir string, maxFileSize int64, maxFiles int) *DNSLogger {
 }
 
 // openLogFile 打开日志文件
+// 注意：调用此方法前必须确保已获取锁
 func (l *DNSLogger) openLogFile() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	// 检查当前日志文件大小
 	if l.file != nil {
 		l.writer.Flush()
@@ -95,6 +95,7 @@ func (l *DNSLogger) openLogFile() error {
 }
 
 // rollLogFile 滚动日志文件
+// 注意：调用此方法前必须确保已获取锁
 func (l *DNSLogger) rollLogFile() {
 	// 关闭当前文件
 	if l.file != nil {
@@ -135,6 +136,9 @@ func (l *DNSLogger) logWriter() {
 				return
 			}
 
+			var writer *bufio.Writer
+			needWrite := true
+
 			l.mu.Lock()
 			if l.file == nil {
 				if err := l.openLogFile(); err != nil {
@@ -149,10 +153,14 @@ func (l *DNSLogger) logWriter() {
 				l.openLogFile()
 			}
 
-			// 写入日志
-			fmt.Fprintln(l.writer, logMsg)
-			l.writer.Flush()
+			writer = l.writer
 			l.mu.Unlock()
+
+			// 写入日志（无锁）
+			if needWrite && writer != nil {
+				fmt.Fprintln(writer, logMsg)
+				writer.Flush()
+			}
 		case <-time.After(1 * time.Second):
 			l.mu.Lock()
 			if l.shutdown {
