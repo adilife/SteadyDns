@@ -13,9 +13,8 @@ import (
 
 // CacheAPIHandlerGin 处理缓存相关的API请求
 func CacheAPIHandlerGin(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(cacheHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	cacheHandlerGin(c)
 }
 
 // cacheHandlerGin 缓存管理API处理函数

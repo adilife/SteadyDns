@@ -16,9 +16,8 @@ import (
 
 // ForwardGroupAPIHandler 处理转发组API请求
 func ForwardGroupAPIHandler(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(forwardGroupHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	forwardGroupHandlerGin(c)
 }
 
 // forwardGroupHandlerGin 实际处理转发组请求的函数（Gin版本）

@@ -30,9 +30,8 @@ import (
 
 // ServerAPIHandler 处理服务器管理API请求
 func ServerAPIHandler(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(serverHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	serverHandlerGin(c)
 }
 
 // serverHandlerGin 服务器管理API处理函数（Gin版本）

@@ -18,9 +18,8 @@ import (
 
 // DashboardAPIHandlerGin 处理dashboard相关的API请求（Gin版本）
 func DashboardAPIHandlerGin(c *gin.Context) {
-	// 应用认证中间件
-	authHandler := AuthMiddlewareGin(dashboardHandlerGin)
-	authHandler(c)
+	// 认证中间件已在路由中统一应用
+	dashboardHandlerGin(c)
 }
 
 // dashboardHandlerGin 实际处理dashboard请求的函数（Gin版本）
