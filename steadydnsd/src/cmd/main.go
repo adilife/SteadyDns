@@ -134,22 +134,22 @@ func parseArgs() {
 	}
 
 	// 定义flag
-	flag.BoolVar(&cliConfig.Daemon, "d", false, "后台运行模式")
-	flag.BoolVar(&cliConfig.Daemon, "daemon", false, "后台运行模式")
-	flag.BoolVar(&cliConfig.Foreground, "f", false, "前台运行模式")
-	flag.BoolVar(&cliConfig.Foreground, "foreground", false, "前台运行模式")
-	flag.StringVar(&cliConfig.ConfigPath, "c", DefaultConfigPath, "配置文件路径")
-	flag.StringVar(&cliConfig.ConfigPath, "config", DefaultConfigPath, "配置文件路径")
-	flag.StringVar(&cliConfig.PIDFile, "p", DefaultPIDFile, "PID文件路径")
-	flag.StringVar(&cliConfig.PIDFile, "pidfile", DefaultPIDFile, "PID文件路径")
-	flag.StringVar(&cliConfig.LogDir, "l", DefaultLogDir, "日志目录")
-	flag.StringVar(&cliConfig.LogDir, "log-dir", DefaultLogDir, "日志目录")
-	flag.BoolVar(&cliConfig.LogStdout, "log-stdout", false, "日志输出到标准输出")
-	flag.BoolVar(&cliConfig.LogFile, "log-file", false, "日志输出到文件")
-	flag.BoolVar(&cliConfig.ShowHelp, "h", false, "显示帮助信息")
-	flag.BoolVar(&cliConfig.ShowHelp, "help", false, "显示帮助信息")
-	flag.BoolVar(&cliConfig.ShowVer, "v", false, "显示版本信息")
-	flag.BoolVar(&cliConfig.ShowVer, "version", false, "显示版本信息")
+	flag.BoolVar(&cliConfig.Daemon, "d", false, "Run as daemon")
+	flag.BoolVar(&cliConfig.Daemon, "daemon", false, "Run as daemon")
+	flag.BoolVar(&cliConfig.Foreground, "f", false, "Run in foreground")
+	flag.BoolVar(&cliConfig.Foreground, "foreground", false, "Run in foreground")
+	flag.StringVar(&cliConfig.ConfigPath, "c", DefaultConfigPath, "Configuration file path")
+	flag.StringVar(&cliConfig.ConfigPath, "config", DefaultConfigPath, "Configuration file path")
+	flag.StringVar(&cliConfig.PIDFile, "p", DefaultPIDFile, "PID file path")
+	flag.StringVar(&cliConfig.PIDFile, "pidfile", DefaultPIDFile, "PID file path")
+	flag.StringVar(&cliConfig.LogDir, "l", DefaultLogDir, "Log directory")
+	flag.StringVar(&cliConfig.LogDir, "log-dir", DefaultLogDir, "Log directory")
+	flag.BoolVar(&cliConfig.LogStdout, "log-stdout", false, "Output log to stdout")
+	flag.BoolVar(&cliConfig.LogFile, "log-file", false, "Output log to file")
+	flag.BoolVar(&cliConfig.ShowHelp, "h", false, "Show help information")
+	flag.BoolVar(&cliConfig.ShowHelp, "help", false, "Show help information")
+	flag.BoolVar(&cliConfig.ShowVer, "v", false, "Show version information")
+	flag.BoolVar(&cliConfig.ShowVer, "version", false, "Show version information")
 
 	flag.Parse()
 
@@ -169,42 +169,42 @@ func parseArgs() {
 
 // printHelp 打印帮助信息
 func printHelp() {
-	fmt.Println("SteadyDNS - DNS服务器")
+	fmt.Println("SteadyDNS - DNS Server")
 	fmt.Println()
-	fmt.Println("用法:")
-	fmt.Println("  steadydns [命令] [选项]")
+	fmt.Println("Usage:")
+	fmt.Println("  steadydns [command] [options]")
 	fmt.Println()
-	fmt.Println("命令:")
-	fmt.Println("  start       启动服务 (默认)")
-	fmt.Println("  stop        停止服务")
-	fmt.Println("  restart     重启服务")
-	fmt.Println("  status      查看服务状态")
+	fmt.Println("Commands:")
+	fmt.Println("  start       Start service (default)")
+	fmt.Println("  stop        Stop service")
+	fmt.Println("  restart     Restart service")
+	fmt.Println("  status      Check service status")
 	fmt.Println()
-	fmt.Println("选项:")
-	fmt.Println("  -d, --daemon          后台运行模式 (用于systemd服务)")
-	fmt.Println("  -f, --foreground      前台运行模式 (默认)")
-	fmt.Println("  -c, --config PATH     指定配置文件路径 (默认: config/steadydns.conf)")
-	fmt.Println("  -p, --pidfile PATH    指定PID文件路径 (默认: steadydns.pid)")
-	fmt.Println("  -l, --log-dir PATH    指定日志目录 (默认: log)")
-	fmt.Println("  --log-stdout          日志输出到标准输出")
-	fmt.Println("  --log-file            日志输出到文件")
-	fmt.Println("  -v, --version         显示版本信息")
-	fmt.Println("  -h, --help            显示帮助信息")
+	fmt.Println("Options:")
+	fmt.Println("  -d, --daemon          Run as daemon (for systemd service)")
+	fmt.Println("  -f, --foreground      Run in foreground (default)")
+	fmt.Println("  -c, --config PATH     Specify configuration file path (default: config/steadydns.conf)")
+	fmt.Println("  -p, --pidfile PATH    Specify PID file path (default: steadydns.pid)")
+	fmt.Println("  -l, --log-dir PATH    Specify log directory (default: log)")
+	fmt.Println("  --log-stdout          Output log to stdout")
+	fmt.Println("  --log-file            Output log to file")
+	fmt.Println("  -v, --version         Show version information")
+	fmt.Println("  -h, --help            Show help information")
 	fmt.Println()
-	fmt.Println("示例:")
-	fmt.Println("  steadydns                    前台运行服务")
-	fmt.Println("  steadydns start -f           前台运行服务")
-	fmt.Println("  steadydns start -d           后台运行服务")
-	fmt.Println("  steadydns stop               停止服务")
-	fmt.Println("  steadydns status             查看服务状态")
-	fmt.Println("  steadydns -c /etc/steadydns/steadydns.conf  使用指定配置文件")
+	fmt.Println("Examples:")
+	fmt.Println("  steadydns                    Run service in foreground")
+	fmt.Println("  steadydns start -f           Run service in foreground")
+	fmt.Println("  steadydns start -d           Run service as daemon")
+	fmt.Println("  steadydns stop               Stop service")
+	fmt.Println("  steadydns status             Check service status")
+	fmt.Println("  steadydns -c /etc/steadydns/steadydns.conf  Use specified configuration file")
 }
 
 // printVersion 打印版本信息
 func printVersion() {
-	fmt.Printf("SteadyDNS 版本 %s\n", Version)
-	fmt.Println("DNS服务器实现")
-	fmt.Println("许可证: AGPLv3")
+	fmt.Printf("SteadyDNS version %s\n", Version)
+	fmt.Println("DNS server implementation")
+	fmt.Println("License: AGPLv3")
 }
 
 // cmdStart 启动服务命令
@@ -221,7 +221,7 @@ func cmdStart() error {
 	// 检查是否已经在运行
 	if daemonManager.IsRunning() {
 		status, pid := daemonManager.GetStatus()
-		return fmt.Errorf("服务已经在运行中 (状态: %s, PID: %d)", status, pid)
+		return fmt.Errorf("Service is already running (status: %s, PID: %d)", status, pid)
 	}
 
 	// 后台模式：启动子进程
@@ -235,7 +235,7 @@ func cmdStart() error {
 
 // startDaemon 启动守护进程
 func startDaemon(daemonManager *common.DaemonManager) error {
-	fmt.Println("正在启动守护进程...")
+	fmt.Println("Starting daemon process...")
 
 	// 构建启动参数
 	startArgs := buildStartArgsFromCLI()
@@ -245,7 +245,7 @@ func startDaemon(daemonManager *common.DaemonManager) error {
 		return err
 	}
 
-	fmt.Println("守护进程启动成功")
+	fmt.Println("Daemon process started successfully")
 	return nil
 }
 
@@ -336,17 +336,17 @@ func cmdStop() error {
 	daemonManager := common.NewDaemonManager(cliConfig.PIDFile)
 
 	status, pid := daemonManager.GetStatus()
-	if status != "运行中" {
-		return fmt.Errorf("服务未运行")
+	if status != "running" {
+		return fmt.Errorf("Service is not running")
 	}
 
-	fmt.Printf("正在停止服务 (PID: %d)...\n", pid)
+	fmt.Printf("Stopping service (PID: %d)...\n", pid)
 
 	if err := daemonManager.StopDaemon(); err != nil {
 		return err
 	}
 
-	fmt.Println("服务已停止")
+	fmt.Println("Service stopped")
 	return nil
 }
 
@@ -354,7 +354,7 @@ func cmdStop() error {
 func cmdRestart() error {
 	daemonManager := common.NewDaemonManager(cliConfig.PIDFile)
 
-	fmt.Println("正在重启服务...")
+	fmt.Println("Restarting service...")
 
 	// 构建启动参数
 	var startArgs []string
@@ -386,7 +386,7 @@ func cmdRestart() error {
 		return err
 	}
 
-	fmt.Println("服务重启成功")
+	fmt.Println("Service restarted successfully")
 	return nil
 }
 
@@ -396,9 +396,9 @@ func cmdStatus() error {
 
 	status, pid := daemonManager.GetStatus()
 
-	fmt.Printf("服务状态: %s\n", status)
+	fmt.Printf("Service status: %s\n", status)
 	if pid > 0 {
-		fmt.Printf("进程ID: %d\n", pid)
+		fmt.Printf("Process ID: %d\n", pid)
 	}
 
 	return nil

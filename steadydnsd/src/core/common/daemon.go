@@ -60,7 +60,7 @@ func NewDaemonManager(pidFile string) *DaemonManager {
 func (d *DaemonManager) StartDaemon(startArgs []string) error {
 	// 检查是否已经有实例在运行
 	if d.IsRunning() {
-		return fmt.Errorf("服务已经在运行中")
+		return fmt.Errorf("Service is already running")
 	}
 
 	// 构建子进程参数列表
@@ -85,16 +85,16 @@ func (d *DaemonManager) StartDaemon(startArgs []string) error {
 	// 启动新进程
 	process, err := os.StartProcess(args[0], args, attr)
 	if err != nil {
-		return fmt.Errorf("启动守护进程失败: %v", err)
+		return fmt.Errorf("Failed to start daemon process: %v", err)
 	}
 
 	// 写入PID文件
 	if err := d.writePIDFile(process.Pid); err != nil {
 		process.Kill()
-		return fmt.Errorf("写入PID文件失败: %v", err)
+		return fmt.Errorf("Failed to write PID file: %v", err)
 	}
 
-	d.logger.Info("守护进程已启动，PID: %d", process.Pid)
+	d.logger.Info("Daemon process started, PID: %d", process.Pid)
 	return nil
 }
 
@@ -105,11 +105,11 @@ func (d *DaemonManager) StartDaemon(startArgs []string) error {
 func (d *DaemonManager) StopDaemon() error {
 	pid, err := d.readPIDFile()
 	if err != nil {
-		return fmt.Errorf("读取PID文件失败: %v", err)
+		return fmt.Errorf("Failed to read PID file: %v", err)
 	}
 
 	if pid <= 0 {
-		return fmt.Errorf("服务未运行")
+		return fmt.Errorf("Service is not running")
 	}
 
 	// 发送终止信号
@@ -117,20 +117,20 @@ func (d *DaemonManager) StopDaemon() error {
 	if err != nil {
 		// 进程不存在，删除PID文件
 		d.removePIDFile()
-		return fmt.Errorf("找不到进程 %d", pid)
+		return fmt.Errorf("Process %d not found", pid)
 	}
 
 	// 先尝试优雅终止
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		// 如果优雅终止失败，强制终止
 		if err := process.Kill(); err != nil {
-			return fmt.Errorf("终止进程失败: %v", err)
+			return fmt.Errorf("Failed to terminate process: %v", err)
 		}
 	}
 
 	// 删除PID文件
 	d.removePIDFile()
-	d.logger.Info("服务已停止，PID: %d", pid)
+	d.logger.Info("Service stopped, PID: %d", pid)
 	return nil
 }
 
@@ -184,20 +184,20 @@ func (d *DaemonManager) IsRunning() bool {
 func (d *DaemonManager) GetStatus() (string, int) {
 	pid, err := d.readPIDFile()
 	if err != nil || pid <= 0 {
-		return "未运行", 0
+		return "not running", 0
 	}
 
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		return "未运行", 0
+		return "not running", 0
 	}
 
 	err = process.Signal(syscall.Signal(0))
 	if err != nil {
-		return "未运行", 0
+		return "not running", 0
 	}
 
-	return "运行中", pid
+	return "running", pid
 }
 
 // writePIDFile 写入PID文件
