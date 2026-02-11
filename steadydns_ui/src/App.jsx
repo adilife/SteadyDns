@@ -36,7 +36,7 @@ import AuthZones from './pages/AuthZones'
 import Configuration from './pages/Configuration'
 import Login from './pages/Login'
 import { t, getSavedLanguage, switchLanguage } from './i18n'
-import { logout, hasValidToken, startTokenRefreshInterval, resetSessionTimeoutTimer, clearTokenRefreshInterval } from './utils/tokenManager'
+import { logout, hasValidToken, startTokenRefreshInterval, resetSessionTimeoutTimer, startSessionTimeoutTimer } from './utils/tokenManager'
 
 const { Header, Sider, Content } = Layout
 const { Option } = Select
@@ -51,15 +51,27 @@ function App() {
   useEffect(() => {
     const checkLoginStatus = () => {
       const savedUser = sessionStorage.getItem('steadyDNS_user')
-      if (savedUser && hasValidToken()) {
+      const hasToken = hasValidToken()
+      
+      if (savedUser && hasToken) {
         try {
           if (savedUser !== 'undefined') {
             const parsedUser = JSON.parse(savedUser)
             if (parsedUser && Object.keys(parsedUser).length > 0) {
               setIsLoggedIn(true)
               setUserInfo(parsedUser)
-              // Start token refresh interval
-              startTokenRefreshInterval()
+              // Start token refresh interval only once
+              const tokenRefreshStarted = sessionStorage.getItem('steadyDNS_token_refresh_started')
+              if (tokenRefreshStarted !== 'true') {
+                startTokenRefreshInterval()
+                sessionStorage.setItem('steadyDNS_token_refresh_started', 'true')
+              }
+              
+              // Start session timeout timer
+              // Note: startSessionTimeoutTimer will check if already running internally
+              const expiresInStr = sessionStorage.getItem('steadyDNS_token_expires_in')
+              const expiresIn = expiresInStr ? parseInt(expiresInStr) : 1800
+              startSessionTimeoutTimer(expiresIn)
             } else {
               console.error('Invalid user data in sessionStorage:', parsedUser)
               sessionStorage.removeItem('steadyDNS_user')
@@ -93,15 +105,30 @@ function App() {
       resetSessionTimeoutTimer()
     }
     
+    // Session storage change listener to detect token changes
+    const handleStorageChange = (event) => {
+      // Check if any token-related keys or user info have changed
+      const tokenRelatedKeys = [
+        'steadyDNS_access_token',
+        'steadyDNS_refresh_token', 
+        'steadyDNS_token_expires_at',
+        'steadyDNS_user'
+      ]
+      
+      if (tokenRelatedKeys.includes(event.key)) {
+        checkLoginStatus()
+      }
+    }
+    
     window.addEventListener('mousedown', handleUserActivity)
     window.addEventListener('keydown', handleUserActivity)
-    window.addEventListener('scroll', handleUserActivity)
+    window.addEventListener('storage', handleStorageChange)
     
     return () => {
       clearInterval(interval)
       window.removeEventListener('mousedown', handleUserActivity)
       window.removeEventListener('keydown', handleUserActivity)
-      window.removeEventListener('scroll', handleUserActivity)
+      window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
   // Update language when changed
@@ -113,24 +140,24 @@ function App() {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken()
   const handleLogin = (loginData) => {
-    console.log('Login data received:', loginData)
     setIsLoggedIn(true)
     // Handle both cases - capitalized (Go default) and lowercase (common in JSON)
     const user = loginData.User || loginData.user
-    const message = loginData.Message || loginData.message
-    console.log('Extracted user:', user)
-    console.log('Extracted message:', message)
     setUserInfo(user || {})
     if (user) {
       try {
         sessionStorage.setItem('steadyDNS_user', JSON.stringify(user))
-        console.log('User data saved to sessionStorage:', user)
       } catch (error) {
         console.error('Error saving user data to sessionStorage:', error)
       }
     } else {
       console.error('Invalid login data:', { user })
     }
+    
+    // Start session timeout timer after login
+    // Use expires_in from login data, default to 1800 seconds (30 minutes)
+    const expiresIn = loginData.expires_in || loginData.ExpiresIn || 1800
+    startSessionTimeoutTimer(expiresIn)
   }
 
   const handleLogout = async () => {
@@ -139,6 +166,8 @@ function App() {
       setIsLoggedIn(false)
       setUserInfo({ username: '' })
       sessionStorage.removeItem('steadyDNS_user')
+      // Clear the token refresh started flag so it can be started again on next login
+      sessionStorage.removeItem('steadyDNS_token_refresh_started')
       message.success(t('login.logoutSuccess'))
     } catch (error) {
       console.error('Logout error:', error)

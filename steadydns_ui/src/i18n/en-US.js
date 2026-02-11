@@ -159,6 +159,28 @@ export default {
     dnsBanDuration: 'Ban Duration (minutes)',
     dnsMessageSizeLimit: 'DNS Message Size Limit (bytes)',
     
+    // API rate limit labels
+    rateLimitConfig: 'Rate Limit Configuration',
+    basicRateLimits: 'Basic Rate Limits',
+    failureLimits: 'Failure Limits',
+    banDurations: 'Ban Durations',
+    rateLimitApi: 'API Request Rate Limit',
+    rateLimitLogin: 'Login Request Rate Limit',
+    rateLimitRefresh: 'Token Refresh Rate Limit',
+    rateLimitHealth: 'Health Check Rate Limit',
+    rateLimitUser: 'User Request Rate Limit',
+    rateLimitWindowSeconds: 'Rate Limit Window Size',
+    rateLimitMaxFailures: 'Max Failures',
+    rateLimitLoginMaxFailures: 'Max Login Failures',
+    rateLimitRefreshMaxFailures: 'Max Token Refresh Failures',
+    rateLimitHealthMaxFailures: 'Max Health Check Failures',
+    rateLimitUserMaxFailures: 'Max User Failures',
+    rateLimitBanMinutes: 'Ban Duration',
+    rateLimitLoginBanMinutes: 'Login Ban Duration',
+    rateLimitRefreshBanMinutes: 'Token Refresh Ban Duration',
+    rateLimitHealthBanMinutes: 'Health Check Ban Duration',
+    rateLimitUserBanMinutes: 'User Ban Duration',
+    
     // Validation messages
     pleaseInputPort: 'Please input port',
     pleaseInputIpv4Address: 'Please input IPv4 address',
@@ -206,10 +228,38 @@ export default {
     dnsBanDurationTooltip: 'Ban duration (minutes). Default: 5, Recommended: 1-10. Duration that IP addresses exceeding rate limits are banned.',
     dnsMessageSizeLimitTooltip: 'DNS message size limit (bytes). Default: 4096, Recommended: 4096. Maximum size of DNS messages to prevent amplification attacks.',
     
+    // API rate limit tooltips
+    rateLimitApiTooltip: 'API request rate limit. Default: 300, Recommended: 100-500.',
+    rateLimitLoginTooltip: 'Login request rate limit. Default: 60, Recommended: 30-100.',
+    rateLimitRefreshTooltip: 'Token refresh rate limit. Default: 5, Recommended: 3-10.',
+    rateLimitHealthTooltip: 'Health check rate limit. Default: 500, Recommended: 200-1000.',
+    rateLimitUserTooltip: 'User request rate limit. Default: 500, Recommended: 200-1000.',
+    rateLimitWindowSecondsTooltip: 'Rate limit window size (seconds). Default: 60, Recommended: 30-300.',
+    rateLimitMaxFailuresTooltip: 'Max failures. Default: 10, Recommended: 5-20.',
+    rateLimitLoginMaxFailuresTooltip: 'Max login failures. Default: 10, Recommended: 5-15.',
+    rateLimitRefreshMaxFailuresTooltip: 'Max token refresh failures. Default: 3, Recommended: 2-5.',
+    rateLimitHealthMaxFailuresTooltip: 'Max health check failures. Default: 20, Recommended: 10-30.',
+    rateLimitUserMaxFailuresTooltip: 'Max user failures. Default: 20, Recommended: 10-30.',
+    rateLimitBanMinutesTooltip: 'Ban duration (minutes). Default: 10, Recommended: 5-30.',
+    rateLimitLoginBanMinutesTooltip: 'Login ban duration (minutes). Default: 5, Recommended: 3-15.',
+    rateLimitRefreshBanMinutesTooltip: 'Token refresh ban duration (minutes). Default: 3, Recommended: 2-10.',
+    rateLimitHealthBanMinutesTooltip: 'Health check ban duration (minutes). Default: 10, Recommended: 5-30.',
+    rateLimitUserBanMinutesTooltip: 'User ban duration (minutes). Default: 15, Recommended: 5-30.',
+    
     // Other
     reload: 'Reload Configuration',
     saveError: 'Failed to save settings',
-    reloadError: 'Failed to reload configuration'
+    reloadError: 'Failed to reload configuration',
+    noChanges: 'No configuration changes detected',
+    fieldsChanged: 'fields changed',
+    confirmSave: 'Confirm Save Settings',
+    confirmSaveMessage: 'Are you sure to save settings and restart services?',
+    confirmReset: 'Confirm Reset Settings',
+    confirmResetMessage: 'Are you sure to reset settings to default and restart services?',
+    restartNotice: 'Notice: Services need to be restarted for changes to take effect',
+    servicesRestarted: 'Services restarted successfully',
+    confirm: 'Confirm',
+    cancel: 'Cancel'
   },
   
   // Forward Groups page
@@ -359,6 +409,7 @@ export default {
     retry: 'Retry',
     expire: 'Expire',
     minimumTtl: 'Minimum TTL',
+    comment: 'Comment',
     
     // Form placeholders
     domainPlaceholder: 'Please enter domain, e.g. example.com',
@@ -375,6 +426,7 @@ export default {
     valuePlaceholder: 'Please enter record value, e.g. IP address or domain',
     priorityPlaceholder: 'Please enter priority, e.g. 10',
     ttlPlaceholder: 'Please enter TTL value, e.g. 3600',
+    commentPlaceholder: 'Please enter comment information',
     customTypePlaceholder: 'Please enter custom record type',
     
     // Form validations

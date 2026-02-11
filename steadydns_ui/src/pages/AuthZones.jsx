@@ -73,7 +73,7 @@ const AuthZones = ({ currentLanguage }) => {
   const loadAuthZones = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await apiClient.get('/bind-zones/')
+      const response = await apiClient.get('/bind-zones')
       if (response.success) {
         setAuthZones(response.data)
       } else {
@@ -90,6 +90,21 @@ const AuthZones = ({ currentLanguage }) => {
   // 组件挂载时加载数据
   useEffect(() => {
     loadAuthZones()
+  }, [loadAuthZones])
+
+  // 实现30秒自动刷新数据
+  useEffect(() => {
+    // 设置30秒定时器
+    const timer = setInterval(() => {
+      loadAuthZones()
+    }, 30000)
+    
+    // 组件卸载时清除定时器
+    return () => {
+      if (timer) {
+        clearInterval(timer)
+      }
+    }
   }, [loadAuthZones])
 
   // 显示添加/编辑模态框
@@ -218,19 +233,44 @@ const AuthZones = ({ currentLanguage }) => {
     }
   }, [editingZone])
 
+  /**
+   * 准备提交数据，移除后端自动维护的字段
+   * @param {object} values - 表单数据
+   * @returns {object} 处理后的提交数据
+   */
+  const prepareSubmitData = (values) => {
+    // eslint-disable-next-line no-unused-vars
+    const { domain, file, ...restData } = values
+
+    // 移除SOA中的serial字段（如果存在）
+    const soa = restData.soa ? { ...restData.soa } : null
+    if (soa && soa.serial !== undefined) {
+      delete soa.serial
+    }
+
+    return {
+      ...restData,
+      soa,
+      records: records
+    }
+  }
+
   // 提交表单
   const handleOk = () => {
     form.validateFields().then(values => {
       setLoading(true)
-      // 将记录数据添加到提交的数据中
-      const submitData = {
-        ...values,
-        records: records // 添加服务器记录
-      }
+      // 准备提交数据，移除后端自动维护的字段
+      const submitData = prepareSubmitData(values, !!editingZone)
+
       if (editingZone) {
         updateAuthZone(editingZone.domain, submitData)
       } else {
-        createAuthZone(submitData)
+        // 创建时需要domain字段
+        const createData = {
+          domain: values.domain,
+          ...submitData
+        }
+        createAuthZone(createData)
       }
     }).catch(() => {
       message.error(t('authZones.formValidateError', currentLanguage))
@@ -241,7 +281,7 @@ const AuthZones = ({ currentLanguage }) => {
   // 创建权威域
   const createAuthZone = async (values) => {
     try {
-      const response = await apiClient.post('/bind-zones/', values)
+      const response = await apiClient.post('/bind-zones', values)
       if (response.success) {
         message.success(response.data.message || t('authZones.createSuccess', currentLanguage))
         loadAuthZones()
@@ -425,7 +465,7 @@ const AuthZones = ({ currentLanguage }) => {
         open={isModalOpen}
         onOk={handleOk}
         onCancel={handleCancel}
-        width={800}
+        width={1200}
         destroyOnHidden
       >
         <Form
@@ -434,6 +474,7 @@ const AuthZones = ({ currentLanguage }) => {
           initialValues={{
           domain: '',
           type: 'master',
+          file: '',
           allow_query: 'any',
           soa: {
             primary_ns: '',
@@ -480,6 +521,8 @@ const AuthZones = ({ currentLanguage }) => {
                     >
                       <Input placeholder={t('authZones.allowQueryPlaceholder', currentLanguage)} />
                     </Form.Item>
+
+
                   </>
                 )
               },
@@ -569,11 +612,13 @@ const AuthZones = ({ currentLanguage }) => {
                           pageSizeOptions: ['10', '20', '50'],
                           defaultPageSize: 10
                         }}
+                        scroll={{ x: 'max-content' }}
                         columns={[
                           {
                             title: t('authZones.name', currentLanguage),
                             dataIndex: 'name',
                             key: 'name',
+                            width: 150,
                             ellipsis: true
                           },
                           {
@@ -586,6 +631,7 @@ const AuthZones = ({ currentLanguage }) => {
                             title: t('authZones.value', currentLanguage),
                             dataIndex: 'value',
                             key: 'value',
+                            width: 200,
                             ellipsis: true
                           },
                           {
@@ -599,6 +645,13 @@ const AuthZones = ({ currentLanguage }) => {
                             dataIndex: 'ttl',
                             key: 'ttl',
                             width: 100
+                          },
+                          {
+                            title: t('authZones.comment', currentLanguage),
+                            dataIndex: 'comment',
+                            key: 'comment',
+                            width: 300,
+                            ellipsis: true
                           },
                           {
                             title: t('authZones.actions', currentLanguage),
@@ -726,6 +779,16 @@ const AuthZones = ({ currentLanguage }) => {
               max={2147483647}
               placeholder={t('authZones.ttlPlaceholder', currentLanguage)}
               style={{ width: '100%' }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="comment"
+            label={t('authZones.comment', currentLanguage)}
+          >
+            <Input.TextArea
+              rows={2}
+              placeholder={t('authZones.commentPlaceholder', currentLanguage)}
             />
           </Form.Item>
         </Form>

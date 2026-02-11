@@ -1,6 +1,6 @@
 # SteadyDNS UI
 
-SteadyDNS UI 是一个基于 React + Vite 开发的 DNS 服务器管理界面，提供直观、易用的 DNS 服务器配置和监控功能。
+SteadyDNS UI 是一个基于 React + Vite 开发的 DNS 服务器管理界面，提供直观、易用的 DNS 服务器配置和监控功能，用于管理 SteadyDNS 服务器。
 
 ## 功能特性
 

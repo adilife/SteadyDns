@@ -19,7 +19,7 @@
 // src/utils/apiClient.js
 
 import { message } from 'antd'
-import { getAccessToken, refreshToken as refreshAuthToken, hasValidToken } from './tokenManager'
+import { getAccessToken, refreshToken as refreshAuthToken, hasValidToken, clearTokens } from './tokenManager'
 
 /**
  * API Client for handling API requests with rate limit error management
@@ -32,6 +32,7 @@ class APIClient {
     this.loginCooldownTime = 60000 // 1 minute
     this.batchSize = 5
     this.batchDelay = 1000 // 1 second between batches
+    this.isHandling401 = false // Flag to prevent duplicate 401 handling
   }
 
   /**
@@ -42,6 +43,11 @@ class APIClient {
    * @returns {Promise<any>} Response data
    */
   async request(endpoint, options = {}, retry = true) {
+    // Check if already handling 401 error to prevent duplicate processing
+    if (this.isHandling401) {
+      return
+    }
+    
     const url = `${this.baseURL}${endpoint}`
     
     // Default options
@@ -79,14 +85,23 @@ class APIClient {
       
       // Handle token expiration
       if (response.status === 401 && retry) {
-        const refreshed = await this.refreshToken()
-        if (refreshed) {
-          // Retry request with new token
-          return this.request(endpoint, options, false)
-        } else {
-          // Token refresh failed, redirect to login
-          window.location.href = '/login'
-          throw new Error('登录已过期，请重新登录')
+        this.isHandling401 = true
+        try {
+          const refreshed = await this.refreshToken()
+          if (refreshed) {
+            // Retry request with new token
+            return this.request(endpoint, options, false)
+          } else {
+            // Token refresh failed, clear tokens and redirect to login
+            clearTokens()
+            // Clear user info from sessionStorage
+            sessionStorage.removeItem('steadyDNS_user')
+            // Redirect to login page
+            window.location.href = '/login'
+            return
+          }
+        } finally {
+          this.isHandling401 = false
         }
       }
       
@@ -106,6 +121,11 @@ class APIClient {
       
       return await response.json()
     } catch (error) {
+      // Skip error handling if we're already handling 401
+      if (this.isHandling401) {
+        return
+      }
+      
       // Handle network errors
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         const networkErrorMsg = '网络连接失败，请检查您的网络连接'
