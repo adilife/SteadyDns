@@ -13,6 +13,8 @@ dist-ssr
 *.local
 
 # Editor directories and files
+~/.vscode-root/
+~/.vscode-root/*
 .vscode/*
 .vscode/
 !.vscode/extensions.json
@@ -37,4 +39,6 @@ node_modules/
 .env.local
 .env.*
 
+# 忽略私有文档
+steadydns_ui/priv_docs/
 
