@@ -14,9 +14,14 @@ import Settings from './Settings'
 
 const Configuration = ({ currentLanguage, userInfo }) => {
   const [activeTab, setActiveTab] = useState('server')
+  const [settingsKey, setSettingsKey] = useState(0)
 
   const handleTabChange = (key) => {
     setActiveTab(key)
+    // 当切换到settings标签时，强制重新渲染Settings组件
+    if (key === 'settings') {
+      setSettingsKey(prev => prev + 1)
+    }
   }
 
   const items = [
@@ -38,7 +43,7 @@ const Configuration = ({ currentLanguage, userInfo }) => {
     {
       key: 'settings',
       label: t('configuration.settings', currentLanguage),
-      children: <Settings currentLanguage={currentLanguage} userInfo={userInfo} />
+      children: <Settings key={settingsKey} currentLanguage={currentLanguage} userInfo={userInfo} />
     }
   ]
 

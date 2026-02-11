@@ -159,6 +159,28 @@ export default {
     dnsBanDuration: '禁止持续时间 (分钟)',
     dnsMessageSizeLimit: 'DNS消息大小限制 (字节)',
     
+    // API速率限制标签
+    rateLimitConfig: '速率限制配置',
+    basicRateLimits: '基本速率限制',
+    failureLimits: '失败次数限制',
+    banDurations: '禁止持续时间',
+    rateLimitApi: 'API请求速率限制',
+    rateLimitLogin: '登录请求速率限制',
+    rateLimitRefresh: '令牌刷新速率限制',
+    rateLimitHealth: '健康检查速率限制',
+    rateLimitUser: '用户请求速率限制',
+    rateLimitWindowSeconds: '速率限制窗口大小',
+    rateLimitMaxFailures: '最大失败次数',
+    rateLimitLoginMaxFailures: '最大登录失败次数',
+    rateLimitRefreshMaxFailures: '最大令牌刷新失败次数',
+    rateLimitHealthMaxFailures: '最大健康检查失败次数',
+    rateLimitUserMaxFailures: '最大用户失败次数',
+    rateLimitBanMinutes: '禁止持续时间',
+    rateLimitLoginBanMinutes: '登录禁止持续时间',
+    rateLimitRefreshBanMinutes: '令牌刷新禁止持续时间',
+    rateLimitHealthBanMinutes: '健康检查禁止持续时间',
+    rateLimitUserBanMinutes: '用户禁止持续时间',
+    
     // 验证消息
     pleaseInputPort: '请输入端口',
     pleaseInputIpv4Address: '请输入IPv4地址',
@@ -206,10 +228,38 @@ export default {
     dnsBanDurationTooltip: '禁止持续时间（分钟）。默认值：5，推荐：1-10。超过速率限制的IP地址被禁止的持续时间。',
     dnsMessageSizeLimitTooltip: 'DNS消息大小限制（字节）。默认值：4096，推荐：4096。DNS消息的最大大小，以防止放大攻击。',
     
+    // API速率限制提示信息
+    rateLimitApiTooltip: 'API请求速率限制。默认值：300，推荐：100-500。',
+    rateLimitLoginTooltip: '登录请求速率限制。默认值：60，推荐：30-100。',
+    rateLimitRefreshTooltip: '令牌刷新速率限制。默认值：5，推荐：3-10。',
+    rateLimitHealthTooltip: '健康检查速率限制。默认值：500，推荐：200-1000。',
+    rateLimitUserTooltip: '用户请求速率限制。默认值：500，推荐：200-1000。',
+    rateLimitWindowSecondsTooltip: '速率限制窗口大小（秒）。默认值：60，推荐：30-300。',
+    rateLimitMaxFailuresTooltip: '最大失败次数。默认值：10，推荐：5-20。',
+    rateLimitLoginMaxFailuresTooltip: '最大登录失败次数。默认值：10，推荐：5-15。',
+    rateLimitRefreshMaxFailuresTooltip: '最大令牌刷新失败次数。默认值：3，推荐：2-5。',
+    rateLimitHealthMaxFailuresTooltip: '最大健康检查失败次数。默认值：20，推荐：10-30。',
+    rateLimitUserMaxFailuresTooltip: '最大用户失败次数。默认值：20，推荐：10-30。',
+    rateLimitBanMinutesTooltip: '禁止持续时间（分钟）。默认值：10，推荐：5-30。',
+    rateLimitLoginBanMinutesTooltip: '登录禁止持续时间（分钟）。默认值：5，推荐：3-15。',
+    rateLimitRefreshBanMinutesTooltip: '令牌刷新禁止持续时间（分钟）。默认值：3，推荐：2-10。',
+    rateLimitHealthBanMinutesTooltip: '健康检查禁止持续时间（分钟）。默认值：10，推荐：5-30。',
+    rateLimitUserBanMinutesTooltip: '用户禁止持续时间（分钟）。默认值：15，推荐：5-30。',
+    
     // 其他
     reload: '重载配置',
     saveError: '保存设置失败',
-    reloadError: '重载配置失败'
+    reloadError: '重载配置失败',
+    noChanges: '没有检测到配置变化',
+    fieldsChanged: '个字段已更改',
+    confirmSave: '确认保存设置',
+    confirmSaveMessage: '确定要保存设置并重启服务吗？',
+    confirmReset: '确认恢复默认设置',
+    confirmResetMessage: '确定要恢复默认设置并重启服务吗？',
+    restartNotice: '注意：保存设置后需要重启服务才能生效',
+    servicesRestarted: '服务已成功重启',
+    confirm: '确定',
+    cancel: '取消'
   },
   
   // Forward Groups page
@@ -359,6 +409,7 @@ export default {
     retry: '重试时间',
     expire: '过期时间',
     minimumTtl: '最小TTL',
+    comment: '注释',
     
     // Form placeholders
     domainPlaceholder: '请输入域名，如 example.com',
@@ -375,6 +426,7 @@ export default {
     valuePlaceholder: '请输入记录值，如 IP地址或域名',
     priorityPlaceholder: '请输入优先级，如 10',
     ttlPlaceholder: '请输入TTL值，如 3600',
+    commentPlaceholder: '请输入注释信息',
     customTypePlaceholder: '请输入自定义记录类型',
     
     // Form validations

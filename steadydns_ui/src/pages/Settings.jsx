@@ -9,7 +9,10 @@ import {
   Space,
   message,
   InputNumber,
-  Modal
+  Modal,
+  Row,
+  Col,
+  Tooltip
 } from 'antd'
 import {
   SaveOutlined,
@@ -27,6 +30,11 @@ const { Option } = Select
 const Settings = ({ currentLanguage, userInfo }) => {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [initialConfig, setInitialConfig] = useState(null)
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false)
+  const [resetModalVisible, setResetModalVisible] = useState(false)
+  const [generateKeyModalVisible, setGenerateKeyModalVisible] = useState(false)
+  const [generatedKey, setGeneratedKey] = useState('')
 
   // Default settings structure
   const defaultSettings = useMemo(() => ({
@@ -35,7 +43,23 @@ const Settings = ({ currentLanguage, userInfo }) => {
       LOG_LEVEL: 'debug',
       LOG_REQUEST_BODY: false,
       LOG_RESPONSE_BODY: false,
-      RATE_LIMIT_ENABLED: true
+      RATE_LIMIT_ENABLED: true,
+      RATE_LIMIT_API: 300,
+      RATE_LIMIT_LOGIN: 60,
+      RATE_LIMIT_REFRESH: 5,
+      RATE_LIMIT_HEALTH: 500,
+      RATE_LIMIT_USER: 500,
+      RATE_LIMIT_WINDOW_SECONDS: 60,
+      RATE_LIMIT_MAX_FAILURES: 10,
+      RATE_LIMIT_LOGIN_MAX_FAILURES: 10,
+      RATE_LIMIT_REFRESH_MAX_FAILURES: 3,
+      RATE_LIMIT_HEALTH_MAX_FAILURES: 20,
+      RATE_LIMIT_USER_MAX_FAILURES: 20,
+      RATE_LIMIT_BAN_MINUTES: 10,
+      RATE_LIMIT_LOGIN_BAN_MINUTES: 5,
+      RATE_LIMIT_REFRESH_BAN_MINUTES: 3,
+      RATE_LIMIT_HEALTH_BAN_MINUTES: 10,
+      RATE_LIMIT_USER_BAN_MINUTES: 15
     },
     APIServer: {
       API_SERVER_PORT: 8080,
@@ -108,11 +132,27 @@ const Settings = ({ currentLanguage, userInfo }) => {
     // 构建表单结构，优先使用API返回的数据，否则使用默认值
     return {
       API: {
-        LOG_ENABLED: data.API?.LOG_ENABLED === 'true' || defaultSettings.API.LOG_ENABLED,
+        LOG_ENABLED: data.API?.LOG_ENABLED !== undefined ? data.API.LOG_ENABLED === 'true' : defaultSettings.API.LOG_ENABLED,
         LOG_LEVEL: data.API?.LOG_LEVEL || defaultSettings.API.LOG_LEVEL,
-        LOG_REQUEST_BODY: data.API?.LOG_REQUEST_BODY === 'true' || defaultSettings.API.LOG_REQUEST_BODY,
-        LOG_RESPONSE_BODY: data.API?.LOG_RESPONSE_BODY === 'true' || defaultSettings.API.LOG_RESPONSE_BODY,
-        RATE_LIMIT_ENABLED: data.API?.RATE_LIMIT_ENABLED === 'true' || defaultSettings.API.RATE_LIMIT_ENABLED
+        LOG_REQUEST_BODY: data.API?.LOG_REQUEST_BODY !== undefined ? data.API.LOG_REQUEST_BODY === 'true' : defaultSettings.API.LOG_REQUEST_BODY,
+        LOG_RESPONSE_BODY: data.API?.LOG_RESPONSE_BODY !== undefined ? data.API.LOG_RESPONSE_BODY === 'true' : defaultSettings.API.LOG_RESPONSE_BODY,
+        RATE_LIMIT_ENABLED: data.API?.RATE_LIMIT_ENABLED !== undefined ? data.API.RATE_LIMIT_ENABLED === 'true' : defaultSettings.API.RATE_LIMIT_ENABLED,
+        RATE_LIMIT_API: data.API?.RATE_LIMIT_API ? parseInt(data.API.RATE_LIMIT_API) : defaultSettings.API.RATE_LIMIT_API,
+        RATE_LIMIT_LOGIN: data.API?.RATE_LIMIT_LOGIN ? parseInt(data.API.RATE_LIMIT_LOGIN) : defaultSettings.API.RATE_LIMIT_LOGIN,
+        RATE_LIMIT_REFRESH: data.API?.RATE_LIMIT_REFRESH ? parseInt(data.API.RATE_LIMIT_REFRESH) : defaultSettings.API.RATE_LIMIT_REFRESH,
+        RATE_LIMIT_HEALTH: data.API?.RATE_LIMIT_HEALTH ? parseInt(data.API.RATE_LIMIT_HEALTH) : defaultSettings.API.RATE_LIMIT_HEALTH,
+        RATE_LIMIT_USER: data.API?.RATE_LIMIT_USER ? parseInt(data.API.RATE_LIMIT_USER) : defaultSettings.API.RATE_LIMIT_USER,
+        RATE_LIMIT_WINDOW_SECONDS: data.API?.RATE_LIMIT_WINDOW_SECONDS ? parseInt(data.API.RATE_LIMIT_WINDOW_SECONDS) : defaultSettings.API.RATE_LIMIT_WINDOW_SECONDS,
+        RATE_LIMIT_MAX_FAILURES: data.API?.RATE_LIMIT_MAX_FAILURES ? parseInt(data.API.RATE_LIMIT_MAX_FAILURES) : defaultSettings.API.RATE_LIMIT_MAX_FAILURES,
+        RATE_LIMIT_LOGIN_MAX_FAILURES: data.API?.RATE_LIMIT_LOGIN_MAX_FAILURES ? parseInt(data.API.RATE_LIMIT_LOGIN_MAX_FAILURES) : defaultSettings.API.RATE_LIMIT_LOGIN_MAX_FAILURES,
+        RATE_LIMIT_REFRESH_MAX_FAILURES: data.API?.RATE_LIMIT_REFRESH_MAX_FAILURES ? parseInt(data.API.RATE_LIMIT_REFRESH_MAX_FAILURES) : defaultSettings.API.RATE_LIMIT_REFRESH_MAX_FAILURES,
+        RATE_LIMIT_HEALTH_MAX_FAILURES: data.API?.RATE_LIMIT_HEALTH_MAX_FAILURES ? parseInt(data.API.RATE_LIMIT_HEALTH_MAX_FAILURES) : defaultSettings.API.RATE_LIMIT_HEALTH_MAX_FAILURES,
+        RATE_LIMIT_USER_MAX_FAILURES: data.API?.RATE_LIMIT_USER_MAX_FAILURES ? parseInt(data.API.RATE_LIMIT_USER_MAX_FAILURES) : defaultSettings.API.RATE_LIMIT_USER_MAX_FAILURES,
+        RATE_LIMIT_BAN_MINUTES: data.API?.RATE_LIMIT_BAN_MINUTES ? parseInt(data.API.RATE_LIMIT_BAN_MINUTES) : defaultSettings.API.RATE_LIMIT_BAN_MINUTES,
+        RATE_LIMIT_LOGIN_BAN_MINUTES: data.API?.RATE_LIMIT_LOGIN_BAN_MINUTES ? parseInt(data.API.RATE_LIMIT_LOGIN_BAN_MINUTES) : defaultSettings.API.RATE_LIMIT_LOGIN_BAN_MINUTES,
+        RATE_LIMIT_REFRESH_BAN_MINUTES: data.API?.RATE_LIMIT_REFRESH_BAN_MINUTES ? parseInt(data.API.RATE_LIMIT_REFRESH_BAN_MINUTES) : defaultSettings.API.RATE_LIMIT_REFRESH_BAN_MINUTES,
+        RATE_LIMIT_HEALTH_BAN_MINUTES: data.API?.RATE_LIMIT_HEALTH_BAN_MINUTES ? parseInt(data.API.RATE_LIMIT_HEALTH_BAN_MINUTES) : defaultSettings.API.RATE_LIMIT_HEALTH_BAN_MINUTES,
+        RATE_LIMIT_USER_BAN_MINUTES: data.API?.RATE_LIMIT_USER_BAN_MINUTES ? parseInt(data.API.RATE_LIMIT_USER_BAN_MINUTES) : defaultSettings.API.RATE_LIMIT_USER_BAN_MINUTES
       },
       APIServer: {
         API_SERVER_PORT: data.APIServer?.API_SERVER_PORT ? parseInt(data.APIServer.API_SERVER_PORT) : defaultSettings.APIServer.API_SERVER_PORT,
@@ -164,7 +204,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
         DNS_RATE_LIMIT_GLOBAL: data.Security?.DNS_RATE_LIMIT_GLOBAL ? parseInt(data.Security.DNS_RATE_LIMIT_GLOBAL) : defaultSettings.Security.DNS_RATE_LIMIT_GLOBAL,
         DNS_BAN_DURATION: data.Security?.DNS_BAN_DURATION ? parseInt(data.Security.DNS_BAN_DURATION) : defaultSettings.Security.DNS_BAN_DURATION,
         DNS_MESSAGE_SIZE_LIMIT: data.Security?.DNS_MESSAGE_SIZE_LIMIT ? parseInt(data.Security.DNS_MESSAGE_SIZE_LIMIT) : defaultSettings.Security.DNS_MESSAGE_SIZE_LIMIT,
-        DNS_VALIDATION_ENABLED: data.Security?.DNS_VALIDATION_ENABLED === 'true' || defaultSettings.Security.DNS_VALIDATION_ENABLED
+        DNS_VALIDATION_ENABLED: data.Security?.DNS_VALIDATION_ENABLED !== undefined ? data.Security.DNS_VALIDATION_ENABLED === 'true' : defaultSettings.Security.DNS_VALIDATION_ENABLED
       }
     }
   }, [defaultSettings])
@@ -183,14 +223,18 @@ const Settings = ({ currentLanguage, userInfo }) => {
         // Transform API response to form structure
         const transformedConfig = transformConfigToForm(configResponse)
         form.setFieldsValue(transformedConfig)
+        // Save initial config for comparison
+        setInitialConfig(transformedConfig)
       } else {
         // Use default settings if API fails
         form.setFieldsValue(defaultSettings)
+        setInitialConfig(defaultSettings)
       }
     } catch (error) {
       console.error('Error loading config:', error)
       // Use default settings on error
       form.setFieldsValue(defaultSettings)
+      setInitialConfig(defaultSettings)
     } finally {
       setLoading(false)
     }
@@ -200,6 +244,24 @@ const Settings = ({ currentLanguage, userInfo }) => {
   useEffect(() => {
     loadConfig()
   }, [loadConfig])
+
+  /**
+   * 生成随机JWT密钥
+   * @returns {string} 生成的随机密钥
+   */
+  const generateRandomKey = () => {
+    const length = 32
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@$%^&*()_+-={}|;:,.<>?'
+    let result = ''
+    const array = new Uint32Array(length)
+    window.crypto.getRandomValues(array)
+    
+    for (let i = 0; i < length; i++) {
+      result += charset[array[i] % charset.length]
+    }
+    
+    return result
+  }
 
   // Transform form values to API config structure
   const transformFormToConfig = (formValues) => {
@@ -215,7 +277,23 @@ const Settings = ({ currentLanguage, userInfo }) => {
         LOG_LEVEL: formValues.API.LOG_LEVEL || defaultSettings.API.LOG_LEVEL,
         LOG_REQUEST_BODY: formValues.API.LOG_REQUEST_BODY.toString(),
         LOG_RESPONSE_BODY: formValues.API.LOG_RESPONSE_BODY.toString(),
-        RATE_LIMIT_ENABLED: formValues.API.RATE_LIMIT_ENABLED.toString()
+        RATE_LIMIT_ENABLED: formValues.API.RATE_LIMIT_ENABLED.toString(),
+        RATE_LIMIT_API: formValues.API.RATE_LIMIT_API.toString(),
+        RATE_LIMIT_LOGIN: formValues.API.RATE_LIMIT_LOGIN.toString(),
+        RATE_LIMIT_REFRESH: formValues.API.RATE_LIMIT_REFRESH.toString(),
+        RATE_LIMIT_HEALTH: formValues.API.RATE_LIMIT_HEALTH.toString(),
+        RATE_LIMIT_USER: formValues.API.RATE_LIMIT_USER.toString(),
+        RATE_LIMIT_WINDOW_SECONDS: formValues.API.RATE_LIMIT_WINDOW_SECONDS.toString(),
+        RATE_LIMIT_MAX_FAILURES: formValues.API.RATE_LIMIT_MAX_FAILURES.toString(),
+        RATE_LIMIT_LOGIN_MAX_FAILURES: formValues.API.RATE_LIMIT_LOGIN_MAX_FAILURES.toString(),
+        RATE_LIMIT_REFRESH_MAX_FAILURES: formValues.API.RATE_LIMIT_REFRESH_MAX_FAILURES.toString(),
+        RATE_LIMIT_HEALTH_MAX_FAILURES: formValues.API.RATE_LIMIT_HEALTH_MAX_FAILURES.toString(),
+        RATE_LIMIT_USER_MAX_FAILURES: formValues.API.RATE_LIMIT_USER_MAX_FAILURES.toString(),
+        RATE_LIMIT_BAN_MINUTES: formValues.API.RATE_LIMIT_BAN_MINUTES.toString(),
+        RATE_LIMIT_LOGIN_BAN_MINUTES: formValues.API.RATE_LIMIT_LOGIN_BAN_MINUTES.toString(),
+        RATE_LIMIT_REFRESH_BAN_MINUTES: formValues.API.RATE_LIMIT_REFRESH_BAN_MINUTES.toString(),
+        RATE_LIMIT_HEALTH_BAN_MINUTES: formValues.API.RATE_LIMIT_HEALTH_BAN_MINUTES.toString(),
+        RATE_LIMIT_USER_BAN_MINUTES: formValues.API.RATE_LIMIT_USER_BAN_MINUTES.toString()
       },
       APIServer: {
         API_SERVER_PORT: formValues.APIServer.API_SERVER_PORT.toString(),
@@ -272,25 +350,116 @@ const Settings = ({ currentLanguage, userInfo }) => {
     }
   }
 
+  // Get changed configuration
+  const getChangedConfig = (formValues) => {
+    /**
+     * 比较表单值与初始配置的差异
+     * @param {Object} formValues - 表单值
+     * @returns {Object} 有变化的配置参数
+     */
+    if (!initialConfig) {
+      return transformFormToConfig(formValues)
+    }
+
+    const changedConfig = {}
+    const apiConfig = transformFormToConfig(formValues)
+
+    // Compare each section and key
+    for (const section in apiConfig) {
+      if (Object.prototype.hasOwnProperty.call(apiConfig, section)) {
+        const sectionChanged = {}
+        let hasChanges = false
+
+        for (const key in apiConfig[section]) {
+          if (Object.prototype.hasOwnProperty.call(apiConfig[section], key)) {
+            const currentValue = apiConfig[section][key]
+            const initialValue = initialConfig[section] && initialConfig[section][key]
+
+            // Convert initial value to string for comparison (to match API format)
+            const initialValueStr = typeof initialValue === 'boolean' ? initialValue.toString() : 
+                                   typeof initialValue === 'number' ? initialValue.toString() : 
+                                   initialValue
+
+            if (currentValue !== initialValueStr) {
+              sectionChanged[key] = currentValue
+              hasChanges = true
+            }
+          }
+        }
+
+        if (hasChanges) {
+          changedConfig[section] = sectionChanged
+        }
+      }
+    }
+
+    return changedConfig
+  }
+
   // Save configuration
   const handleSave = () => {
+    form.validateFields().then(values => {
+        // Get changed configuration
+        const changedConfig = getChangedConfig(values)
+        
+        // Count changed fields
+        let changedCount = 0
+        for (const section in changedConfig) {
+          changedCount += Object.keys(changedConfig[section]).length
+        }
+        
+        // If no changes, show message and return
+        if (changedCount === 0) {
+          message.info(t('settings.noChanges', currentLanguage))
+          return
+        }
+        
+        // Show confirmation modal
+        setConfirmModalVisible(true)
+      }).catch(() => {
+        message.error(t('settings.pleaseCheckFormFields', currentLanguage))
+      })
+  }
+
+  // Handle confirmation save
+  const handleConfirmSave = async () => {
     form.validateFields().then(async values => {
         setLoading(true)
         try {
-          // Transform form values to API structure
-          const configData = transformFormToConfig(values)
+          // Get changed configuration
+          const changedConfig = getChangedConfig(values)
           
-          // Save each section
-          for (const section in configData) {
-            for (const key in configData[section]) {
-              await apiClient.updateConfig(section, key, configData[section][key], userInfo.username)
+          // Count changed fields
+          let changedCount = 0
+          for (const section in changedConfig) {
+            changedCount += Object.keys(changedConfig[section]).length
+          }
+          
+          // Save only changed fields
+          for (const section in changedConfig) {
+            for (const key in changedConfig[section]) {
+              await apiClient.updateConfig(section, key, changedConfig[section][key], userInfo.username)
             }
           }
           
           // Reload configuration
           await apiClient.reloadConfig()
           
-          message.success(t('settings.settingsSaved', currentLanguage))
+          // Restart HTTP server
+          await apiClient.controlServer('restart', 'httpd')
+          
+          // Restart DNS server
+          await apiClient.controlServer('restart', 'sdnsd')
+          
+          // Show success message with changed count
+          message.success(`${t('settings.settingsSaved', currentLanguage)} (${changedCount} ${t('settings.fieldsChanged', currentLanguage)})`)
+          message.success(t('settings.servicesRestarted', currentLanguage))
+          
+          // Update initial config with new values
+          setInitialConfig(values)
+          
+          // Close confirmation modal
+          setConfirmModalVisible(false)
         } catch (error) {
           console.error('Error saving settings:', error)
           message.error(t('settings.saveError', currentLanguage))
@@ -302,20 +471,83 @@ const Settings = ({ currentLanguage, userInfo }) => {
       })
   }
 
+  // Handle cancel confirmation
+  const handleCancelConfirm = () => {
+    setConfirmModalVisible(false)
+  }
+
   // Reset configuration
-  const handleReset = async () => {
+  const handleReset = () => {
+    // Show confirmation modal
+    setResetModalVisible(true)
+  }
+
+  // Handle confirmation reset
+  const handleConfirmReset = async () => {
     try {
       setLoading(true)
       await apiClient.resetConfig(userInfo.username)
       await apiClient.reloadConfig()
       await loadConfig()
+      
+      // Restart HTTP server
+      await apiClient.controlServer('restart', 'httpd')
+      
+      // Restart DNS server
+      await apiClient.controlServer('restart', 'sdnsd')
+      
       message.success(t('settings.settingsReset', currentLanguage))
+      message.success(t('settings.servicesRestarted', currentLanguage))
+      
+      // Close confirmation modal
+      setResetModalVisible(false)
     } catch (error) {
       console.error('Error resetting settings:', error)
       message.error(t('settings.resetError', currentLanguage))
     } finally {
       setLoading(false)
     }
+  }
+
+  // Handle cancel reset confirmation
+  const handleCancelReset = () => {
+    setResetModalVisible(false)
+  }
+
+  // Handle generate random key modal open
+  const handleGenerateKeyModalOpen = () => {
+    const key = generateRandomKey()
+    setGeneratedKey(key)
+    setGenerateKeyModalVisible(true)
+  }
+
+  // Handle regenerate key
+  const handleRegenerateKey = () => {
+    const key = generateRandomKey()
+    setGeneratedKey(key)
+  }
+
+  // Handle confirm generate key
+  const handleConfirmGenerateKey = () => {
+    try {
+      // 设置整个JWT对象
+      const currentJWT = form.getFieldValue('JWT') || {}
+      const updatedJWT = {
+        ...currentJWT,
+        JWT_SECRET_KEY: generatedKey
+      }
+      form.setFieldsValue({
+        JWT: updatedJWT
+      })
+    } catch (error) {
+      console.error('Error setting form field:', error)
+    }
+    setGenerateKeyModalVisible(false)
+  }
+
+  // Handle cancel generate key
+  const handleCancelGenerateKey = () => {
+    setGenerateKeyModalVisible(false)
   }
 
   // Reload configuration
@@ -376,7 +608,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Form.Item
@@ -415,6 +647,197 @@ const Settings = ({ currentLanguage, userInfo }) => {
               <Switch />
             </Form.Item>
           </Space>
+
+          <Form.Item
+            name={['API', 'LOG_LEVEL']}
+            label={t('settings.logLevel', currentLanguage)}
+            tooltip={t('settings.logLevelTooltip', currentLanguage)}
+            hidden={true}
+          >
+            <Select style={{ width: '100%' }}>
+              <Option value="debug">debug</Option>
+              <Option value="info">info</Option>
+              <Option value="warn">warn</Option>
+              <Option value="error">error</Option>
+            </Select>
+          </Form.Item>
+
+          {/* Rate Limit Configuration */}
+          <Card
+            title={t('settings.rateLimitConfig', currentLanguage)}
+            style={{ marginBottom: 16 }}
+            collapsible="true"
+          >
+            {/* Basic Rate Limits */}
+            <Card
+              title={t('settings.basicRateLimits', currentLanguage)}
+              style={{ marginBottom: 16 }}
+              size="small"
+            >
+              <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_API']}
+                  label={t('settings.rateLimitApi', currentLanguage)}
+                  tooltip={t('settings.rateLimitApiTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={1000} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_LOGIN']}
+                  label={t('settings.rateLimitLogin', currentLanguage)}
+                  tooltip={t('settings.rateLimitLoginTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={200} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_REFRESH']}
+                  label={t('settings.rateLimitRefresh', currentLanguage)}
+                  tooltip={t('settings.rateLimitRefreshTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={50} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_HEALTH']}
+                  label={t('settings.rateLimitHealth', currentLanguage)}
+                  tooltip={t('settings.rateLimitHealthTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={100} max={2000} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_USER']}
+                  label={t('settings.rateLimitUser', currentLanguage)}
+                  tooltip={t('settings.rateLimitUserTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={100} max={2000} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_WINDOW_SECONDS']}
+                  label={t('settings.rateLimitWindowSeconds', currentLanguage)}
+                  tooltip={t('settings.rateLimitWindowSecondsTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={300} style={{ width: '100%' }} />
+                </Form.Item>
+              </Space>
+            </Card>
+
+            {/* Failure Limits */}
+            <Card
+              title={t('settings.failureLimits', currentLanguage)}
+              style={{ marginBottom: 16 }}
+              size="small"
+            >
+              <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_MAX_FAILURES']}
+                  label={t('settings.rateLimitMaxFailures', currentLanguage)}
+                  tooltip={t('settings.rateLimitMaxFailuresTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={50} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_LOGIN_MAX_FAILURES']}
+                  label={t('settings.rateLimitLoginMaxFailures', currentLanguage)}
+                  tooltip={t('settings.rateLimitLoginMaxFailuresTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={50} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_REFRESH_MAX_FAILURES']}
+                  label={t('settings.rateLimitRefreshMaxFailures', currentLanguage)}
+                  tooltip={t('settings.rateLimitRefreshMaxFailuresTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={20} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_HEALTH_MAX_FAILURES']}
+                  label={t('settings.rateLimitHealthMaxFailures', currentLanguage)}
+                  tooltip={t('settings.rateLimitHealthMaxFailuresTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_USER_MAX_FAILURES']}
+                  label={t('settings.rateLimitUserMaxFailures', currentLanguage)}
+                  tooltip={t('settings.rateLimitUserMaxFailuresTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={100} style={{ width: '100%' }} />
+                </Form.Item>
+              </Space>
+            </Card>
+
+            {/* Ban Durations */}
+            <Card
+              title={t('settings.banDurations', currentLanguage)}
+              size="small"
+            >
+              <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_BAN_MINUTES']}
+                  label={t('settings.rateLimitBanMinutes', currentLanguage)}
+                  tooltip={t('settings.rateLimitBanMinutesTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={60} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_LOGIN_BAN_MINUTES']}
+                  label={t('settings.rateLimitLoginBanMinutes', currentLanguage)}
+                  tooltip={t('settings.rateLimitLoginBanMinutesTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={60} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_REFRESH_BAN_MINUTES']}
+                  label={t('settings.rateLimitRefreshBanMinutes', currentLanguage)}
+                  tooltip={t('settings.rateLimitRefreshBanMinutesTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={60} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_HEALTH_BAN_MINUTES']}
+                  label={t('settings.rateLimitHealthBanMinutes', currentLanguage)}
+                  tooltip={t('settings.rateLimitHealthBanMinutesTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={60} style={{ width: '100%' }} />
+                </Form.Item>
+
+                <Form.Item
+                  name={['API', 'RATE_LIMIT_USER_BAN_MINUTES']}
+                  label={t('settings.rateLimitUserBanMinutes', currentLanguage)}
+                  tooltip={t('settings.rateLimitUserBanMinutesTooltip', currentLanguage)}
+                  style={{ minWidth: 300 }}
+                >
+                  <InputNumber min={1} max={60} style={{ width: '100%' }} />
+                </Form.Item>
+              </Space>
+            </Card>
+          </Card>
         </Card>
 
         {/* API服务器配置卡片 */}
@@ -426,7 +849,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['APIServer', 'API_SERVER_PORT']}
@@ -475,7 +898,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['BIND', 'BIND_ADDRESS']}
@@ -583,7 +1006,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['Cache', 'DNS_CACHE_SIZE_MB']}
@@ -619,7 +1042,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['DNS', 'DNS_CLIENT_WORKERS']}
@@ -655,7 +1078,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['Database', 'DB_PATH']}
@@ -675,11 +1098,23 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['JWT', 'JWT_SECRET_KEY']}
-            label={t('settings.jwtSecretKey', currentLanguage)}
+            label={
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span>{t('settings.jwtSecretKey', currentLanguage)}</span>
+                <Button
+                  type="default"
+                  size="small"
+                  onClick={handleGenerateKeyModalOpen}
+                  style={{ marginLeft: 8 }}
+                >
+                  生成随机密钥
+                </Button>
+              </div>
+            }
             tooltip={t('settings.jwtSecretKeyTooltip', currentLanguage)}
           >
             <Input />
@@ -723,7 +1158,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['Logging', 'QUERY_LOG_PATH']}
@@ -731,6 +1166,20 @@ const Settings = ({ currentLanguage, userInfo }) => {
             tooltip={t('settings.queryLogPathTooltip', currentLanguage)}
           >
             <Input />
+          </Form.Item>
+
+          <Form.Item
+            name={['Logging', 'DNS_LOG_LEVEL']}
+            label={t('settings.dnsLogLevel', currentLanguage)}
+            tooltip={t('settings.dnsLogLevelTooltip', currentLanguage)}
+            hidden={true}
+          >
+            <Select style={{ width: '100%' }}>
+              <Option value="debug">debug</Option>
+              <Option value="info">info</Option>
+              <Option value="warn">warn</Option>
+              <Option value="error">error</Option>
+            </Select>
           </Form.Item>
 
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
@@ -761,7 +1210,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             </Space>
           }
           style={{ marginBottom: 16 }}
-          collapsible
+          collapsible="true"
         >
           <Form.Item
             name={['Security', 'DNS_VALIDATION_ENABLED']}
@@ -805,6 +1254,62 @@ const Settings = ({ currentLanguage, userInfo }) => {
           </Form.Item>
         </Card>
       </Form>
+
+      {/* Confirmation Modal */}
+      <Modal
+        title={t('settings.confirmSave', currentLanguage)}
+        open={confirmModalVisible}
+        onOk={handleConfirmSave}
+        onCancel={handleCancelConfirm}
+        confirmLoading={loading}
+        okText={t('settings.confirm', currentLanguage)}
+        cancelText={t('settings.cancel', currentLanguage)}
+      >
+        <p>{t('settings.confirmSaveMessage', currentLanguage)}</p>
+        <p style={{ color: '#ff4d4f' }}>{t('settings.restartNotice', currentLanguage)}</p>
+      </Modal>
+
+      {/* Reset Confirmation Modal */}
+      <Modal
+        title={t('settings.confirmReset', currentLanguage)}
+        open={resetModalVisible}
+        onOk={handleConfirmReset}
+        onCancel={handleCancelReset}
+        confirmLoading={loading}
+        okText={t('settings.confirm', currentLanguage)}
+        cancelText={t('settings.cancel', currentLanguage)}
+      >
+        <p>{t('settings.confirmResetMessage', currentLanguage)}</p>
+        <p style={{ color: '#ff4d4f' }}>{t('settings.restartNotice', currentLanguage)}</p>
+      </Modal>
+
+      {/* Generate Random Key Modal */}
+      <Modal
+        title="生成随机JWT密钥"
+        open={generateKeyModalVisible}
+        onOk={handleConfirmGenerateKey}
+        onCancel={handleCancelGenerateKey}
+        okText="确定"
+        cancelText="取消"
+      >
+        <div style={{ marginBottom: 16 }}>
+          <p>生成的随机密钥：</p>
+          <Input.TextArea
+            value={generatedKey}
+            rows={4}
+            readOnly
+            style={{ marginBottom: 16 }}
+          />
+          <Button
+            type="default"
+            onClick={handleRegenerateKey}
+            style={{ marginRight: 8 }}
+          >
+            生成
+          </Button>
+          <span style={{ color: '#666' }}>点击重新生成随机密钥</span>
+        </div>
+      </Modal>
     </div>
   )
 }

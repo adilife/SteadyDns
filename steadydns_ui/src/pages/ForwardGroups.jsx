@@ -655,55 +655,7 @@ const ForwardGroups = ({ currentLanguage }) => {
         </Button>
       </div>
 
-      {/* Domain Match Test Section */}
-      <Card title={<Space><BarChartOutlined />{t('forwardGroups.domainTest', currentLanguage)}</Space>} style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={16}>
-            <Input 
-              placeholder={currentLanguage === 'zh-CN' ? '请输入要测试的域名，例如: www.example.com' : 'Please enter a domain to test, e.g.: www.example.com'}
-              value={testDomain}
-              onChange={(e) => setTestDomain(e.target.value)}
-              onPressEnter={handleTestDomainMatch}
-              style={{ marginRight: 8 }}
-            />
-          </Col>
-          <Col xs={24} sm={8}>
-            <Space>
-              <Button 
-                type="primary" 
-                onClick={handleTestDomainMatch}
-                loading={testLoading}
-              >
-                {t('forwardGroups.testMatch', currentLanguage)}
-              </Button>
-              <Button 
-                onClick={() => {
-                  setTestDomain('')
-                  setTestResult(null)
-                }}
-              >
-                {currentLanguage === 'zh-CN' ? '重置' : 'Reset'}
-              </Button>
-            </Space>
-          </Col>
-          {testResult && (
-            <Col xs={24}>
-              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6ffed', borderRadius: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <strong>{t('forwardGroups.testResult', currentLanguage)}:</strong>
-                  <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
-                    {testResult.matched_group ? testResult.matched_group : t('forwardGroups.noMatch', currentLanguage)}
-                  </span>
-                </div>
-                <div style={{ fontSize: '14px', color: '#666' }}>
-                  {t('forwardGroups.matchedGroup', currentLanguage)}: 
-                  <strong>{testResult.matched_group || t('forwardGroups.noMatch', currentLanguage)}</strong>
-                </div>
-              </div>
-            </Col>
-          )}
-        </Row>
-      </Card>
+
 
       <Spin spinning={apiLoading}>
         <div style={{ marginBottom: 16 }}>
@@ -886,6 +838,56 @@ const ForwardGroups = ({ currentLanguage }) => {
 
         </Form>
       </Modal>
+
+      {/* Domain Match Test Section */}
+      <Card title={<Space><BarChartOutlined />{t('forwardGroups.domainTest', currentLanguage)}</Space>} style={{ marginBottom: 24, marginTop: 24 }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={16}>
+            <Input 
+              placeholder={currentLanguage === 'zh-CN' ? '请输入要测试的域名，例如: www.example.com' : 'Please enter a domain to test, e.g.: www.example.com'}
+              value={testDomain}
+              onChange={(e) => setTestDomain(e.target.value)}
+              onPressEnter={handleTestDomainMatch}
+              style={{ marginRight: 8 }}
+            />
+          </Col>
+          <Col xs={24} sm={8}>
+            <Space>
+              <Button 
+                type="primary" 
+                onClick={handleTestDomainMatch}
+                loading={testLoading}
+              >
+                {t('forwardGroups.testMatch', currentLanguage)}
+              </Button>
+              <Button 
+                onClick={() => {
+                  setTestDomain('')
+                  setTestResult(null)
+                }}
+              >
+                {currentLanguage === 'zh-CN' ? '重置' : 'Reset'}
+              </Button>
+            </Space>
+          </Col>
+          {testResult && (
+            <Col xs={24}>
+              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6ffed', borderRadius: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <strong>{t('forwardGroups.testResult', currentLanguage)}:</strong>
+                  <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
+                    {testResult.matched_group ? testResult.matched_group : t('forwardGroups.noMatch', currentLanguage)}
+                  </span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#666' }}>
+                  {t('forwardGroups.matchedGroup', currentLanguage)}: 
+                  <strong>{testResult.matched_group || t('forwardGroups.noMatch', currentLanguage)}</strong>
+                </div>
+              </div>
+            </Col>
+          )}
+        </Row>
+      </Card>
     </div>
   )
 }

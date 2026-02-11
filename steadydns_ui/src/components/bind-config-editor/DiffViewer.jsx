@@ -60,7 +60,7 @@ const DiffViewer = ({ diff }) => {
     // 将 API 返回的 lines 转换为 changes 格式，只保留有变化的行
     changes = diff.lines
       .filter(line => line.type === 'added' || line.type === 'removed') // 只保留有变化的行
-      .map((line, index) => {
+      .map((line) => {
         let type = 'modify' // 默认类型
         let path = `Line ${line.lineNum}`
 
