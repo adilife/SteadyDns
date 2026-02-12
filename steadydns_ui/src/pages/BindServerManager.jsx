@@ -619,7 +619,7 @@ const BindServerManager = ({ currentLanguage }) => {
                       <div>
                         <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{filename}</div>
                         <div style={{ fontSize: '12px', color: '#666' }}>
-                          <span>时间: {new Date(backup.timestamp).toLocaleString()}</span>
+                          <span>时间: {new Date(backup.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</span>
                           <span style={{ marginLeft: '16px' }}>大小: {backup.size} bytes</span>
                         </div>
                       </div>
