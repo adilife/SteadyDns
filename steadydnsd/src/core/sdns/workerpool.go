@@ -101,42 +101,8 @@ func NewWorkerPool(workerCount, queueMultiplier int, timeout time.Duration) *Wor
 // worker 工作协程
 func (p *WorkerPool) worker() {
 	defer p.wg.Done()
-
-	// 批量处理任务
-	tasks := make([]*DNSWorker, 0, 20) // 预分配容量
-
-	for {
-		select {
-		case task, ok := <-p.taskChan:
-			if !ok {
-				// 处理剩余任务
-				for _, t := range tasks {
-					p.processTask(t)
-				}
-				return
-			}
-
-			// 收集任务
-			tasks = append(tasks, task)
-
-			// 批量处理条件：任务数达到阈值或通道为空
-			if len(tasks) >= 20 {
-				for _, t := range tasks {
-					p.processTask(t)
-				}
-				tasks = tasks[:0] // 重置任务列表
-			}
-		default:
-			// 通道为空，处理已收集的任务
-			if len(tasks) > 0 {
-				for _, t := range tasks {
-					p.processTask(t)
-				}
-				tasks = tasks[:0] // 重置任务列表
-			}
-			// 短暂休眠，避免忙等
-			time.Sleep(1 * time.Millisecond)
-		}
+	for task := range p.taskChan {
+		p.processTask(task)
 	}
 }
 
