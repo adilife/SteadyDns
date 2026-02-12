@@ -47,6 +47,11 @@ const BindServerManager = ({ currentLanguage }) => {
   
   // Bind config editor state
   const [configEditorVisible, setConfigEditorVisible] = useState(false)
+  
+  // Backup management state
+  const [backupModalVisible, setBackupModalVisible] = useState(false)
+  const [backups, setBackups] = useState([])
+  const [backupLoading, setBackupLoading] = useState(false)
 
   // Load BIND server status
   const loadBindServerStatus = useCallback(async () => {
@@ -100,6 +105,9 @@ const BindServerManager = ({ currentLanguage }) => {
           break
         case 'validateBindConfig':
           await handleValidateBindConfig()
+          break
+        case 'deleteBackup':
+          await handleDeleteBackup(currentActionParams)
           break
         default:
           break
@@ -187,6 +195,74 @@ const BindServerManager = ({ currentLanguage }) => {
     setConfirmModalVisible(true)
   }
 
+  // Load backups
+  const loadBackups = async () => {
+    setBackupLoading(true)
+    try {
+      const response = await apiClient.getBindNamedConfBackups()
+      if (response.success) {
+        setBackups(response.data || [])
+      } else {
+        message.error(response.message || '加载备份列表失败')
+      }
+    } catch (error) {
+      console.error('Error loading backups:', error)
+      message.error('加载备份列表失败')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
+
+  // Handle restore backup
+  const handleRestoreBackup = async (backupPath) => {
+    try {
+      setBackupLoading(true)
+      const response = await apiClient.restoreBindNamedConfBackup(backupPath)
+      if (response.success) {
+        message.success(response.message || '恢复备份成功')
+        // Reload BIND server status after restore
+        setTimeout(loadBindServerStatus, 1000)
+        setBackupModalVisible(false)
+      } else {
+        message.error(response.message || '恢复备份失败')
+      }
+    } catch (error) {
+      console.error('Error restoring backup:', error)
+      message.error('恢复备份失败')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
+
+  // Handle delete backup
+  const handleDeleteBackup = async (backupId) => {
+    try {
+      setBackupLoading(true)
+      const response = await apiClient.deleteBindNamedConfBackup(backupId)
+      if (response.success) {
+        message.success(response.message || '删除备份成功')
+        // Reload backups after delete
+        loadBackups()
+      } else {
+        message.error(response.message || '删除备份失败')
+      }
+    } catch (error) {
+      console.error('Error deleting backup:', error)
+      message.error('删除备份失败')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
+
+  // Handle delete backup with confirmation
+  const confirmDeleteBackup = (backupId) => {
+    setConfirmModalTitle('删除备份')
+    setConfirmModalContent('确定要删除此备份文件吗？此操作不可撤销。')
+    setCurrentAction('deleteBackup')
+    setCurrentActionParams(backupId)
+    setConfirmModalVisible(true)
+  }
+
   return (
     <div>
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -196,13 +272,21 @@ const BindServerManager = ({ currentLanguage }) => {
             {t('bindServer.title', currentLanguage)}
           </Space>
         </h2>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={loadBindServerStatus}
-          loading={loading}
-        >
-          {t('bindServer.refresh', currentLanguage)}
-        </Button>
+        <Space>
+          <Button
+            icon={<SettingOutlined />}
+            onClick={() => setBackupModalVisible(true)}
+          >
+            备份管理
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={loadBindServerStatus}
+            loading={loading}
+          >
+            {t('bindServer.refresh', currentLanguage)}
+          </Button>
+        </Space>
       </div>
 
       <Spin spinning={loading}>
@@ -498,6 +582,80 @@ const BindServerManager = ({ currentLanguage }) => {
         visible={configEditorVisible}
         onClose={() => setConfigEditorVisible(false)}
       />
+      
+      {/* Backup Management Modal */}
+      <Modal
+        title="BIND 配置备份管理"
+        open={backupModalVisible}
+        onOk={() => setBackupModalVisible(false)}
+        onCancel={() => setBackupModalVisible(false)}
+        okText="关闭"
+        cancelText="取消"
+        width={800}
+        styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
+        onOpenChange={(visible) => {
+          if (visible) {
+            loadBackups()
+          }
+        }}
+      >
+        <div>
+          <h3 style={{ marginBottom: 16 }}>备份文件列表</h3>
+          <Spin spinning={backupLoading}>
+            {backups.length > 0 ? (
+              <div className="backup-list">
+                {backups.map((backup, index) => {
+                  // Extract filename from filePath
+                  const filename = backup.filePath.split('/').pop()
+                  return (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      padding: '12px',
+                      border: '1px solid #f0f0f0',
+                      borderRadius: '4px',
+                      marginBottom: '8px',
+                      backgroundColor: '#f9f9f9'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{filename}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          <span>时间: {new Date(backup.timestamp).toLocaleString()}</span>
+                          <span style={{ marginLeft: '16px' }}>大小: {backup.size} bytes</span>
+                        </div>
+                      </div>
+                      <Space>
+                        <Button 
+                          type="primary" 
+                          size="small"
+                          onClick={() => handleRestoreBackup(backup.filePath)}
+                        >
+                          恢复
+                        </Button>
+                        <Button 
+                          danger 
+                          size="small"
+                          onClick={() => confirmDeleteBackup(filename)}
+                        >
+                          删除
+                        </Button>
+                      </Space>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <Alert
+                title="没有备份文件"
+                description="当前没有可用的 BIND 配置备份文件"
+                type="info"
+                showIcon
+              />
+            )}
+          </Spin>
+        </div>
+      </Modal>
     </div>
   )
 }
