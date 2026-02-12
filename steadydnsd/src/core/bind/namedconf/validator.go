@@ -4,10 +4,12 @@
 package namedconf
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Validator 配置验证器
@@ -76,8 +78,11 @@ func (v *Validator) validateFile(filePath string) (*ValidationResult, error) {
 		v.namedCheckConfPath = "named-checkconf"
 	}
 
-	// 构建命令
-	cmd := exec.Command(v.namedCheckConfPath, filePath)
+	// 构建命令，设置5秒超时
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	cmd := exec.CommandContext(ctx, v.namedCheckConfPath, filePath)
 
 	// 执行命令
 	output, err := cmd.CombinedOutput()
@@ -85,6 +90,14 @@ func (v *Validator) validateFile(filePath string) (*ValidationResult, error) {
 
 	// 解析结果
 	result := &ValidationResult{}
+
+	if ctx.Err() == context.DeadlineExceeded {
+		// 命令执行超时
+		result.Valid = false
+		result.Error = "配置验证超时（5秒），请检查配置文件是否过大或named-checkconf工具是否正常"
+		result.Output = outputStr
+		return result, nil
+	}
 
 	if err != nil {
 		// 验证失败
