@@ -71,7 +71,7 @@ func PerformHealthCheck() HealthCheckResponse {
 	// 构建响应
 	return HealthCheckResponse{
 		Status:     overallStatus,
-		Timestamp:  time.Now(),
+		Timestamp:  time.Now().UTC(),
 		System:     systemHealth,
 		Database:   dbHealth,
 		DNS:        dnsHealth,

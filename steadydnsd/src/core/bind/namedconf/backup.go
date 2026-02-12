@@ -14,15 +14,15 @@ import (
 
 // BackupManager 备份管理器
 type BackupManager struct {
-	backupDir string
+	backupDir  string
 	maxBackups int
 }
 
 // BackupInfo 备份信息
 type BackupInfo struct {
-	FilePath string    `json:"filePath"`
+	FilePath  string    `json:"filePath"`
 	Timestamp time.Time `json:"timestamp"`
-	Size     int64    `json:"size"`
+	Size      int64     `json:"size"`
 }
 
 // NewBackupManager 创建新的备份管理器实例
@@ -41,7 +41,7 @@ func NewBackupManager(backupDir string, maxBackups int) *BackupManager {
 	}
 
 	return &BackupManager{
-		backupDir: backupDir,
+		backupDir:  backupDir,
 		maxBackups: maxBackups,
 	}
 }
@@ -65,9 +65,9 @@ func (bm *BackupManager) BackupFile(filePath string) (*BackupInfo, error) {
 	ext := filepath.Ext(fileName)
 	nameWithoutExt := strings.TrimSuffix(fileName, ext)
 
-	backupFileName := fmt.Sprintf("%s%s.%s.bak", 
-		nameWithoutExt, 
-		ext, 
+	backupFileName := fmt.Sprintf("%s%s.%s.bak",
+		nameWithoutExt,
+		ext,
 		timestamp.Format("20060102150405"))
 
 	backupPath := filepath.Join(bm.backupDir, backupFileName)
@@ -88,9 +88,9 @@ func (bm *BackupManager) BackupFile(filePath string) (*BackupInfo, error) {
 	}
 
 	return &BackupInfo{
-		FilePath: backupPath,
+		FilePath:  backupPath,
 		Timestamp: timestamp,
-		Size:     fileInfo.Size(),
+		Size:      fileInfo.Size(),
 	}, nil
 }
 
@@ -125,15 +125,15 @@ func (bm *BackupManager) ListBackups(originalFilePath string) ([]BackupInfo, err
 
 			// 解析时间戳
 			timestampStr := strings.TrimSuffix(strings.TrimPrefix(file.Name(), nameWithoutExt+ext+"."), ".bak")
-			timestamp, err := time.Parse("20060102150405", timestampStr)
+			timestamp, err := time.ParseInLocation("20060102150405", timestampStr, time.Local)
 			if err != nil {
 				continue
 			}
 
 			backups = append(backups, BackupInfo{
-				FilePath: filePath,
-				Timestamp: timestamp,
-				Size:     fileInfo.Size(),
+				FilePath:  filePath,
+				Timestamp: timestamp.UTC(), // 转换为 UTC 时区
+				Size:      fileInfo.Size(),
 			})
 		}
 	}
