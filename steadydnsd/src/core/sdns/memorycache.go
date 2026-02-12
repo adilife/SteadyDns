@@ -36,6 +36,9 @@ var recordTypeTTLMap = map[uint16]time.Duration{
 // 默认TTL（当记录类型未在映射中定义时使用）
 const defaultRecordTTL = 3600 * time.Second
 
+// 最小TTL（防止缓存过快过期）
+const minCacheTTL = 300 * time.Second // 最小5分钟
+
 // FixedMemoryPool 固定大小内存池
 type FixedMemoryPool struct {
 	blocks    [][]byte   // 内存块数组
@@ -295,6 +298,53 @@ func calculateSize(msg *dns.Msg) int {
 	return len(data)
 }
 
+// calculateTTL 根据DNS响应计算缓存TTL
+// 对于错误响应使用较短的TTL，允许快速重试
+// 对于正常响应使用记录中的TTL，但确保不小于最小TTL
+func (c *MemoryCache) calculateTTL(msg *dns.Msg) time.Duration {
+	// 没有Answer记录，根据响应码设置不同的错误TTL
+	if len(msg.Answer) == 0 {
+		switch msg.Rcode {
+		case dns.RcodeSuccess:
+			// 成功但没有Answer（如空响应），使用较短TTL
+			return 300 * time.Second // 5分钟
+		case dns.RcodeNameError:
+			// NXDOMAIN - 域名不存在，可以缓存较长时间
+			return 300 * time.Second // 5分钟
+		case dns.RcodeServerFailure:
+			// SERVFAIL - 服务器错误，使用短TTL快速重试
+			return 60 * time.Second // 1分钟
+		case dns.RcodeRefused:
+			// REFUSED - 服务拒绝，使用中等TTL
+			return 300 * time.Second // 5分钟
+		case dns.RcodeNotImplemented:
+			// NOTIMP - 不支持的查询类型
+			return 600 * time.Second // 10分钟
+		default:
+			// 其他错误响应
+			return c.errorTTL
+		}
+	}
+
+	// 有Answer记录，使用第一条记录的TTL
+	recordTTL := msg.Answer[0].Header().Ttl
+	if recordTTL > 0 {
+		ttl := time.Duration(recordTTL) * time.Second
+		// 确保不小于最小TTL，防止缓存过快过期
+		if ttl < minCacheTTL {
+			ttl = minCacheTTL
+		}
+		return ttl
+	}
+
+	// 记录中没有指定TTL，使用基于记录类型的默认TTL
+	recordType := msg.Answer[0].Header().Rrtype
+	if defaultTTL, exists := recordTypeTTLMap[recordType]; exists {
+		return defaultTTL
+	}
+	return defaultRecordTTL
+}
+
 // Set 添加或更新缓存条目
 func (c *MemoryCache) Set(msg *dns.Msg) error {
 	if len(msg.Question) == 0 {
@@ -307,21 +357,7 @@ func (c *MemoryCache) Set(msg *dns.Msg) error {
 	}
 
 	// 计算TTL
-	ttl := c.errorTTL
-	if len(msg.Answer) > 0 {
-		// 首先尝试使用第一条记录的TTL
-		if msg.Answer[0].Header().Ttl > 0 {
-			ttl = time.Duration(msg.Answer[0].Header().Ttl) * time.Second
-		} else {
-			// 如果记录中没有指定TTL，使用基于记录类型的默认TTL
-			recordType := msg.Answer[0].Header().Rrtype
-			if defaultTTL, exists := recordTypeTTLMap[recordType]; exists {
-				ttl = defaultTTL
-			} else {
-				ttl = defaultRecordTTL
-			}
-		}
-	}
+	ttl := c.calculateTTL(msg)
 
 	// 序列化DNS消息
 	responseData, err := msg.Pack()
