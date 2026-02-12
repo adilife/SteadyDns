@@ -10,6 +10,9 @@ src/cmd/steadydns
 # 忽略备份目录
 src/cmd/backup/
 
+# 忽略日志目录
+src/cmd/log/
+
 # 忽略JSON测试文件
 localhost_current.json
 
@@ -29,6 +32,9 @@ localhost_current.json
 .env.*.local
 
 # 忽略运行时文件
-steadydns.db
+**/steadydns.db
 steadydns.pid
 steadydns.startargs
+
+# 忽略日志目录
+src/cmd/log/
