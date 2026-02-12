@@ -94,9 +94,13 @@ func (h *DNSHandler) SetClientIP(clientIP string) {
 	h.clientIP = clientIP
 }
 
+// generateQueryID 生成查询唯一ID
+func generateQueryID() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
 // ServeDNS 实现DNS服务器接口
 func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	startTime := time.Now()
 	clientIP := h.clientIP
 	if clientIP == "" {
 		clientIP = getClientIP(w)
@@ -109,20 +113,31 @@ func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		queryType = dns.TypeToString[r.Question[0].Qtype]
 	}
 
-	// 记录查询开始
-	h.dnsLogger.Log("查询开始 - 客户端: %s, 域名: %s, 类型: %s", clientIP, queryDomain, queryType)
+	// 开始记录查询
+	queryID := generateQueryID()
+	logBuf := h.dnsLogger.StartQuery(queryID, clientIP, queryDomain, queryType)
+	if logBuf == nil {
+		// 日志系统已关闭，直接处理请求
+		h.serveDNSInternal(w, r, clientIP)
+		return
+	}
+
+	// 确保查询结束时输出日志
+	var responseCode int
+	var processErr error
+	defer func() {
+		h.dnsLogger.EndQuery(logBuf, responseCode, processErr)
+	}()
 
 	// 安全检查：DNS消息验证
 	valid, msg := h.securityManager.ValidateDNSMessage(r, true)
 	if !valid {
 		h.logger.Warn("DNS消息验证失败: %s, 客户端: %s", msg, clientIP)
-		h.dnsLogger.Log("安全检查 - DNS消息验证失败: %s", msg)
-		// 返回格式错误
+		h.dnsLogger.RecordStage(logBuf, "SECURITY", "validation_failed:"+msg)
 		m := new(dns.Msg)
 		m.SetRcode(r, dns.RcodeFormatError)
 		w.WriteMsg(m)
-		totalDuration := time.Since(startTime)
-		h.dnsLogger.Log("查询完成 - 状态: 消息验证失败, 总耗时: %v", totalDuration)
+		responseCode = dns.RcodeFormatError
 		return
 	}
 
@@ -130,39 +145,37 @@ func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	allowed, msg := h.securityManager.CheckRateLimit(clientIP)
 	if !allowed {
 		h.logger.Warn("DNS查询速率限制: %s, 客户端: %s", msg, clientIP)
-		h.dnsLogger.Log("安全检查 - 速率限制: %s", msg)
-		// 返回服务拒绝
+		h.dnsLogger.RecordStage(logBuf, "SECURITY", "rate_limited:"+msg)
 		m := new(dns.Msg)
 		m.SetRcode(r, dns.RcodeRefused)
 		w.WriteMsg(m)
-		totalDuration := time.Since(startTime)
-		h.dnsLogger.Log("查询完成 - 状态: 速率限制拒绝, 总耗时: %v", totalDuration)
+		responseCode = dns.RcodeRefused
 		return
 	}
 
-	// 安全检查通过
-	h.dnsLogger.Log("安全检查 - 验证通过")
+	h.dnsLogger.RecordStage(logBuf, "SECURITY", "passed")
 
 	// 首先检查缓存
 	cacheStart := time.Now()
 	cachedResult, err := h.cacheUpdater.CheckCache(r)
 	cacheDuration := time.Since(cacheStart)
 
-	if err == nil && cachedResult != nil && cachedResult.Rcode == dns.RcodeSuccess && len(cachedResult.Answer) > 0 {
-		// 缓存命中，直接返回
-		h.dnsLogger.Log("缓存检查 - 命中, 耗时: %v, 回答记录数: %d", cacheDuration, len(cachedResult.Answer))
+	if err == nil && cachedResult != nil {
+		// 缓存命中（包括成功响应和错误响应）
+		if cachedResult.Rcode == dns.RcodeSuccess && len(cachedResult.Answer) > 0 {
+			// 成功响应
+			h.dnsLogger.RecordStage(logBuf, "CACHE", fmt.Sprintf("hit,records=%d,time=%.2fms", len(cachedResult.Answer), float64(cacheDuration)/float64(time.Millisecond)))
+		} else {
+			// 错误响应或空响应
+			h.dnsLogger.RecordStage(logBuf, "CACHE", fmt.Sprintf("hit_error,rcode=%d,time=%.2fms", cachedResult.Rcode, float64(cacheDuration)/float64(time.Millisecond)))
+		}
 		w.WriteMsg(cachedResult)
-		totalDuration := time.Since(startTime)
-		h.dnsLogger.Log("查询完成 - 状态: 缓存命中, 总耗时: %v", totalDuration)
+		responseCode = cachedResult.Rcode
 		return
 	}
 
-	// 缓存未命中，记录缓存检查结果
-	if err == nil && cachedResult != nil {
-		h.dnsLogger.Log("缓存检查 - 未命中, 耗时: %v, 状态码: %d, 回答记录数: %d", cacheDuration, cachedResult.Rcode, len(cachedResult.Answer))
-	} else {
-		h.dnsLogger.Log("缓存检查 - 未命中, 耗时: %v, 错误: %v", cacheDuration, err)
-	}
+	// 缓存未命中
+	h.dnsLogger.RecordStage(logBuf, "CACHE", fmt.Sprintf("miss,error=%v,time=%.2fms", err, float64(cacheDuration)/float64(time.Millisecond)))
 
 	// 进行转发查询
 	forwardStart := time.Now()
@@ -171,34 +184,75 @@ func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 	if err != nil {
 		h.logger.Error("转发查询失败: %v", err)
-		h.dnsLogger.Log("转发查询 - 失败, 耗时: %v, 错误: %v", forwardDuration, err)
-		// 返回SERVFAIL错误
+		h.dnsLogger.RecordStage(logBuf, "FORWARD", fmt.Sprintf("failed,error=%v,time=%.2fms", err, float64(forwardDuration)/float64(time.Millisecond)))
 		m := new(dns.Msg)
 		m.SetRcode(r, dns.RcodeServerFailure)
 		w.WriteMsg(m)
-		totalDuration := time.Since(startTime)
-		h.dnsLogger.Log("查询完成 - 状态: 转发失败, 总耗时: %v", totalDuration)
+		responseCode = dns.RcodeServerFailure
+		processErr = err
 		return
 	}
 
-	// 记录转发查询成功
-	h.dnsLogger.Log("转发查询 - 成功, 耗时: %v", forwardDuration)
+	h.dnsLogger.RecordStage(logBuf, "FORWARD", fmt.Sprintf("success,time=%.2fms", float64(forwardDuration)/float64(time.Millisecond)))
 
 	// 尝试更新缓存
 	cacheUpdateStart := time.Now()
 	if err := h.cacheUpdater.UpdateCacheWithResult(forwardedResult); err != nil {
 		h.logger.Error("缓存更新失败: %v", err)
-		h.dnsLogger.Log("缓存更新 - 失败, 耗时: %v, 错误: %v", time.Since(cacheUpdateStart), err)
-		// 记录告警日志，但仍然返回查询结果
+		h.dnsLogger.RecordStage(logBuf, "CACHE_UPDATE", fmt.Sprintf("failed,error=%v,time=%.2fms", err, float64(time.Since(cacheUpdateStart))/float64(time.Millisecond)))
 		go h.checkCacheStatus()
 	} else {
-		h.dnsLogger.Log("缓存更新 - 成功, 耗时: %v", time.Since(cacheUpdateStart))
+		h.dnsLogger.RecordStage(logBuf, "CACHE_UPDATE", fmt.Sprintf("success,time=%.2fms", float64(time.Since(cacheUpdateStart))/float64(time.Millisecond)))
 	}
 
 	// 返回转发结果
 	w.WriteMsg(forwardedResult)
-	totalDuration := time.Since(startTime)
-	h.dnsLogger.Log("查询完成 - 状态: 成功, 总耗时: %v", totalDuration)
+	responseCode = forwardedResult.Rcode
+}
+
+// serveDNSInternal 内部DNS处理逻辑（日志系统关闭时使用）
+func (h *DNSHandler) serveDNSInternal(w dns.ResponseWriter, r *dns.Msg, clientIP string) {
+	// 安全检查：DNS消息验证
+	valid, msg := h.securityManager.ValidateDNSMessage(r, true)
+	if !valid {
+		h.logger.Warn("DNS消息验证失败: %s, 客户端: %s", msg, clientIP)
+		m := new(dns.Msg)
+		m.SetRcode(r, dns.RcodeFormatError)
+		w.WriteMsg(m)
+		return
+	}
+
+	// 安全检查：速率限制
+	allowed, _ := h.securityManager.CheckRateLimit(clientIP)
+	if !allowed {
+		m := new(dns.Msg)
+		m.SetRcode(r, dns.RcodeRefused)
+		w.WriteMsg(m)
+		return
+	}
+
+	// 首先检查缓存
+	cachedResult, err := h.cacheUpdater.CheckCache(r)
+	if err == nil && cachedResult != nil && cachedResult.Rcode == dns.RcodeSuccess && len(cachedResult.Answer) > 0 {
+		w.WriteMsg(cachedResult)
+		return
+	}
+
+	// 进行转发查询
+	forwardedResult, err := h.forwarder.ForwardQuery(r)
+	if err != nil {
+		h.logger.Error("转发查询失败: %v", err)
+		m := new(dns.Msg)
+		m.SetRcode(r, dns.RcodeServerFailure)
+		w.WriteMsg(m)
+		return
+	}
+
+	// 尝试更新缓存
+	h.cacheUpdater.UpdateCacheWithResult(forwardedResult)
+
+	// 返回转发结果
+	w.WriteMsg(forwardedResult)
 }
 
 // checkCacheStatus 检查缓存服务状态

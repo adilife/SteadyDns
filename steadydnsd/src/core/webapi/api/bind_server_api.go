@@ -5,9 +5,11 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"SteadyDNS/core/bind"
+	"SteadyDNS/core/bind/namedconf"
 
 	"github.com/gin-gonic/gin"
 )
@@ -83,6 +85,19 @@ func bindServerHandlerGin(c *gin.Context) {
 	case path == "named-conf/parse" && c.Request.Method == http.MethodGet:
 		// 解析 named.conf 配置结构
 		handleParseNamedConfGin(c, bindManager)
+
+	case path == "named-conf/backups" && c.Request.Method == http.MethodGet:
+		// 列出所有 named.conf 备份
+		handleListNamedConfBackupsGin(c, bindManager)
+
+	case path == "named-conf/restore" && c.Request.Method == http.MethodPost:
+		// 从指定备份恢复配置
+		handleRestoreNamedConfBackupGin(c, bindManager)
+
+	case strings.HasPrefix(path, "named-conf/backups/") && c.Request.Method == http.MethodDelete:
+		// 删除指定备份文件
+		backupId := strings.TrimPrefix(path, "named-conf/backups/")
+		handleDeleteNamedConfBackupGin(c, bindManager, backupId)
 
 	default:
 		// 未找到的API端点
@@ -390,5 +405,123 @@ func handleParseNamedConfGin(c *gin.Context, bindManager *bind.BindManager) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    config,
+	})
+}
+
+// handleListNamedConfBackupsGin 处理列出 named.conf 备份的请求（Gin版本）
+func handleListNamedConfBackupsGin(c *gin.Context, bindManager *bind.BindManager) {
+	// 获取 named.conf 文件路径
+	namedConfPath := bindManager.GetNamedConfPath()
+
+	// 创建备份管理器实例
+	backupManager := namedconf.NewBackupManager("./backup", 10)
+
+	// 获取备份列表
+	backups, err := backupManager.ListBackups(namedConfPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 返回备份列表
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    backups,
+	})
+}
+
+// handleRestoreNamedConfBackupGin 处理从备份恢复 named.conf 配置的请求（Gin版本）
+func handleRestoreNamedConfBackupGin(c *gin.Context, bindManager *bind.BindManager) {
+	// 解析请求体
+	var request struct {
+		BackupPath string `json:"backupPath"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "无效的请求体",
+		})
+		return
+	}
+
+	// 验证输入
+	if request.BackupPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "备份文件路径不能为空",
+		})
+		return
+	}
+
+	// 获取 named.conf 文件路径
+	namedConfPath := bindManager.GetNamedConfPath()
+
+	// 创建备份管理器实例
+	backupManager := namedconf.NewBackupManager("./backup", 10)
+
+	// 恢复备份
+	if err := backupManager.RestoreBackup(request.BackupPath, namedConfPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// 重载 BIND 服务使配置生效
+	if err := bindManager.ReloadBind(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "恢复备份成功，但重载 BIND 服务失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 返回成功响应
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "从备份恢复 named.conf 配置成功",
+	})
+}
+
+// handleDeleteNamedConfBackupGin 处理删除 named.conf 备份的请求（Gin版本）
+func handleDeleteNamedConfBackupGin(c *gin.Context, bindManager *bind.BindManager, backupId string) {
+	// 验证备份ID
+	if backupId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "备份ID不能为空",
+		})
+		return
+	}
+
+	// 构建备份文件路径
+	backupPath := "./backup/" + backupId
+
+	// 检查文件是否存在
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "备份文件不存在",
+		})
+		return
+	}
+
+	// 删除备份文件
+	if err := os.Remove(backupPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "删除备份文件失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 返回成功响应
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "删除备份文件成功",
 	})
 }
