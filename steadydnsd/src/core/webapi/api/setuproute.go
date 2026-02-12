@@ -89,6 +89,10 @@ func SetupRoutes(engine *gin.Engine) {
 	engine.PUT("/api/bind-zones/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
 	engine.DELETE("/api/bind-zones/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
 
+	// BIND历史记录API路由 - 需要认证，应用所有中间件
+	engine.GET("/api/bind-zones/history", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
+	engine.POST("/api/bind-zones/history/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
+
 	// BIND服务器管理API路由 - 需要认证，应用所有中间件
 	engine.GET("/api/bind-server/status", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 	engine.POST("/api/bind-server/:action", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
@@ -96,7 +100,6 @@ func SetupRoutes(engine *gin.Engine) {
 	engine.GET("/api/bind-server/health", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 	engine.POST("/api/bind-server/validate", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 	engine.GET("/api/bind-server/config", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.PUT("/api/bind-server/config", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 
 	// named.conf 配置管理API路由 - 需要认证，应用所有中间件
 	engine.GET("/api/bind-server/named-conf/content", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
@@ -104,6 +107,10 @@ func SetupRoutes(engine *gin.Engine) {
 	engine.POST("/api/bind-server/named-conf/validate", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 	engine.GET("/api/bind-server/named-conf/parse", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 	engine.POST("/api/bind-server/named-conf/diff", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
+	// 备份管理API路由
+	engine.GET("/api/bind-server/named-conf/backups", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
+	engine.POST("/api/bind-server/named-conf/restore", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
+	engine.DELETE("/api/bind-server/named-conf/backups/:backupId", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
 
 	// 其他API路由...
 }

@@ -361,7 +361,7 @@ func (r *RotateLogger) Write(p []byte) (n int, err error) {
 	message := strings.TrimSuffix(string(p), "\n")
 	message = strings.TrimSuffix(message, "\r")
 	if message != "" {
-		r.Info(message)
+		r.Info("%s", message)
 	}
 	return len(p), nil
 }

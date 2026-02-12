@@ -4,7 +4,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -338,8 +340,15 @@ func GetBindHistoryGin(c *gin.Context) {
 	// 初始化BIND管理器
 	initBindManager()
 
-	// 获取所有历史记录
-	history, _ := bindManager.HistoryMgr.GetHistoryRecords()
+	// 获取格式化的历史记录
+	history, err := bindManager.HistoryMgr.GetHistoryRecordsForAPI()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "获取历史记录失败: " + err.Error(),
+		})
+		return
+	}
 
 	// 返回成功响应
 	c.JSON(http.StatusOK, gin.H{
@@ -351,14 +360,35 @@ func GetBindHistoryGin(c *gin.Context) {
 // RestoreBindHistoryGin 恢复历史记录
 func RestoreBindHistoryGin(c *gin.Context, historyID string) {
 	apiLogger.Debug("恢复历史记录请求，历史ID: %s", historyID)
+
 	// 初始化BIND管理器
 	initBindManager()
 
-	// 返回成功响应（暂时不实现具体的恢复逻辑）
+	// 解析历史记录ID
+	recordID, err := strconv.ParseUint(historyID, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "无效的历史记录ID",
+		})
+		return
+	}
+
+	// 调用恢复功能
+	if err := bindManager.HistoryMgr.RestoreBackup(recordID); err != nil {
+		apiLogger.Error("恢复历史记录失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   fmt.Sprintf("恢复历史记录失败: %v", err),
+		})
+		return
+	}
+
+	// 返回成功响应
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": map[string]string{
-			"message":    "历史记录恢复功能暂未实现",
+			"message":    "历史记录恢复成功",
 			"history_id": historyID,
 		},
 	})

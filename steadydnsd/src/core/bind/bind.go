@@ -53,11 +53,16 @@ func NewBindManager() *BindManager {
 	// 创建历史记录管理器
 	historyMgr := NewHistoryManager()
 
-	return &BindManager{
+	bm := &BindManager{
 		logger:     logger,
 		config:     config,
 		HistoryMgr: historyMgr,
 	}
+
+	// 设置HistoryManager的bindManager引用（用于恢复后刷新BIND）
+	historyMgr.bindManager = bm
+
+	return bm
 }
 
 // GetAuthZones 获取所有权威域
@@ -135,6 +140,22 @@ func (bm *BindManager) GetAuthZone(domain string) (*AuthZone, error) {
 	}
 
 	return nil, fmt.Errorf("权威域不存在")
+}
+
+// getAllZoneFiles 获取所有zone文件路径
+func (bm *BindManager) getAllZoneFiles() ([]string, error) {
+	entries, err := os.ReadDir(bm.config.ZoneFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var zoneFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".zone") {
+			zoneFiles = append(zoneFiles, filepath.Join(bm.config.ZoneFilePath, entry.Name()))
+		}
+	}
+	return zoneFiles, nil
 }
 
 // CreateAuthZone 创建权威域
@@ -228,6 +249,9 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 	zoneFilePath := filepath.Join(bm.config.ZoneFilePath, zoneFileName)
 	namedConfPath := filepath.Join(bm.config.NamedConfPath, "named.conf")
 
+	// 设置zone.File字段，用于备份和恢复
+	zone.File = zoneFilePath
+
 	// 读取named.conf原始内容用于回滚
 	originalNamedConf, err := os.ReadFile(namedConfPath)
 	if err != nil {
@@ -235,9 +259,23 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 		return fmt.Errorf("读取named.conf文件失败: %v", err)
 	}
 
+	// 在操作前创建全量备份（named.conf + 所有zone文件）
+	allZoneFiles, _ := bm.getAllZoneFiles()
+	files := append([]string{namedConfPath}, allZoneFiles...)
+	zoneJSON, _ := json.Marshal(zone)
+	backupID, err := bm.HistoryMgr.CreateBackup(OperationCreate, zone.Domain, zoneJSON, files)
+	if err != nil {
+		bm.logger.Warn("创建备份失败: %v", err)
+		backupID = 0
+	}
+
 	// 写入zone文件
 	if err := os.WriteFile(zoneFilePath, []byte(zoneContent), 0644); err != nil {
 		bm.logger.Error("创建zone文件失败: %v", err)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		return fmt.Errorf("创建zone文件失败: %v", err)
 	}
 
@@ -278,6 +316,10 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 	if err := bm.addZoneToNamedConf(namedConfPath, zone.Domain, zoneFileName, zone.AllowQuery); err != nil {
 		// 回滚：删除创建的zone文件
 		os.Remove(zoneFilePath)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		bm.logger.Error("更新named.conf文件失败: %v", err)
 		return fmt.Errorf("更新named.conf文件失败: %v", err)
 	}
@@ -288,6 +330,10 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 		os.WriteFile(namedConfPath, originalNamedConf, 0644)
 		// 回滚：删除创建的zone文件
 		os.Remove(zoneFilePath)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		bm.logger.Error("验证named.conf配置失败: %v", err)
 		return fmt.Errorf("验证named.conf配置失败: %v", err)
 	}
@@ -298,6 +344,10 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 		os.WriteFile(namedConfPath, originalNamedConf, 0644)
 		// 回滚：删除创建的zone文件
 		os.Remove(zoneFilePath)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		bm.logger.Error("验证zone文件失败: %v", err)
 		return fmt.Errorf("验证zone文件失败: %v", err)
 	}
@@ -308,18 +358,7 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 		// 不回滚，因为配置本身是有效的，只是刷新失败
 	}
 
-	// 操作后的文件列表
-	files := []string{namedConfPath, zoneFilePath}
-
-	// 将AuthZone转换为JSON格式
-	zoneJSON, _ := json.Marshal(zone)
-
-	// 创建备份（操作成功后）
-	if _, err := bm.HistoryMgr.CreateBackup(OperationCreate, zone.Domain, zoneJSON, files); err != nil {
-		bm.logger.Warn("创建备份失败: %v", err)
-		// 备份失败不影响创建操作，继续执行
-	}
-
+	// 操作成功，保留备份记录
 	return nil
 }
 
@@ -401,9 +440,26 @@ func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
 	// 生成zone文件内容
 	zoneContent := bm.generateZoneContent(zone)
 
+	// 获取named.conf路径
+	namedConfPath := bm.config.NamedConfPath
+
+	// 在操作前创建全量备份（named.conf + 所有zone文件）
+	allZoneFiles, _ := bm.getAllZoneFiles()
+	files := append([]string{namedConfPath}, allZoneFiles...)
+	zoneJSON, _ := json.Marshal(zone)
+	backupID, err := bm.HistoryMgr.CreateBackup(OperationUpdate, zone.Domain, zoneJSON, files)
+	if err != nil {
+		bm.logger.Warn("创建备份失败: %v", err)
+		backupID = 0
+	}
+
 	// 写入zone文件
 	if err := os.WriteFile(zoneFilePath, []byte(zoneContent), 0644); err != nil {
 		bm.logger.Error("更新zone文件失败: %v", err)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		return fmt.Errorf("更新zone文件失败: %v", err)
 	}
 
@@ -444,6 +500,10 @@ func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
 	if err := bm.ValidateZone(zone.Domain); err != nil {
 		// 回滚：恢复原来的zone文件内容
 		os.WriteFile(zoneFilePath, originalZoneContent, 0644)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		bm.logger.Error("验证zone文件失败: %v", err)
 		return fmt.Errorf("验证zone文件失败: %v", err)
 	}
@@ -454,18 +514,7 @@ func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
 		// 不回滚，因为配置本身是有效的，只是刷新失败
 	}
 
-	// 操作后的文件列表
-	files := []string{zoneFilePath}
-
-	// 将AuthZone转换为JSON格式
-	zoneJSON, _ := json.Marshal(zone)
-
-	// 创建备份（操作成功后）
-	if _, err := bm.HistoryMgr.CreateBackup(OperationUpdate, zone.Domain, zoneJSON, files); err != nil {
-		bm.logger.Warn("创建备份失败: %v", err)
-		// 备份失败不影响更新操作，继续执行
-	}
-
+	// 操作成功，保留备份记录
 	return nil
 }
 
@@ -483,9 +532,25 @@ func (bm *BindManager) DeleteAuthZone(domain string) error {
 		return fmt.Errorf("读取named.conf文件失败: %v", err)
 	}
 
+	// 在操作前创建全量备份（named.conf + 所有zone文件）
+	allZoneFiles, _ := bm.getAllZoneFiles()
+	files := append([]string{namedConfPath}, allZoneFiles...)
+	deleteData, _ := json.Marshal(map[string]string{
+		"domain": domain,
+	})
+	backupID, err := bm.HistoryMgr.CreateBackup(OperationDelete, domain, deleteData, files)
+	if err != nil {
+		bm.logger.Warn("创建备份失败: %v", err)
+		backupID = 0
+	}
+
 	// 更新named.conf文件，移除zone配置
 	if err := bm.removeZoneFromNamedConf(namedConfPath, domain); err != nil {
 		bm.logger.Error("更新named.conf文件失败: %v", err)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		return fmt.Errorf("更新named.conf文件失败: %v", err)
 	}
 
@@ -493,6 +558,10 @@ func (bm *BindManager) DeleteAuthZone(domain string) error {
 	if err := bm.ValidateConfig(); err != nil {
 		// 回滚：恢复named.conf配置
 		os.WriteFile(namedConfPath, originalNamedConf, 0644)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		bm.logger.Error("验证named.conf配置失败: %v", err)
 		return fmt.Errorf("验证named.conf配置失败: %v", err)
 	}
@@ -501,6 +570,10 @@ func (bm *BindManager) DeleteAuthZone(domain string) error {
 	if err := os.Remove(zoneFilePath); err != nil && !os.IsNotExist(err) {
 		// 回滚：恢复named.conf配置
 		os.WriteFile(namedConfPath, originalNamedConf, 0644)
+		// 操作失败，删除备份记录
+		if backupID > 0 {
+			bm.HistoryMgr.DeleteBackupRecord(backupID)
+		}
 		bm.logger.Error("删除zone文件失败: %v", err)
 		return fmt.Errorf("删除zone文件失败: %v", err)
 	}
@@ -511,19 +584,6 @@ func (bm *BindManager) DeleteAuthZone(domain string) error {
 		// 不回滚，因为配置本身是有效的，只是刷新失败
 	}
 
-	// 操作后的文件列表
-	files := []string{namedConfPath, zoneFilePath}
-
-	// 将删除操作转换为JSON格式
-	deleteData, _ := json.Marshal(map[string]string{
-		"domain": domain,
-	})
-
-	// 创建备份（操作成功后）
-	if _, err := bm.HistoryMgr.CreateBackup(OperationDelete, domain, deleteData, files); err != nil {
-		bm.logger.Warn("创建备份失败: %v", err)
-		// 备份失败不影响删除操作，继续执行
-	}
-
+	// 操作成功，保留备份记录
 	return nil
 }
