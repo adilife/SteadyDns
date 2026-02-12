@@ -552,6 +552,13 @@ func (hm *HistoryManager) RestoreBackup(recordID uint64) error {
 		return fmt.Errorf("解析元数据失败: %v", err)
 	}
 
+	// 检测是否是回退Rollback操作（即回退一个恢复操作）
+	if metaEntry.Operation == OperationRollback {
+		file.Close()
+		hm.mutex.Unlock()
+		return hm.restoreRollbackOperation(recordID, metaEntry)
+	}
+
 	// 获取当前所有zone文件（用于后续清理）
 	currentZoneFiles := hm.getCurrentZoneFiles()
 
@@ -675,6 +682,306 @@ func (hm *HistoryManager) RestoreBackup(recordID uint64) error {
 	}
 
 	hm.logger.Info("恢复记录ID: %d 成功", recordID)
+	return nil
+}
+
+// restoreRollbackOperation 回退Rollback操作（即回退一个恢复操作）
+// 双路径恢复：1. 使用history.record.rollback文件 2. 使用嵌入的数据
+func (hm *HistoryManager) restoreRollbackOperation(recordID uint64, metaEntry MetadataEntry) error {
+	hm.logger.Info("回退Rollback操作，记录ID: %d", recordID)
+
+	// 解析原始记录ID（被回退的原始操作）
+	var rollbackInfo map[string]interface{}
+	if err := json.Unmarshal(metaEntry.OperationData, &rollbackInfo); err != nil {
+		return fmt.Errorf("解析回退信息失败: %v", err)
+	}
+
+	originalRecordIDFloat, ok := rollbackInfo["rollback_record_id"].(float64)
+	if !ok {
+		return fmt.Errorf("无法获取原始记录ID")
+	}
+	originalRecordID := uint64(originalRecordIDFloat)
+
+	// 路径1：尝试使用history.record.rollback.{id}文件
+	rollbackFilePath := filepath.Join(
+		common.GetConfig("Server", "WORKING_DIR"),
+		"./backup/",
+		fmt.Sprintf("%s%d", RollbackProtectionPrefix, originalRecordID),
+	)
+
+	if _, err := os.Stat(rollbackFilePath); err == nil {
+		hm.logger.Info("使用rollback文件回退: %s", rollbackFilePath)
+		return hm.restoreFromRollbackFile(rollbackFilePath, recordID)
+	}
+
+	hm.logger.Warn("rollback文件不存在: %s，尝试使用嵌入数据", rollbackFilePath)
+
+	// 路径2：从恢复操作记录中提取嵌入的文件数据
+	return hm.restoreFromEmbeddedData(recordID, metaEntry, originalRecordID)
+}
+
+// restoreFromRollbackFile 从rollback文件恢复（不记录新操作）
+func (hm *HistoryManager) restoreFromRollbackFile(rollbackFilePath string, currentRecordID uint64) error {
+	hm.logger.Info("从rollback文件恢复: %s", rollbackFilePath)
+
+	// 1. 从当前 history.record 读取回退记录并恢复文件
+	// 回退记录中包含恢复前的完整状态（named.conf + zone文件）
+	if err := hm.applyFilesFromCurrentRecord(currentRecordID); err != nil {
+		return fmt.Errorf("从当前记录恢复文件失败: %v", err)
+	}
+
+	// 2. 用 rollback 文件恢复 history.record
+	data, err := os.ReadFile(rollbackFilePath)
+	if err != nil {
+		return fmt.Errorf("读取rollback文件失败: %v", err)
+	}
+
+	backupPath := filepath.Join(common.GetConfig("Server", "WORKING_DIR"), BackupFilePath)
+	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+		return fmt.Errorf("恢复history.record文件失败: %v", err)
+	}
+
+	hm.logger.Info("恢复history.record文件成功")
+
+	// 3. 删除当前Rollback记录（因为是直接回退，不保留记录）
+	if err := hm.deleteRecordsAfterIncluding(currentRecordID, 0); err != nil {
+		hm.logger.Warn("删除Rollback记录失败: %v", err)
+	}
+
+	return nil
+}
+
+// restoreFromEmbeddedData 从嵌入数据恢复（记录新操作）
+func (hm *HistoryManager) restoreFromEmbeddedData(recordID uint64, metaEntry MetadataEntry, originalRecordID uint64) error {
+	hm.logger.Info("使用嵌入数据回退，原始记录ID: %d", originalRecordID)
+
+	// 检查是否有嵌入的文件数据
+	if len(metaEntry.Files) == 0 {
+		return fmt.Errorf("备份已过期，无法回退此操作（没有嵌入的文件数据）")
+	}
+
+	// 加锁保证并发安全
+	hm.mutex.Lock()
+
+	// 在回退前备份当前history.record文件
+	if err := hm.backupHistoryRecordUnsafe(recordID); err != nil {
+		hm.mutex.Unlock()
+		hm.logger.Error("备份history.record文件失败: %v", err)
+		return fmt.Errorf("备份history.record文件失败: %v", err)
+	}
+
+	// 读取备份文件获取内容块
+	backupPath := filepath.Join(common.GetConfig("Server", "WORKING_DIR"), BackupFilePath)
+	file, err := os.Open(backupPath)
+	if err != nil {
+		hm.mutex.Unlock()
+		return fmt.Errorf("打开备份文件失败: %v", err)
+	}
+
+	// 读取文件头
+	var header FileHeader
+	if err := binary.Read(file, binary.BigEndian, &header); err != nil {
+		file.Close()
+		hm.mutex.Unlock()
+		return fmt.Errorf("读取文件头失败: %v", err)
+	}
+
+	// 加载内容块索引
+	contentBlocks, err := hm.loadContentBlocks(file, header)
+	if err != nil {
+		file.Close()
+		hm.mutex.Unlock()
+		return fmt.Errorf("加载内容块索引失败: %v", err)
+	}
+
+	// 预读取当前所有文件内容（用于创建新的回退记录）
+	currentFileContents := make(map[string][]byte)
+	namedConfPath := filepath.Join(common.GetConfig("BIND", "NAMED_CONF_PATH"), "named.conf")
+	if content, err := os.ReadFile(namedConfPath); err == nil {
+		currentFileContents[namedConfPath] = content
+	}
+	currentZoneFiles := hm.getCurrentZoneFiles()
+	for _, zoneFile := range currentZoneFiles {
+		if content, err := os.ReadFile(zoneFile); err == nil {
+			currentFileContents[zoneFile] = content
+		}
+	}
+
+	// 从嵌入数据恢复文件
+	for _, fileInfo := range metaEntry.Files {
+		block, exists := contentBlocks[fileInfo.ContentHash]
+		if !exists {
+			file.Close()
+			hm.mutex.Unlock()
+			return fmt.Errorf("内容块不存在: %x", fileInfo.ContentHash)
+		}
+
+		// 读取并解压内容
+		file.Seek(int64(block.Offset), io.SeekStart)
+		compressedData := make([]byte, block.Length)
+		if _, err := file.Read(compressedData); err != nil {
+			file.Close()
+			hm.mutex.Unlock()
+			return fmt.Errorf("读取内容失败: %v", err)
+		}
+
+		content := hm.decompressContent(compressedData)
+
+		// 写入文件
+		if err := os.WriteFile(fileInfo.FileName, content, 0644); err != nil {
+			file.Close()
+			hm.mutex.Unlock()
+			hm.logger.Error("写入文件失败: %v", err)
+			return fmt.Errorf("写入文件失败: %v", err)
+		}
+
+		hm.logger.Info("恢复文件成功: %s", fileInfo.FileName)
+	}
+
+	file.Close()
+
+	// 准备新的回退操作数据
+	newRollbackData, _ := json.Marshal(map[string]interface{}{
+		"rollback_record_id":    recordID,
+		"rollback_operation":    metaEntry.Operation,
+		"rollback_domain":       metaEntry.Domain,
+		"restore_from_embedded": true,
+	})
+
+	// 释放锁
+	hm.mutex.Unlock()
+
+	// 记录新的回退操作（创建新的rollback文件）
+	newRollbackID, err := hm.createRollbackBackup(OperationRollback, metaEntry.Domain, newRollbackData, currentFileContents)
+	if err != nil {
+		hm.logger.Warn("记录新的回退操作失败: %v", err)
+	} else {
+		hm.logger.Info("记录新的回退操作成功，记录ID: %d", newRollbackID)
+	}
+
+	// 刷新BIND服务器
+	if hm.bindManager != nil {
+		if err := hm.bindManager.ReloadBind(); err != nil {
+			hm.logger.Error("刷新BIND服务器失败: %v", err)
+		} else {
+			hm.logger.Info("刷新BIND服务器成功")
+		}
+	}
+
+	// 删除原Rollback记录及之后的记录，但保留新的回退记录
+	if newRollbackID > 0 {
+		if err := hm.deleteRecordsAfterIncluding(recordID, newRollbackID); err != nil {
+			hm.logger.Warn("删除记录失败: %v", err)
+		}
+	}
+
+	hm.logger.Info("使用嵌入数据回退成功")
+	return nil
+}
+
+// applyFilesFromCurrentRecord 从当前history.record的指定记录恢复文件
+func (hm *HistoryManager) applyFilesFromCurrentRecord(recordID uint64) error {
+	hm.logger.Info("从当前history.record的记录ID %d 恢复文件", recordID)
+
+	// 读取当前history.record
+	backupPath := filepath.Join(common.GetConfig("Server", "WORKING_DIR"), BackupFilePath)
+	file, err := os.Open(backupPath)
+	if err != nil {
+		return fmt.Errorf("打开history.record失败: %v", err)
+	}
+	defer file.Close()
+
+	// 读取文件头
+	var header FileHeader
+	if err := binary.Read(file, binary.BigEndian, &header); err != nil {
+		return fmt.Errorf("读取文件头失败: %v", err)
+	}
+
+	// 验证文件
+	if string(header.MagicNumber[:len(MagicNumber)]) != MagicNumber {
+		return fmt.Errorf("无效的备份文件")
+	}
+
+	// 加载内容块
+	contentBlocks, err := hm.loadContentBlocks(file, header)
+	if err != nil {
+		return fmt.Errorf("加载内容块失败: %v", err)
+	}
+
+	// 读取索引
+	file.Seek(int64(header.IndexOffset), io.SeekStart)
+	indexData := make([]byte, header.IndexSize)
+	if _, err := file.Read(indexData); err != nil {
+		return fmt.Errorf("读取索引失败: %v", err)
+	}
+
+	var indexEntries []IndexEntry
+	if err := json.Unmarshal(indexData, &indexEntries); err != nil {
+		return fmt.Errorf("解析索引失败: %v", err)
+	}
+
+	// 查找指定记录
+	var targetEntry *IndexEntry
+	for i := range indexEntries {
+		if indexEntries[i].RecordID == recordID {
+			targetEntry = &indexEntries[i]
+			break
+		}
+	}
+
+	if targetEntry == nil {
+		return fmt.Errorf("找不到记录ID: %d", recordID)
+	}
+
+	// 应用该记录的文件
+	if err := hm.applyRecordFiles(file, *targetEntry, contentBlocks); err != nil {
+		return fmt.Errorf("应用记录文件失败: %v", err)
+	}
+
+	hm.logger.Info("从记录ID %d 恢复文件成功", recordID)
+	return nil
+}
+
+// applyRecordFiles 应用记录中的文件到系统
+func (hm *HistoryManager) applyRecordFiles(file *os.File, entry IndexEntry, contentBlocks contentBlockMap) error {
+	// 读取元数据
+	file.Seek(int64(entry.Offset), io.SeekStart)
+	var metaSize uint64
+	if err := binary.Read(file, binary.BigEndian, &metaSize); err != nil {
+		return err
+	}
+
+	metaData := make([]byte, metaSize)
+	if _, err := file.Read(metaData); err != nil {
+		return err
+	}
+
+	var metaEntry MetadataEntry
+	if err := json.Unmarshal(metaData, &metaEntry); err != nil {
+		return err
+	}
+
+	// 恢复文件
+	for _, fileInfo := range metaEntry.Files {
+		block, exists := contentBlocks[fileInfo.ContentHash]
+		if !exists {
+			return fmt.Errorf("内容块不存在: %x", fileInfo.ContentHash)
+		}
+
+		file.Seek(int64(block.Offset), io.SeekStart)
+		compressedData := make([]byte, block.Length)
+		if _, err := file.Read(compressedData); err != nil {
+			return err
+		}
+
+		content := hm.decompressContent(compressedData)
+		if err := os.WriteFile(fileInfo.FileName, content, 0644); err != nil {
+			return err
+		}
+
+		hm.logger.Info("应用文件成功: %s", fileInfo.FileName)
+	}
+
 	return nil
 }
 
@@ -2020,12 +2327,6 @@ func (hm *HistoryManager) GetHistoryRecordsForAPI() ([]HistoryRecord, error) {
 		return nil, err
 	}
 
-	// 调试日志：检查是否有重复记录
-	hm.logger.Info("GetHistoryRecordsForAPI: 获取到 %d 条记录", len(entries))
-	for i, entry := range entries {
-		hm.logger.Info("  记录[%d]: ID=%d, Operation=%d, Domain=%s", i, entry.RecordID, entry.Operation, entry.Domain)
-	}
-
 	records := make([]HistoryRecord, 0, len(entries))
 	for _, entry := range entries {
 		// 转换操作类型为字符串
@@ -2054,7 +2355,7 @@ func (hm *HistoryManager) GetHistoryRecordsForAPI() ([]HistoryRecord, error) {
 			ID:        int(entry.RecordID),
 			Operation: operationStr,
 			Domain:    entry.Domain,
-			Timestamp: time.Unix(entry.Timestamp, 0),
+			Timestamp: time.Unix(entry.Timestamp, 0).UTC(),
 			Files:     files,
 		}
 		records = append(records, record)

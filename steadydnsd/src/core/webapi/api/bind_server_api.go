@@ -434,6 +434,8 @@ func handleListNamedConfBackupsGin(c *gin.Context, bindManager *bind.BindManager
 }
 
 // handleRestoreNamedConfBackupGin 处理从备份恢复 named.conf 配置的请求（Gin版本）
+// 注意：此方法调用 ReloadBind()，该方法内部会获取 bm.mu 锁。
+// 请勿在此方法中添加锁，以避免死锁。
 func handleRestoreNamedConfBackupGin(c *gin.Context, bindManager *bind.BindManager) {
 	// 解析请求体
 	var request struct {
