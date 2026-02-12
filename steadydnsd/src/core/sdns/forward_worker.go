@@ -39,16 +39,8 @@ func NewForwardWorkerPool(workerCount int) *ForwardWorkerPool {
 func (p *ForwardWorkerPool) worker() {
 	defer p.wg.Done()
 
-	for {
-		select {
-		case task, ok := <-p.taskChan:
-			if !ok {
-				return
-			}
-
-			// 处理任务
-			task.Process()
-		}
+	for task := range p.taskChan {
+		task.Process()
 	}
 }
 
