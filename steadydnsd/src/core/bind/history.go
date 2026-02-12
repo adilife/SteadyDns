@@ -2020,12 +2020,6 @@ func (hm *HistoryManager) GetHistoryRecordsForAPI() ([]HistoryRecord, error) {
 		return nil, err
 	}
 
-	// 调试日志：检查是否有重复记录
-	hm.logger.Info("GetHistoryRecordsForAPI: 获取到 %d 条记录", len(entries))
-	for i, entry := range entries {
-		hm.logger.Info("  记录[%d]: ID=%d, Operation=%d, Domain=%s", i, entry.RecordID, entry.Operation, entry.Domain)
-	}
-
 	records := make([]HistoryRecord, 0, len(entries))
 	for _, entry := range entries {
 		// 转换操作类型为字符串
