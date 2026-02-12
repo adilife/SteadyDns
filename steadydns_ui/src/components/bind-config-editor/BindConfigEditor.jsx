@@ -381,7 +381,7 @@ const BindConfigEditor = ({ visible, onClose }) => {
               }
             }
             
-            result += `${indentStr}${config.name} "${zoneName}" {
+            result += `${indentStr}${config.name} "${zoneName}" IN {
 `
           } else {
             // 其他块元素，使用默认格式
