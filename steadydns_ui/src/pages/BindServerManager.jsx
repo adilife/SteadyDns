@@ -275,7 +275,10 @@ const BindServerManager = ({ currentLanguage }) => {
         <Space>
           <Button
             icon={<SettingOutlined />}
-            onClick={() => setBackupModalVisible(true)}
+            onClick={() => {
+              setBackupModalVisible(true)
+              loadBackups()
+            }}
           >
             备份管理
           </Button>
@@ -593,11 +596,6 @@ const BindServerManager = ({ currentLanguage }) => {
         cancelText="取消"
         width={800}
         styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
-        onOpenChange={(visible) => {
-          if (visible) {
-            loadBackups()
-          }
-        }}
       >
         <div>
           <h3 style={{ marginBottom: 16 }}>备份文件列表</h3>
