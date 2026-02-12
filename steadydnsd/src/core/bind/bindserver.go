@@ -766,7 +766,6 @@ func (bm *BindManager) UpdateNamedConfContent(content string) error {
 
 	// 获取互斥锁，实现事务性操作
 	bm.mu.Lock()
-	defer bm.mu.Unlock()
 
 	// 1. 备份原始配置
 	backupManager := namedconf.NewBackupManager("./backup", 10)
@@ -779,20 +778,26 @@ func (bm *BindManager) UpdateNamedConfContent(content string) error {
 	validator := namedconf.NewValidator(bm.config.NamedCheckConf)
 	validationResult, err := validator.ValidateContent(content)
 	if err != nil {
+		bm.mu.Unlock()
 		bm.logger.Error("验证配置内容失败: %v", err)
 		return fmt.Errorf("验证配置内容失败: %v", err)
 	}
 
 	if !validationResult.Valid {
+		bm.mu.Unlock()
 		bm.logger.Error("配置验证失败: %s", validationResult.Error)
 		return fmt.Errorf("配置验证失败: %s", validationResult.Error)
 	}
 
 	// 3. 写入新配置
 	if err := os.WriteFile(namedConfPath, []byte(content), 0644); err != nil {
+		bm.mu.Unlock()
 		bm.logger.Error("写入 named.conf 文件失败: %v", err)
 		return fmt.Errorf("写入 named.conf 文件失败: %v", err)
 	}
+
+	// 释放锁，避免与 ReloadBind 中的锁产生死锁
+	bm.mu.Unlock()
 
 	// 4. 重载 BIND 服务
 	if err := bm.ReloadBind(); err != nil {
