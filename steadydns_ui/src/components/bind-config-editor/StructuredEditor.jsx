@@ -594,7 +594,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
   // 根据值类型渲染不同的控件
   const renderFieldControl = (key, value) => {
     if (typeof value === 'string') {
-      return <Input value={value} />
+      return <TextArea value={value} rows={4} />
     } else if (typeof value === 'number') {
       return <InputNumber value={value} style={{ width: '100%' }} />
     } else if (typeof value === 'boolean') {
@@ -637,7 +637,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
         />
       )
     } else {
-      return <Input value={String(value)} />
+      return <TextArea value={String(value)} rows={4} />
     }
   }
 
@@ -736,7 +736,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
                     </Form.Item>
                   )}
                   <Form.Item label={t('structuredEditor.lineComment')} name="lineComment">
-                    <TextArea placeholder={t('structuredEditor.enterLineComment')} />
+                    <Input placeholder={t('structuredEditor.enterLineComment')} />
                   </Form.Item>
                   <Form.Item label={t('structuredEditor.configComment')} name="comments">
                     <TextArea 
@@ -811,7 +811,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
             label={t('structuredEditor.value')}
             name="value"
           >
-            <Input placeholder={t('structuredEditor.valuePlaceholder')} />
+            <TextArea placeholder={t('structuredEditor.valuePlaceholder')} rows={4} />
           </Form.Item>
           <Form.Item
             label={t('structuredEditor.lineComment')}
