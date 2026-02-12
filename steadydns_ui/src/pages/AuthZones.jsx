@@ -15,7 +15,8 @@ import {
   Col,
   Tabs,
   Select,
-  InputNumber
+  InputNumber,
+  Alert
 } from 'antd'
 import {
   PlusOutlined,
@@ -42,6 +43,18 @@ const AuthZones = ({ currentLanguage }) => {
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false)
   const [recordForm] = Form.useForm()
   const [selectedRecordType, setSelectedRecordType] = useState('A')
+  
+  // Operation history state
+  const [historyModalVisible, setHistoryModalVisible] = useState(false)
+  const [historyRecords, setHistoryRecords] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  
+  // Confirm modal state
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false)
+  const [confirmModalTitle, setConfirmModalTitle] = useState('')
+  const [confirmModalContent, setConfirmModalContent] = useState('')
+  const [currentAction, setCurrentAction] = useState('')
+  const [currentActionParams, setCurrentActionParams] = useState(null)
 
   // 记录类型与默认TTL的映射表
   const recordTypeTTLMap = {
@@ -223,6 +236,74 @@ const AuthZones = ({ currentLanguage }) => {
     setRecords(updatedRecords)
   }
 
+  // Load operation history records
+  const loadHistoryRecords = async () => {
+    setHistoryLoading(true)
+    try {
+      const response = await apiClient.getBindZonesHistory()
+      if (response.success) {
+        // Sort history records by ID in descending order
+        const sortedRecords = (response.data || []).sort((a, b) => b.id - a.id)
+        setHistoryRecords(sortedRecords)
+      } else {
+        message.error(response.error || '加载操作历史失败')
+      }
+    } catch (error) {
+      console.error('Error loading history records:', error)
+      message.error('加载操作历史失败')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  // Handle restore from history
+  const handleRestoreFromHistory = async (historyId) => {
+    try {
+      setHistoryLoading(true)
+      const response = await apiClient.restoreBindZoneFromHistory(historyId)
+      if (response.success) {
+        message.success(response.data.message || '从历史记录恢复成功')
+        // Reload auth zones after restore
+        setTimeout(loadAuthZones, 1000)
+        setHistoryModalVisible(false)
+      } else {
+        message.error(response.error || '从历史记录恢复失败')
+      }
+    } catch (error) {
+      console.error('Error restoring from history:', error)
+      message.error('从历史记录恢复失败')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  // Handle restore from history with confirmation
+  const confirmRestoreFromHistory = (historyId) => {
+    setConfirmModalTitle('从历史记录恢复')
+    setConfirmModalContent('确定要从历史记录恢复吗？这将覆盖当前的配置。')
+    setCurrentAction('restoreFromHistory')
+    setCurrentActionParams(historyId)
+    setConfirmModalVisible(true)
+  }
+
+  // Handle confirm action
+  const handleConfirmAction = async () => {
+    setConfirmModalVisible(false)
+    
+    try {
+      switch (currentAction) {
+        case 'restoreFromHistory':
+          await handleRestoreFromHistory(currentActionParams)
+          break
+        default:
+          break
+      }
+    } catch (error) {
+      console.error('Error executing action:', error)
+      message.error(t('authZones.error', currentLanguage))
+    }
+  }
+
   // 当编辑区域变化时，更新记录列表
   useEffect(() => {
     if (editingZone && editingZone.records) {
@@ -232,6 +313,13 @@ const AuthZones = ({ currentLanguage }) => {
       setRecords([])
     }
   }, [editingZone])
+
+  // 当操作历史模态框打开时，加载历史记录
+  useEffect(() => {
+    if (historyModalVisible) {
+      loadHistoryRecords()
+    }
+  }, [historyModalVisible])
 
   /**
    * 准备提交数据，移除后端自动维护的字段
@@ -436,13 +524,21 @@ const AuthZones = ({ currentLanguage }) => {
             {t('authZones.title', currentLanguage)}
           </Space>
         </h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => showModal()}
-        >
-          {t('authZones.addZone', currentLanguage)}
-        </Button>
+        <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => setHistoryModalVisible(true)}
+          >
+            操作历史
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => showModal()}
+          >
+            {t('authZones.addZone', currentLanguage)}
+          </Button>
+        </Space>
       </div>
 
       <Spin spinning={loading}>
@@ -792,6 +888,116 @@ const AuthZones = ({ currentLanguage }) => {
             />
           </Form.Item>
         </Form>
+      </Modal>
+      
+      {/* Operation History Modal */}
+      <Modal
+        title="权威域操作历史"
+        open={historyModalVisible}
+        onOk={() => setHistoryModalVisible(false)}
+        onCancel={() => setHistoryModalVisible(false)}
+        okText="关闭"
+        cancelText="取消"
+        width={1000}
+        styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
+      >
+        <div>
+          <h3 style={{ marginBottom: 16 }}>操作历史记录</h3>
+          <Spin spinning={historyLoading}>
+            {historyRecords.length > 0 ? (
+              <Table
+                dataSource={historyRecords}
+                rowKey="id"
+                pagination={{
+                  showSizeChanger: true,
+                  pageSizeOptions: ['10', '20', '50'],
+                  defaultPageSize: 10
+                }}
+                scroll={{ x: 'max-content' }}
+                columns={[
+                  {
+                    title: 'ID',
+                    dataIndex: 'id',
+                    key: 'id',
+                    width: 80
+                  },
+                  {
+                    title: '操作类型',
+                    dataIndex: 'operation',
+                    key: 'operation',
+                    width: 120,
+                    render: (operation) => {
+                      const operationMap = {
+                        create: '创建',
+                        update: '更新',
+                        delete: '删除',
+                        rollback: '回滚操作'
+                      }
+                      return operationMap[operation] || operation
+                    }
+                  },
+                  {
+                    title: '域名',
+                    dataIndex: 'domain',
+                    key: 'domain',
+                    width: 200
+                  },
+                  {
+                    title: '操作时间',
+                    dataIndex: 'timestamp',
+                    key: 'timestamp',
+                    width: 200,
+                    render: (timestamp) => {
+                      return new Date(timestamp).toLocaleString()
+                    }
+                  },
+                  {
+                    title: '操作',
+                    key: 'actions',
+                    width: 100,
+                    render: (_, record) => (
+                      <Button
+                        type="primary"
+                        size="small"
+                        onClick={() => confirmRestoreFromHistory(record.id)}
+                      >
+                        恢复
+                      </Button>
+                    )
+                  }
+                ]}
+              />
+            ) : (
+              <Alert
+                title="没有操作历史记录"
+                description="当前没有权威域的操作历史记录"
+                type="info"
+                showIcon
+              />
+            )}
+          </Spin>
+        </div>
+      </Modal>
+      
+      {/* Confirm Modal */}
+      <Modal
+        title={confirmModalTitle}
+        open={confirmModalVisible}
+        onOk={handleConfirmAction}
+        onCancel={() => setConfirmModalVisible(false)}
+        okText="确认"
+        cancelText="取消"
+      >
+        <div>
+          <Alert
+            title="操作确认"
+            description={confirmModalContent}
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <p>请确认是否执行此操作。</p>
+        </div>
       </Modal>
     </div>
   )

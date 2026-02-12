@@ -560,17 +560,7 @@ class APIClient {
     })
   }
 
-  /**
-   * Update BIND configuration
-   * @param {object} config - BIND configuration
-   * @returns {Promise<any>} Response data
-   */
-  async updateBindConfig(config) {
-    return this.request('/bind-server/config', {
-      method: 'PUT',
-      body: JSON.stringify(config)
-    })
-  }
+
 
   /**
    * Get BIND named.conf parsed structure
@@ -625,6 +615,60 @@ class APIClient {
     return this.request('/bind-server/named-conf/diff', {
       method: 'POST',
       body: JSON.stringify(newConfig)
+    })
+  }
+
+  /**
+   * Get BIND named.conf backups
+   * @returns {Promise<any>} List of backup files
+   */
+  async getBindNamedConfBackups() {
+    return this.request('/bind-server/named-conf/backups', {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Restore BIND named.conf from backup
+   * @param {string} backupPath - Path to backup file
+   * @returns {Promise<any>} Restore result
+   */
+  async restoreBindNamedConfBackup(backupPath) {
+    return this.request('/bind-server/named-conf/restore', {
+      method: 'POST',
+      body: JSON.stringify({ backupPath })
+    })
+  }
+
+  /**
+   * Delete BIND named.conf backup
+   * @param {string} backupId - Backup file name or ID
+   * @returns {Promise<any>} Delete result
+   */
+  async deleteBindNamedConfBackup(backupId) {
+    return this.request(`/bind-server/named-conf/backups/${backupId}`, {
+      method: 'DELETE'
+    })
+  }
+
+  /**
+   * Get BIND zones operation history
+   * @returns {Promise<any>} Operation history records
+   */
+  async getBindZonesHistory() {
+    return this.request('/bind-zones/history', {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Restore BIND zone from history
+   * @param {number} historyId - History record ID
+   * @returns {Promise<any>} Restore result
+   */
+  async restoreBindZoneFromHistory(historyId) {
+    return this.request(`/bind-zones/history/${historyId}`, {
+      method: 'POST'
     })
   }
 

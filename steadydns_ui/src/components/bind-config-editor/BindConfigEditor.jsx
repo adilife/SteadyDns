@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Card,
   Row,
@@ -112,6 +112,9 @@ const BindConfigEditor = ({ visible, onClose }) => {
     }
   })
 
+  // 跟踪配置是否已经加载过
+  const configLoadedRef = useRef(false)
+
   // 模态框状态
   const [modalState, setModalState] = useState({
     validateModalVisible: false,
@@ -171,6 +174,12 @@ const BindConfigEditor = ({ visible, onClose }) => {
         const firstSelectableBlock = findFirstSelectableBlock(structuredConfig);
         newState.activeConfigBlock = firstSelectableBlock;
         
+        // 撤销操作后，设置验证状态为有效，因为内容被重置为之前验证过的版本
+        newState.validation = {
+          isValid: true,
+          errors: []
+        };
+        
         // 设置loading状态为false
         newState.loading = false;
         
@@ -193,7 +202,12 @@ const BindConfigEditor = ({ visible, onClose }) => {
           structuredConfig: {},
           hasChanges: false
         },
-        comments: {}
+        comments: {},
+        // 错误时，设置验证状态为有效，因为内容被重置为默认值
+        validation: {
+          isValid: true,
+          errors: []
+        }
       }))
     }
   }, [])
@@ -308,6 +322,12 @@ const BindConfigEditor = ({ visible, onClose }) => {
     // 示例实现：遍历结构化配置，生成对应的配置文本
     if (!structuredConfig) return ''
     
+  // 需要引号包围的指令列表
+  const directivesNeedingQuotes = [
+    'directory', 'pid-file', 'statistics-file', 'memstatistics-file',
+    'dump-file', 'file' ,'version', 'include'
+  ];  // 只保留路径类指令和版本指令、include 指令
+    
     // 递归函数，用于遍历结构化配置并生成配置文本
     const traverseConfig = (config, indent = 0) => {
       let result = ''
@@ -318,7 +338,6 @@ const BindConfigEditor = ({ visible, onClose }) => {
         config.comments.forEach(comment => {
           result += `${indentStr}// ${comment}\n`
         })
-        result += '\n'
       }
       
       // 处理不同类型的元素
@@ -336,7 +355,39 @@ const BindConfigEditor = ({ visible, onClose }) => {
           
         case 'block':
           // 块元素，生成 name { ... } 格式
-          result += `${indentStr}${config.name} {\n`
+          if (config.name === 'zone') {
+            // 特殊处理 zone 指令，添加区域名称
+            let zoneName = '.' // 默认根区域
+            
+            // 尝试从子元素中推断区域名称
+            if (config.childElements && config.childElements.length > 0) {
+              // 查找 file 指令，根据文件名推断区域名称
+              const fileElement = config.childElements.find(el => el.name === 'file')
+              if (fileElement && fileElement.value) {
+                const filePath = fileElement.value
+                if (filePath.includes('named.ca')) {
+                  zoneName = '.' // 根区域
+                } else if (filePath.includes('localhost.zone')) {
+                  zoneName = 'localhost'
+                } else if (filePath.includes('127.0.0.zone')) {
+                  zoneName = '127.in-addr.arpa'
+                } else if (filePath.includes('localhost.ip6.arpa.zone')) {
+                  zoneName = 'ip6.arpa'
+                } else if (filePath.includes('rpz.local.zone')) {
+                  zoneName = 'rpz.local'
+                } else if (filePath.includes('testdomain.com.zone')) {
+                  zoneName = 'testdomain.com'
+                }
+              }
+            }
+            
+            result += `${indentStr}${config.name} "${zoneName}" IN {
+`
+          } else {
+            // 其他块元素，使用默认格式
+            result += `${indentStr}${config.name} {
+`
+          }
           
           if (config.childElements && config.childElements.length > 0) {
             result += '\n'
@@ -349,10 +400,50 @@ const BindConfigEditor = ({ visible, onClose }) => {
           result += `${indentStr}};${config.lineComment ? ' // ' + config.lineComment : ''}\n`
           break
           
-        case 'simple':
-          // 简单元素，生成 name value; 格式
-          result += `${indentStr}${config.name} ${config.value || ''};${config.lineComment ? ' // ' + config.lineComment : ''}\n`
+        case 'include': {
+          // 处理 include 指令，生成 include "路径"; 格式
+          let value = config.value || ''
+          // 清理并添加正确的引号
+          value = value.replace(/^"|"$/g, '')
+          value = `"${value}"`
+          result += `${indentStr}${config.name} ${value};${config.lineComment ? ' // ' + config.lineComment : ''}\n`
           break
+        }
+        
+        case 'simple': {
+          // 简单元素，生成 name value; 格式
+          let value = config.value || ''
+          // 对需要引号的指令值添加引号
+          if (value && directivesNeedingQuotes.includes(config.name)) {
+            // 特殊处理 file 指令，因为它可能包含 versions 和 size 选项
+            if (config.name === 'file') {
+              // 检查值是否包含 versions 或 size 关键字
+              if (value.includes('versions') || value.includes('size')) {
+                // 提取路径部分并添加引号
+                const parts = value.split(/\s+/)
+                if (parts.length > 0) {
+                  // 清理路径部分，移除多余的引号
+                  let pathPart = parts[0]
+                  // 移除路径部分前后的引号
+                  pathPart = pathPart.replace(/^"|"$/g, '')
+                  // 重新添加正确的引号
+                  parts[0] = `"${pathPart}"`
+                  value = parts.join(' ')
+                }
+              } else {
+                // 普通 file 指令值，清理并添加正确的引号
+                value = value.replace(/^"|"$/g, '')
+                value = `"${value}"`
+              }
+            } else {
+              // 其他需要引号的指令，清理并添加正确的引号
+              value = value.replace(/^"|"$/g, '')
+              value = `"${value}"`
+            }
+          }
+          result += `${indentStr}${config.name} ${value};${config.lineComment ? ' // ' + config.lineComment : ''}\n`
+          break
+        }
           
         default:
           // 未知类型，跳过
@@ -418,8 +509,8 @@ const BindConfigEditor = ({ visible, onClose }) => {
           },
           lastSaved: new Date().toISOString()
         }))
-        // 重新加载配置以确保同步
-        await loadConfigData()
+        // 保存成功后不需要重新加载配置，避免发送额外的API请求
+      // 只更新状态即可，不需要重新加载
       } else {
         message.error(response.message || t('bindConfigEditor.saveError'))
       }
@@ -440,6 +531,11 @@ const BindConfigEditor = ({ visible, onClose }) => {
           ...prev.current,
           structuredConfig: newContent,
           hasChanges: true
+        },
+        // 内容变动时重置验证状态为未验证
+        validation: {
+          isValid: null,
+          errors: []
         }
       }))
     } else {
@@ -449,6 +545,11 @@ const BindConfigEditor = ({ visible, onClose }) => {
           ...prev.current,
           rawContent: newContent,
           hasChanges: true
+        },
+        // 内容变动时重置验证状态为未验证
+        validation: {
+          isValid: null,
+          errors: []
         }
       }))
     }
@@ -464,8 +565,9 @@ const BindConfigEditor = ({ visible, onClose }) => {
 
   // 初始化加载
   useEffect(() => {
-    if (visible) {
+    if (visible && !configLoadedRef.current) {
       loadConfigData()
+      configLoadedRef.current = true
     }
   }, [visible, loadConfigData])
 
@@ -492,7 +594,7 @@ const BindConfigEditor = ({ visible, onClose }) => {
               icon={<SaveOutlined />}
               onClick={() => setModalState(prev => ({ ...prev, saveConfirmModalVisible: true }))}
               loading={configState.loading}
-              disabled={!configState.hasChanges || configState.loading}
+              disabled={!configState.current.hasChanges || configState.loading || configState.validation.isValid !== true}
               tooltip="保存配置更改"
             >
               {t('bindConfigEditor.save')}
