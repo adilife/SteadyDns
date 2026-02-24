@@ -15,11 +15,11 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
-    authZones: '权威域转发管理',
+    authZones: '权威域管理',
     dnsRules: 'DNS规则配置',
     logs: '解析日志',
     settings: '服务器设置',
-    forwardGroups: 'DNS转发服务器'
+    forwardGroups: '转发器管理'
   },
   
   // Header
@@ -264,7 +264,7 @@ export default {
   
   // Forward Groups page
   forwardGroups: {
-    title: 'DNS转发服务器',
+    title: '转发器管理',
     addGroup: '添加转发组',
     editGroup: '编辑转发组',
     addNewGroup: '添加转发组',
@@ -275,6 +275,8 @@ export default {
     actions: '操作',
     edit: '编辑转发组',
     delete: '删除转发组',
+    batchDelete: '批量删除',
+    selectedCount: '已选择 {{count}} 个转发组',
     confirmDelete: '确定要删除此转发组吗？',
     yes: '是',
     no: '否',
@@ -305,7 +307,7 @@ export default {
   
   // Dashboard page
   dashboard: {
-    title: '系统仪表盘',
+    title: '仪表盘',
     welcome: '欢迎回来，{{username}}',
     totalQueries: '总查询量',
     queries: '查询',
@@ -350,7 +352,7 @@ export default {
   
   // Auth Zones page
   authZones: {
-    title: '权威域转发管理',
+    title: '权威域管理',
     addZone: '添加权威域',
     editZone: '编辑权威域',
     addNewZone: '添加权威域',

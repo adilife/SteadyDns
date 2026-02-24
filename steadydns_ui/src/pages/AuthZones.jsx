@@ -463,6 +463,18 @@ const AuthZones = ({ currentLanguage }) => {
       width: 150
     },
     {
+      title: t('authZones.comment', currentLanguage),
+      dataIndex: 'comment',
+      key: 'comment',
+      width: 300,
+      ellipsis: true,
+      render: (text) => (
+        <Tooltip title={text}>
+          <span>{text}</span>
+        </Tooltip>
+      )
+    },
+    {
       title: t('authZones.records', currentLanguage),
       key: 'records',
       width: 120,
@@ -572,6 +584,7 @@ const AuthZones = ({ currentLanguage }) => {
           type: 'master',
           file: '',
           allow_query: 'any',
+          comment: '',
           soa: {
             primary_ns: '',
             admin_email: '',
@@ -618,6 +631,15 @@ const AuthZones = ({ currentLanguage }) => {
                       <Input placeholder={t('authZones.allowQueryPlaceholder', currentLanguage)} />
                     </Form.Item>
 
+                    <Form.Item
+                      name="comment"
+                      label={t('authZones.comment', currentLanguage)}
+                    >
+                      <Input.TextArea 
+                        rows={4} 
+                        placeholder={t('authZones.commentPlaceholder', currentLanguage)} 
+                      />
+                    </Form.Item>
 
                   </>
                 )

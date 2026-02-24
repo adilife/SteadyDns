@@ -15,11 +15,11 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
-    authZones: 'Authority Zone Forwarding',
+    authZones: 'Authority Zone Management',
     dnsRules: 'DNS Rules Configuration',
     logs: 'Resolution Logs',
     settings: 'Server Settings',
-    forwardGroups: 'DNS Forward Servers'
+    forwardGroups: 'DNS Forwarder Management'
   },
   
   // Header
@@ -264,7 +264,7 @@ export default {
   
   // Forward Groups page
   forwardGroups: {
-    title: 'DNS Forward Servers',
+    title: 'DNS Forwarder Management',
     addGroup: 'Add Forward Group',
     editGroup: 'Edit Forward Group',
     addNewGroup: 'Add Forward Group',
@@ -275,6 +275,8 @@ export default {
     actions: 'Actions',
     edit: 'Edit forward group',
     delete: 'Delete forward group',
+    batchDelete: 'Batch Delete',
+    selectedCount: 'Selected {{count}} forward groups',
     confirmDelete: 'Are you sure to delete this forward group?',
     yes: 'Yes',
     no: 'No',
@@ -350,7 +352,7 @@ export default {
   
   // Auth Zones page
   authZones: {
-    title: 'Authority Zone Forwarding',
+    title: 'Authority Zone Management',
     addZone: 'Add Authority Zone',
     editZone: 'Edit Authority Zone',
     addNewZone: 'Add Authority Zone',
