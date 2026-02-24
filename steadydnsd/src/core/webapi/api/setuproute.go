@@ -80,7 +80,7 @@ func SetupRoutes(engine *gin.Engine) {
 	engine.POST("/api/config/validate", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), ConfigAPIHandlerGin)
 
 	// Dashboard API路由 - 需要认证，应用所有中间件
-	engine.GET("/api/dashboard", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), DashboardAPIHandlerGin)
+	engine.GET("/api/dashboard/*endpoint", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), DashboardAPIHandlerGin)
 
 	// BIND权威域API路由 - 需要认证，应用所有中间件
 	engine.GET("/api/bind-zones", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
