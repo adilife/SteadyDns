@@ -4,6 +4,7 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -77,7 +78,9 @@ func dashboardHandlerGin(c *gin.Context) {
 // 系统概览统计结构
 type SystemStats struct {
 	TotalQueries  int     `json:"totalQueries"`
-	QPS           float64 `json:"qps"`
+	QPS           float64 `json:"qps"`        // 峰值QPS（最近5分钟）
+	CurrentQPS    float64 `json:"currentQps"` // 当前QPS
+	AvgQPS        float64 `json:"avgQps"`     // 平均QPS（最近5分钟）
 	CacheHitRate  float64 `json:"cacheHitRate"`
 	SystemHealth  int     `json:"systemHealth"`
 	ActiveServers int     `json:"activeServers"`
@@ -118,6 +121,22 @@ type QPSTrend struct {
 	QPS  float64 `json:"qps"`
 }
 
+// QPS趋势聚合数据结构
+type QPSTrendAggregated struct {
+	TimeLabels []string           `json:"timeLabels"`
+	QPSValues  []float64          `json:"qpsValues"`
+	Statistics QPSTrendStatistics `json:"statistics"`
+}
+
+// QPS趋势统计信息
+type QPSTrendStatistics struct {
+	Min        float64 `json:"min"`
+	Max        float64 `json:"max"`
+	Avg        float64 `json:"avg"`
+	Current    float64 `json:"current"`
+	DataPoints int     `json:"dataPoints"`
+}
+
 // 延迟分布数据结构
 type LatencyData struct {
 	Range string `json:"range"`
@@ -130,6 +149,30 @@ type ResourceUsage struct {
 	CPU    int    `json:"cpu"`
 	Memory int    `json:"memory"`
 	Disk   int    `json:"disk"`
+}
+
+// 资源使用聚合数据结构
+type ResourceUsageAggregated struct {
+	TimeLabels []string                `json:"timeLabels"`
+	CPUValues  []int                   `json:"cpuValues"`
+	MemValues  []int                   `json:"memValues"`
+	DiskValues []int                   `json:"diskValues"`
+	Statistics ResourceUsageStatistics `json:"statistics"`
+}
+
+// ResourceUsageStatistics 资源使用统计信息
+type ResourceUsageStatistics struct {
+	CPU    ResourceStatItem `json:"cpu"`
+	Memory ResourceStatItem `json:"memory"`
+	Disk   ResourceStatItem `json:"disk"`
+}
+
+// ResourceStatItem 单项资源统计
+type ResourceStatItem struct {
+	Min        int     `json:"min"`
+	Max        int     `json:"max"`
+	Avg        float64 `json:"avg"`
+	DataPoints int     `json:"dataPoints"`
 }
 
 // 热门域名结构
@@ -158,9 +201,18 @@ type DashboardSummaryResponse struct {
 
 // 趋势数据响应结构
 type DashboardTrendsResponse struct {
-	QPSTrend      []QPSTrend      `json:"qpsTrend"`
-	LatencyData   []LatencyData   `json:"latencyData"`
-	ResourceUsage []ResourceUsage `json:"resourceUsage"`
+	QPSTrend      interface{}       `json:"qpsTrend"`
+	LatencyData   []LatencyData     `json:"latencyData"`
+	ResourceUsage interface{}       `json:"resourceUsage"`
+	RequestInfo   *TrendRequestInfo `json:"requestInfo,omitempty"`
+}
+
+// TrendRequestInfo 请求信息
+type TrendRequestInfo struct {
+	Type      string `json:"type"`
+	TimeRange string `json:"timeRange"`
+	Points    int    `json:"points"`
+	RequestAt string `json:"requestAt"`
 }
 
 // 排行榜数据响应结构
@@ -201,29 +253,86 @@ func getDashboardSummaryGin(c *gin.Context) {
 
 // getDashboardTrendsGin 获取dashboard趋势数据（Gin版本）
 func getDashboardTrendsGin(c *gin.Context) {
-	// 获取时间范围参数
+	startTime := time.Now()
+
+	dataType := c.Query("type")
+	if dataType == "" {
+		dataType = "all"
+	}
+
+	validTypes := map[string]bool{"qps": true, "resource": true, "all": true}
+	if !validTypes[dataType] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "无效的type参数，可选值：qps, resource, all",
+		})
+		return
+	}
+
 	timeRange := c.Query("timeRange")
 	if timeRange == "" {
 		timeRange = "1h"
 	}
 
-	// 获取QPS趋势数据
-	qpsTrend := getQPSTrend(timeRange)
-
-	// 获取延迟分布数据
-	latencyData := getLatencyData()
-
-	// 获取资源使用趋势数据
-	resourceUsage := getResourceUsage(timeRange)
-
-	// 构建响应
-	response := DashboardTrendsResponse{
-		QPSTrend:      qpsTrend,
-		LatencyData:   latencyData,
-		ResourceUsage: resourceUsage,
+	validTimeRanges := map[string]bool{"1h": true, "6h": true, "24h": true, "7d": true}
+	if !validTimeRanges[timeRange] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "无效的timeRange参数，可选值：1h, 6h, 24h, 7d",
+		})
+		return
 	}
 
-	// 发送成功响应
+	points := 0
+	pointsStr := c.Query("points")
+	if pointsStr != "" {
+		p, err := strconv.Atoi(pointsStr)
+		if err != nil || p < 0 || p > 1000 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "无效的points参数，必须为0或1-1000之间的正整数",
+			})
+			return
+		}
+		points = p
+	}
+
+	response := DashboardTrendsResponse{}
+
+	if dataType == "qps" || dataType == "all" {
+		if points > 0 {
+			response.QPSTrend = getQPSTrendAggregated(timeRange, points)
+		} else {
+			response.QPSTrend = getQPSTrend(timeRange)
+		}
+	}
+
+	if dataType == "all" {
+		response.LatencyData = getLatencyData()
+	}
+
+	if dataType == "resource" || dataType == "all" {
+		if points > 0 {
+			response.ResourceUsage = getResourceUsageAggregated(timeRange, points)
+		} else {
+			response.ResourceUsage = getResourceUsage(timeRange)
+		}
+	}
+
+	if points > 0 {
+		response.RequestInfo = &TrendRequestInfo{
+			Type:      dataType,
+			TimeRange: timeRange,
+			Points:    points,
+			RequestAt: startTime.Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	responseTime := time.Since(startTime)
+	if responseTime > 200*time.Millisecond {
+		common.NewLogger().Warn("QPS趋势接口响应时间超过200ms: %v", responseTime)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    response,
@@ -271,6 +380,8 @@ func getSystemStats() SystemStats {
 		return SystemStats{
 			TotalQueries:  0,
 			QPS:           0,
+			CurrentQPS:    0,
+			AvgQPS:        0,
 			CacheHitRate:  0,
 			SystemHealth:  0,
 			ActiveServers: 0,
@@ -280,8 +391,14 @@ func getSystemStats() SystemStats {
 	// 获取网络统计信息
 	networkStats := statsManager.GetNetworkStats()
 
-	// 计算QPS
-	qps := statsManager.CalculateQPS()
+	// 计算峰值QPS（最近5分钟）
+	peakQPS := statsManager.GetPeakQPS(5 * time.Minute)
+
+	// 计算当前QPS
+	currentQPS := statsManager.GetCurrentQPS()
+
+	// 计算平均QPS（最近5分钟）
+	avgQPS := statsManager.GetAverageQPS(5 * time.Minute)
 
 	// 获取系统健康度
 	health := statsManager.GetSystemHealth()
@@ -291,7 +408,9 @@ func getSystemStats() SystemStats {
 
 	return SystemStats{
 		TotalQueries:  int(networkStats.TotalRequests),
-		QPS:           qps,
+		QPS:           peakQPS,
+		CurrentQPS:    currentQPS,
+		AvgQPS:        avgQPS,
 		CacheHitRate:  0, // 暂时返回0，需要从缓存系统获取
 		SystemHealth:  health,
 		ActiveServers: activeServers,
@@ -340,13 +459,8 @@ func getForwardServerStatus() []ForwardServerStatus {
 	// 构建响应数据
 	serverStatuses := make([]ForwardServerStatus, len(servers))
 	for i, server := range servers {
-		// 构建服务器地址
-		addr := server.Address
-		if server.Port != 53 {
-			addr = fmt.Sprintf("%s:%d", server.Address, server.Port)
-		} else {
-			addr = fmt.Sprintf("%s:53", server.Address)
-		}
+		// 构建服务器地址（使用net.JoinHostPort处理IPv6地址格式）
+		addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 
 		// 获取服务器统计信息
 		qps := 0.0
@@ -392,14 +506,62 @@ func getForwardServerStatus() []ForwardServerStatus {
 
 // getCacheStats 获取缓存状态
 func getCacheStats() CacheStats {
-	// TODO: 从实际缓存系统中获取数据
-	// 暂时返回模拟数据
+	// 从实际缓存系统获取数据
+	cacheStats := sdns.GetCacheStats()
+	if cacheStats == nil {
+		return CacheStats{}
+	}
+
+	// 获取当前缓存大小
+	currentSize := int64(0)
+	if val, ok := cacheStats["currentSize"].(int64); ok {
+		currentSize = val
+	}
+
+	// 获取最大缓存大小
+	maxSize := int64(0)
+	if val, ok := cacheStats["maxSize"].(int64); ok {
+		maxSize = val
+	}
+
+	// 计算命中率
+	hitRate := 0.0
+	if val, ok := cacheStats["hitRate"].(float64); ok {
+		hitRate = val
+	}
+
+	// 获取缓存条目数量
+	items := 0
+	if val, ok := cacheStats["count"].(int); ok {
+		items = val
+	}
+
 	return CacheStats{
-		Size:     "1.2 GB",
-		MaxSize:  "2 GB",
-		HitRate:  85,
-		MissRate: 15,
-		Items:    150000,
+		Size:     formatSize(currentSize),
+		MaxSize:  formatSize(maxSize),
+		HitRate:  int(hitRate),
+		MissRate: 100 - int(hitRate),
+		Items:    items,
+	}
+}
+
+// formatSize 格式化大小显示
+func formatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
 	}
 }
 
@@ -448,6 +610,39 @@ func getQPSTrend(timeRange string) []QPSTrend {
 	}
 
 	return trend
+}
+
+// getQPSTrendAggregated 获取聚合后的QPS趋势数据
+func getQPSTrendAggregated(timeRange string, points int) QPSTrendAggregated {
+	statsManager := sdns.GetStatsManager()
+	if statsManager == nil {
+		return QPSTrendAggregated{
+			TimeLabels: []string{},
+			QPSValues:  []float64{},
+			Statistics: QPSTrendStatistics{},
+		}
+	}
+
+	aggregated := statsManager.GetAggregatedQPSTrend(timeRange, points)
+	if aggregated == nil {
+		return QPSTrendAggregated{
+			TimeLabels: []string{},
+			QPSValues:  []float64{},
+			Statistics: QPSTrendStatistics{},
+		}
+	}
+
+	return QPSTrendAggregated{
+		TimeLabels: aggregated.TimeLabels,
+		QPSValues:  aggregated.QPSValues,
+		Statistics: QPSTrendStatistics{
+			Min:        aggregated.Statistics.Min,
+			Max:        aggregated.Statistics.Max,
+			Avg:        aggregated.Statistics.Avg,
+			Current:    aggregated.Statistics.Current,
+			DataPoints: aggregated.Statistics.DataPoints,
+		},
+	}
 }
 
 // getLatencyData 获取延迟分布数据
@@ -508,6 +703,58 @@ func getResourceUsage(timeRange string) []ResourceUsage {
 	}
 
 	return usage
+}
+
+// getResourceUsageAggregated 获取聚合后的资源使用趋势数据
+func getResourceUsageAggregated(timeRange string, points int) ResourceUsageAggregated {
+	statsManager := sdns.GetStatsManager()
+	if statsManager == nil {
+		return ResourceUsageAggregated{
+			TimeLabels: []string{},
+			CPUValues:  []int{},
+			MemValues:  []int{},
+			DiskValues: []int{},
+			Statistics: ResourceUsageStatistics{},
+		}
+	}
+
+	aggregated := statsManager.GetAggregatedResourceUsage(timeRange, points)
+	if aggregated == nil {
+		return ResourceUsageAggregated{
+			TimeLabels: []string{},
+			CPUValues:  []int{},
+			MemValues:  []int{},
+			DiskValues: []int{},
+			Statistics: ResourceUsageStatistics{},
+		}
+	}
+
+	return ResourceUsageAggregated{
+		TimeLabels: aggregated.TimeLabels,
+		CPUValues:  aggregated.CPUValues,
+		MemValues:  aggregated.MemValues,
+		DiskValues: aggregated.DiskValues,
+		Statistics: ResourceUsageStatistics{
+			CPU: ResourceStatItem{
+				Min:        aggregated.Statistics.CPU.Min,
+				Max:        aggregated.Statistics.CPU.Max,
+				Avg:        aggregated.Statistics.CPU.Avg,
+				DataPoints: aggregated.Statistics.CPU.DataPoints,
+			},
+			Memory: ResourceStatItem{
+				Min:        aggregated.Statistics.Memory.Min,
+				Max:        aggregated.Statistics.Memory.Max,
+				Avg:        aggregated.Statistics.Memory.Avg,
+				DataPoints: aggregated.Statistics.Memory.DataPoints,
+			},
+			Disk: ResourceStatItem{
+				Min:        aggregated.Statistics.Disk.Min,
+				Max:        aggregated.Statistics.Disk.Max,
+				Avg:        aggregated.Statistics.Disk.Avg,
+				DataPoints: aggregated.Statistics.Disk.DataPoints,
+			},
+		},
+	}
 }
 
 // getTopDomains 获取热门域名

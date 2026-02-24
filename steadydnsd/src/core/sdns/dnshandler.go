@@ -40,6 +40,7 @@ type DNSHandler struct {
 	dnsLogger       *DNSLogger       // DNS查询日志
 	clientIP        string           // 客户端IP地址
 	securityManager *SecurityManager // 安全管理器
+	statsManager    *StatsManager    // 统计管理器
 }
 
 // NewDNSHandler 创建新的DNS处理器
@@ -101,6 +102,7 @@ func generateQueryID() string {
 
 // ServeDNS 实现DNS服务器接口
 func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	startTime := time.Now()
 	clientIP := h.clientIP
 	if clientIP == "" {
 		clientIP = getClientIP(w)
@@ -122,11 +124,16 @@ func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 
-	// 确保查询结束时输出日志
+	// 确保查询结束时输出日志并记录延迟统计
 	var responseCode int
 	var processErr error
 	defer func() {
+		totalTime := time.Since(startTime)
 		h.dnsLogger.EndQuery(logBuf, responseCode, processErr)
+		// 记录延迟统计到StatsManager
+		if statsManager := GetStatsManager(); statsManager != nil {
+			statsManager.RecordQuery(queryDomain, clientIP, totalTime)
+		}
 	}()
 
 	// 安全检查：DNS消息验证
@@ -412,6 +419,21 @@ func StartDNSServer(logger *common.Logger) error {
 			logger.Error("TCP DNS服务器启动失败: %v", err)
 		}
 	}()
+
+	// 启动QPS历史数据持久化任务
+	if udpServer != nil {
+		statsManager := udpServer.GetStatsManager()
+		if statsManager != nil {
+			// 从数据库加载最近的历史数据
+			if err := statsManager.LoadFromDatabase("1h"); err != nil {
+				logger.Warn("从数据库加载QPS历史数据失败: %v", err)
+			}
+			// 启动后台持久化任务
+			statsManager.StartPersistence()
+			// 启动系统资源监控
+			statsManager.StartResourceMonitor()
+		}
+	}
 
 	logger.Info("DNS服务器启动成功，监听地址: %s", listenAddr)
 	return nil

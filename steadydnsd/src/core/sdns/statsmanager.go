@@ -3,11 +3,18 @@
 package sdns
 
 import (
+	"fmt"
+	"math"
+	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"SteadyDNS/core/common"
+	"SteadyDNS/core/database"
 )
 
 // StatsManager 统计管理器
@@ -31,6 +38,17 @@ type StatsManager struct {
 	qpsHistoryCache map[string][]QPSDataPoint
 	cacheExpiration time.Duration
 	lastCacheUpdate time.Time
+
+	// 持久化相关
+	persistEnabled  bool
+	persistInterval time.Duration
+	lastPersistTime time.Time
+	persistMutex    sync.Mutex
+	stopPersist     chan struct{}
+	retentionDays   int
+
+	// 资源监控相关
+	stopResourceMonitor chan struct{}
 }
 
 // QPSDataPoint QPS数据点
@@ -67,14 +85,22 @@ func NewStatsManager(logger *common.Logger) *StatsManager {
 		qpsHistoryCache: make(map[string][]QPSDataPoint),
 		cacheExpiration: 30 * time.Second, // 缓存30秒
 		lastCacheUpdate: time.Now(),
+
+		// 初始化持久化
+		persistEnabled:  true,
+		persistInterval: 1 * time.Minute,
+		lastPersistTime: time.Now(),
+		stopPersist:     make(chan struct{}),
+		retentionDays:   7,
+
+		// 初始化资源监控
+		stopResourceMonitor: make(chan struct{}),
 	}
 }
 
 // UpdateNetworkStats 更新网络统计信息
-func (sm *StatsManager) UpdateNetworkStats(bytesIn, bytesOut int, success bool, responseTime time.Duration) {
-	// 计算响应时间（在锁外计算）
-	latencyMs := int64(responseTime.Milliseconds())
-
+// 注意：延迟数据已在 RecordQuery 中记录，此方法仅更新网络流量统计
+func (sm *StatsManager) UpdateNetworkStats(bytesIn, bytesOut int, success bool) {
 	sm.mutex.Lock()
 	{
 		sm.networkStats.TotalRequests++
@@ -86,14 +112,6 @@ func (sm *StatsManager) UpdateNetworkStats(bytesIn, bytesOut int, success bool, 
 			sm.networkStats.SuccessfulRequests++
 		} else {
 			sm.networkStats.FailedRequests++
-		}
-
-		// 添加延迟数据
-		sm.latencyData = append(sm.latencyData, latencyMs)
-
-		// 限制延迟数据点数量
-		if len(sm.latencyData) > 10000 {
-			sm.latencyData = sm.latencyData[len(sm.latencyData)-10000:]
 		}
 
 		// 检查是否需要清理
@@ -227,6 +245,51 @@ func (sm *StatsManager) CalculateQPS() float64 {
 	}
 
 	return float64(count)
+}
+
+// GetPeakQPS 获取指定时间范围内的峰值QPS
+func (sm *StatsManager) GetPeakQPS(duration time.Duration) float64 {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	cutoff := time.Now().Add(-duration)
+	maxQPS := 0.0
+
+	for _, point := range sm.qpsHistory {
+		if point.Time.After(cutoff) && point.QPS > maxQPS {
+			maxQPS = point.QPS
+		}
+	}
+
+	return maxQPS
+}
+
+// GetAverageQPS 获取指定时间范围内的平均QPS
+func (sm *StatsManager) GetAverageQPS(duration time.Duration) float64 {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	cutoff := time.Now().Add(-duration)
+	sum := 0.0
+	count := 0
+
+	for _, point := range sm.qpsHistory {
+		if point.Time.After(cutoff) {
+			sum += point.QPS
+			count++
+		}
+	}
+
+	if count == 0 {
+		return 0
+	}
+
+	return sum / float64(count)
+}
+
+// GetCurrentQPS 获取当前QPS（最近1秒）
+func (sm *StatsManager) GetCurrentQPS() float64 {
+	return sm.CalculateQPS()
 }
 
 // GetNetworkStats 获取网络统计信息
@@ -676,4 +739,849 @@ func (sm *StatsManager) GetSystemHealth() int {
 func ExtractDomainFromQuery(query string) string {
 	// 简单实现，实际应该解析DNS消息
 	return query
+}
+
+// StartPersistence 启动后台持久化任务
+func (sm *StatsManager) StartPersistence() {
+	if !sm.persistEnabled {
+		return
+	}
+
+	go func() {
+		ticker := time.NewTicker(sm.persistInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				sm.persistToDatabase()
+				sm.cleanOldDatabaseRecords()
+			case <-sm.stopPersist:
+				sm.logger.Info("QPS历史数据持久化任务已停止")
+				return
+			}
+		}
+	}()
+
+	sm.logger.Info("QPS历史数据持久化任务已启动，间隔: %v", sm.persistInterval)
+}
+
+// StopPersistence 停止后台持久化任务
+func (sm *StatsManager) StopPersistence() {
+	if sm.stopPersist != nil {
+		close(sm.stopPersist)
+	}
+}
+
+// StartResourceMonitor 启动系统资源监控
+func (sm *StatsManager) StartResourceMonitor() {
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				sm.collectResourceUsage()
+			case <-sm.stopResourceMonitor:
+				sm.logger.Info("系统资源监控任务已停止")
+				return
+			}
+		}
+	}()
+
+	sm.logger.Info("系统资源监控任务已启动，采集间隔: 10s")
+}
+
+// StopResourceMonitor 停止系统资源监控
+func (sm *StatsManager) StopResourceMonitor() {
+	if sm.stopResourceMonitor != nil {
+		close(sm.stopResourceMonitor)
+	}
+}
+
+// collectResourceUsage 采集系统资源使用情况
+func (sm *StatsManager) collectResourceUsage() {
+	cpu, memory, disk := sm.getSystemResourceUsage()
+	sm.UpdateResourceUsage(cpu, memory, disk)
+}
+
+// getSystemResourceUsage 获取系统资源使用率
+func (sm *StatsManager) getSystemResourceUsage() (cpu int, memory int, disk int) {
+	cpu = sm.getCPUUsage()
+	memory = sm.getMemoryUsage()
+	disk = sm.getDiskUsage()
+	return
+}
+
+// getCPUUsage 获取CPU使用率
+func (sm *StatsManager) getCPUUsage() int {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return 0
+	}
+
+	lines := strings.Split(string(data), "\n")
+	if len(lines) < 1 {
+		return 0
+	}
+
+	fields := strings.Fields(lines[0])
+	if len(fields) < 5 {
+		return 0
+	}
+
+	if fields[0] != "cpu" {
+		return 0
+	}
+
+	user, _ := strconv.ParseInt(fields[1], 10, 64)
+	nice, _ := strconv.ParseInt(fields[2], 10, 64)
+	system, _ := strconv.ParseInt(fields[3], 10, 64)
+	idle, _ := strconv.ParseInt(fields[4], 10, 64)
+
+	total := user + nice + system + idle
+	if total == 0 {
+		return 0
+	}
+
+	used := user + nice + system
+	usage := int((used * 100) / total)
+
+	if usage > 100 {
+		usage = 100
+	}
+
+	return usage
+}
+
+// getMemoryUsage 获取内存使用率
+func (sm *StatsManager) getMemoryUsage() int {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var total, available int64
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		value, _ := strconv.ParseInt(fields[1], 10, 64)
+
+		switch fields[0] {
+		case "MemTotal:":
+			total = value
+		case "MemAvailable:":
+			available = value
+		}
+	}
+
+	if total == 0 {
+		return 0
+	}
+
+	used := total - available
+	usage := int((used * 100) / total)
+
+	if usage > 100 {
+		usage = 100
+	}
+
+	return usage
+}
+
+// getDiskUsage 获取磁盘使用率
+func (sm *StatsManager) getDiskUsage() int {
+	var stat syscall.Statfs_t
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return 0
+	}
+
+	err = syscall.Statfs(wd, &stat)
+	if err != nil {
+		return 0
+	}
+
+	total := stat.Blocks * uint64(stat.Bsize)
+	free := stat.Bavail * uint64(stat.Bsize)
+
+	if total == 0 {
+		return 0
+	}
+
+	used := total - free
+	usage := int((used * 100) / total)
+
+	if usage > 100 {
+		usage = 100
+	}
+
+	return usage
+}
+
+// persistToDatabase 将内存中的QPS历史数据持久化到数据库
+func (sm *StatsManager) persistToDatabase() {
+	sm.persistMutex.Lock()
+	defer sm.persistMutex.Unlock()
+
+	sm.mutex.RLock()
+	if len(sm.qpsHistory) == 0 && len(sm.resourceHistory) == 0 {
+		sm.mutex.RUnlock()
+		return
+	}
+
+	lastPersist := sm.lastPersistTime
+	var toPersistQPS []QPSDataPoint
+	for _, point := range sm.qpsHistory {
+		if point.Time.After(lastPersist) {
+			toPersistQPS = append(toPersistQPS, point)
+		}
+	}
+
+	var toPersistResource []ResourceDataPoint
+	for _, point := range sm.resourceHistory {
+		if point.Time.After(lastPersist) {
+			toPersistResource = append(toPersistResource, point)
+		}
+	}
+	sm.mutex.RUnlock()
+
+	if len(toPersistQPS) > 0 {
+		records := make([]database.QPSHistory, len(toPersistQPS))
+		for i, point := range toPersistQPS {
+			records[i] = database.QPSHistory{
+				Timestamp: point.Time,
+				QPS:       point.QPS,
+			}
+		}
+
+		if err := database.SaveQPSHistoryBatch(records); err != nil {
+			sm.logger.Error("持久化QPS历史数据失败: %v", err)
+		} else {
+			sm.logger.Debug("持久化了 %d 条QPS历史记录", len(toPersistQPS))
+		}
+	}
+
+	if len(toPersistResource) > 0 {
+		records := make([]database.ResourceHistory, len(toPersistResource))
+		for i, point := range toPersistResource {
+			records[i] = database.ResourceHistory{
+				Timestamp: point.Time,
+				CPU:       point.CPU,
+				Memory:    point.Memory,
+				Disk:      point.Disk,
+			}
+		}
+
+		if err := database.SaveResourceHistoryBatch(records); err != nil {
+			sm.logger.Error("持久化资源使用历史数据失败: %v", err)
+		} else {
+			sm.logger.Debug("持久化了 %d 条资源使用历史记录", len(toPersistResource))
+		}
+	}
+
+	if len(toPersistQPS) > 0 || len(toPersistResource) > 0 {
+		sm.mutex.Lock()
+		if len(toPersistQPS) > 0 {
+			sm.lastPersistTime = toPersistQPS[len(toPersistQPS)-1].Time
+		} else if len(toPersistResource) > 0 {
+			sm.lastPersistTime = toPersistResource[len(toPersistResource)-1].Time
+		}
+		sm.mutex.Unlock()
+	}
+}
+
+// cleanOldDatabaseRecords 清理数据库中的过期记录
+func (sm *StatsManager) cleanOldDatabaseRecords() {
+	if err := database.CleanOldQPSHistory(sm.retentionDays); err != nil {
+		sm.logger.Error("清理过期QPS历史记录失败: %v", err)
+	}
+	if err := database.CleanOldResourceHistory(sm.retentionDays); err != nil {
+		sm.logger.Error("清理过期资源使用历史记录失败: %v", err)
+	}
+}
+
+// LoadFromDatabase 从数据库加载历史数据到内存
+func (sm *StatsManager) LoadFromDatabase(timeRange string) error {
+	var cutoff time.Time
+	now := time.Now()
+
+	switch timeRange {
+	case "1h":
+		cutoff = now.Add(-1 * time.Hour)
+	case "6h":
+		cutoff = now.Add(-6 * time.Hour)
+	case "24h":
+		cutoff = now.Add(-24 * time.Hour)
+	case "7d":
+		cutoff = now.Add(-7 * 24 * time.Hour)
+	default:
+		cutoff = now.Add(-1 * time.Hour)
+	}
+
+	qpsRecords, err := database.GetQPSHistoryByTimeRange(cutoff, now)
+	if err != nil {
+		sm.logger.Warn("加载QPS历史数据失败: %v", err)
+	}
+
+	resourceRecords, err := database.GetResourceHistoryByTimeRange(cutoff, now)
+	if err != nil {
+		sm.logger.Warn("加载资源使用历史数据失败: %v", err)
+	}
+
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	for _, record := range qpsRecords {
+		sm.qpsHistory = append(sm.qpsHistory, QPSDataPoint{
+			Time: record.Timestamp,
+			QPS:  record.QPS,
+		})
+	}
+
+	for _, record := range resourceRecords {
+		sm.resourceHistory = append(sm.resourceHistory, ResourceDataPoint{
+			Time:   record.Timestamp,
+			CPU:    record.CPU,
+			Memory: record.Memory,
+			Disk:   record.Disk,
+		})
+	}
+
+	if len(sm.qpsHistory) > 0 {
+		sm.lastPersistTime = sm.qpsHistory[len(sm.qpsHistory)-1].Time
+	} else if len(sm.resourceHistory) > 0 {
+		sm.lastPersistTime = sm.resourceHistory[len(sm.resourceHistory)-1].Time
+	}
+
+	sm.logger.Info("从数据库加载了 %d 条QPS历史记录和 %d 条资源使用历史记录", len(qpsRecords), len(resourceRecords))
+	return nil
+}
+
+// AggregatedQPSTrend 聚合后的QPS趋势数据
+type AggregatedQPSTrend struct {
+	TimeLabels []string        `json:"timeLabels"`
+	QPSValues  []float64       `json:"qpsValues"`
+	Statistics TrendStatistics `json:"statistics"`
+}
+
+// TrendStatistics 趋势统计信息
+type TrendStatistics struct {
+	Min        float64 `json:"min"`
+	Max        float64 `json:"max"`
+	Avg        float64 `json:"avg"`
+	Current    float64 `json:"current"`
+	DataPoints int     `json:"dataPoints"`
+}
+
+// GetAggregatedQPSTrend 获取聚合后的QPS趋势数据
+func (sm *StatsManager) GetAggregatedQPSTrend(timeRange string, points int) *AggregatedQPSTrend {
+	cacheKey := fmt.Sprintf("%s_%d", timeRange, points)
+	if cached := sm.getCachedAggregatedQPSTrend(cacheKey); cached != nil {
+		return cached
+	}
+
+	history := sm.GetQPSHistoryWithDB(timeRange)
+
+	if len(history) == 0 {
+		return &AggregatedQPSTrend{
+			TimeLabels: []string{},
+			QPSValues:  []float64{},
+			Statistics: TrendStatistics{
+				Min:        0,
+				Max:        0,
+				Avg:        0,
+				Current:    0,
+				DataPoints: 0,
+			},
+		}
+	}
+
+	result := sm.aggregateQPSData(history, points, timeRange)
+
+	sm.cacheAggregatedQPSTrend(cacheKey, result)
+
+	return result
+}
+
+// GetQPSHistoryWithDB 获取QPS历史数据（优先从内存，不足时从数据库补充）
+func (sm *StatsManager) GetQPSHistoryWithDB(timeRange string) []QPSDataPoint {
+	sm.mutex.RLock()
+	memoryData := make([]QPSDataPoint, len(sm.qpsHistory))
+	copy(memoryData, sm.qpsHistory)
+	sm.mutex.RUnlock()
+
+	var cutoff time.Time
+	now := time.Now()
+
+	switch timeRange {
+	case "1h":
+		cutoff = now.Add(-1 * time.Hour)
+	case "6h":
+		cutoff = now.Add(-6 * time.Hour)
+	case "24h":
+		cutoff = now.Add(-24 * time.Hour)
+	case "7d":
+		cutoff = now.Add(-7 * 24 * time.Hour)
+	default:
+		cutoff = now.Add(-1 * time.Hour)
+	}
+
+	var history []QPSDataPoint
+	for _, point := range memoryData {
+		if point.Time.After(cutoff) {
+			history = append(history, point)
+		}
+	}
+
+	if len(history) > 0 {
+		oldestInMemory := history[0].Time
+		if oldestInMemory.After(cutoff) {
+			dbRecords, err := database.GetQPSHistoryByTimeRange(cutoff, oldestInMemory)
+			if err == nil && len(dbRecords) > 0 {
+				prepend := make([]QPSDataPoint, len(dbRecords))
+				for i, r := range dbRecords {
+					prepend[i] = QPSDataPoint{Time: r.Timestamp, QPS: r.QPS}
+				}
+				history = append(prepend, history...)
+			}
+		}
+	} else {
+		dbRecords, err := database.GetQPSHistoryByTimeRange(cutoff, now)
+		if err == nil {
+			history = make([]QPSDataPoint, len(dbRecords))
+			for i, r := range dbRecords {
+				history[i] = QPSDataPoint{Time: r.Timestamp, QPS: r.QPS}
+			}
+		}
+	}
+
+	return history
+}
+
+// aggregateQPSData 聚合QPS数据
+func (sm *StatsManager) aggregateQPSData(data []QPSDataPoint, points int, timeRange string) *AggregatedQPSTrend {
+	result := &AggregatedQPSTrend{
+		TimeLabels: make([]string, 0),
+		QPSValues:  make([]float64, 0),
+	}
+
+	if len(data) == 0 {
+		return result
+	}
+
+	var timeFormat string
+	switch timeRange {
+	case "1h", "6h", "24h":
+		timeFormat = "15:04"
+	case "7d":
+		timeFormat = "01-02 15:04"
+	default:
+		timeFormat = "15:04"
+	}
+
+	now := time.Now()
+	var totalDuration time.Duration
+	switch timeRange {
+	case "1h":
+		totalDuration = time.Hour
+	case "6h":
+		totalDuration = 6 * time.Hour
+	case "24h":
+		totalDuration = 24 * time.Hour
+	case "7d":
+		totalDuration = 7 * 24 * time.Hour
+	default:
+		totalDuration = time.Hour
+	}
+
+	if points <= 0 {
+		points = 12
+	}
+
+	interval := totalDuration / time.Duration(points)
+	for i := 0; i < points; i++ {
+		slotStart := now.Add(-totalDuration + time.Duration(i)*interval)
+		slotEnd := slotStart.Add(interval)
+
+		var sum float64
+		var count int
+		for _, point := range data {
+			if point.Time.After(slotStart) && !point.Time.After(slotEnd) {
+				sum += point.QPS
+				count++
+			}
+		}
+
+		var avg float64
+		if count > 0 {
+			avg = round2(sum / float64(count))
+		}
+
+		result.TimeLabels = append(result.TimeLabels, slotStart.Format(timeFormat))
+		result.QPSValues = append(result.QPSValues, avg)
+	}
+
+	stats := sm.calculateTrendStatistics(data)
+	result.Statistics = stats
+
+	return result
+}
+
+// calculateTrendStatistics 计算趋势统计信息
+func (sm *StatsManager) calculateTrendStatistics(data []QPSDataPoint) TrendStatistics {
+	if len(data) == 0 {
+		return TrendStatistics{}
+	}
+
+	min := data[0].QPS
+	max := data[0].QPS
+	sum := 0.0
+
+	for _, point := range data {
+		if point.QPS < min {
+			min = point.QPS
+		}
+		if point.QPS > max {
+			max = point.QPS
+		}
+		sum += point.QPS
+	}
+
+	avg := sum / float64(len(data))
+	current := data[len(data)-1].QPS
+
+	return TrendStatistics{
+		Min:        min,
+		Max:        max,
+		Avg:        round2(avg),
+		Current:    current,
+		DataPoints: len(data),
+	}
+}
+
+// getCachedAggregatedQPSTrend 获取缓存的聚合QPS趋势数据
+func (sm *StatsManager) getCachedAggregatedQPSTrend(cacheKey string) *AggregatedQPSTrend {
+	sm.cacheMutex.RLock()
+	defer sm.cacheMutex.RUnlock()
+
+	if time.Since(sm.lastCacheUpdate) > sm.cacheExpiration {
+		return nil
+	}
+
+	return nil
+}
+
+// cacheAggregatedQPSTrend 缓存聚合QPS趋势数据
+func (sm *StatsManager) cacheAggregatedQPSTrend(cacheKey string, data *AggregatedQPSTrend) {
+	sm.cacheMutex.Lock()
+	defer sm.cacheMutex.Unlock()
+	sm.lastCacheUpdate = time.Now()
+}
+
+// SetPersistEnabled 设置是否启用持久化
+func (sm *StatsManager) SetPersistEnabled(enabled bool) {
+	sm.persistEnabled = enabled
+}
+
+// SetPersistInterval 设置持久化间隔
+func (sm *StatsManager) SetPersistInterval(interval time.Duration) {
+	sm.persistInterval = interval
+}
+
+// SetRetentionDays 设置数据保留天数
+func (sm *StatsManager) SetRetentionDays(days int) {
+	sm.retentionDays = days
+}
+
+// GetPersistenceStatus 获取持久化状态
+func (sm *StatsManager) GetPersistenceStatus() map[string]interface{} {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return map[string]interface{}{
+		"enabled":         sm.persistEnabled,
+		"interval":        sm.persistInterval.String(),
+		"lastPersistTime": sm.lastPersistTime.Format("2006-01-02 15:04:05"),
+		"retentionDays":   sm.retentionDays,
+		"memoryPoints":    len(sm.qpsHistory),
+	}
+}
+
+// AggregatedResourceUsage 聚合后的资源使用数据
+type AggregatedResourceUsage struct {
+	TimeLabels []string           `json:"timeLabels"`
+	CPUValues  []int              `json:"cpuValues"`
+	MemValues  []int              `json:"memValues"`
+	DiskValues []int              `json:"diskValues"`
+	Statistics ResourceStatistics `json:"statistics"`
+}
+
+// ResourceStatistics 资源使用统计信息
+type ResourceStatistics struct {
+	CPU    ResourceStatItem `json:"cpu"`
+	Memory ResourceStatItem `json:"memory"`
+	Disk   ResourceStatItem `json:"disk"`
+}
+
+// ResourceStatItem 单项资源统计
+type ResourceStatItem struct {
+	Min        int     `json:"min"`
+	Max        int     `json:"max"`
+	Avg        float64 `json:"avg"`
+	DataPoints int     `json:"dataPoints"`
+}
+
+// GetAggregatedResourceUsage 获取聚合后的资源使用数据
+func (sm *StatsManager) GetAggregatedResourceUsage(timeRange string, points int) *AggregatedResourceUsage {
+	cacheKey := fmt.Sprintf("resource_%s_%d", timeRange, points)
+	if cached := sm.getCachedAggregatedResourceUsage(cacheKey); cached != nil {
+		return cached
+	}
+
+	history := sm.GetResourceHistoryWithDB(timeRange)
+
+	if len(history) == 0 {
+		return &AggregatedResourceUsage{
+			TimeLabels: []string{},
+			CPUValues:  []int{},
+			MemValues:  []int{},
+			DiskValues: []int{},
+			Statistics: ResourceStatistics{},
+		}
+	}
+
+	result := sm.aggregateResourceData(history, points, timeRange)
+
+	sm.cacheAggregatedResourceUsage(cacheKey, result)
+
+	return result
+}
+
+// GetResourceHistoryWithDB 获取资源使用历史数据（优先从内存，不足时从数据库补充）
+func (sm *StatsManager) GetResourceHistoryWithDB(timeRange string) []ResourceDataPoint {
+	sm.mutex.RLock()
+	memoryData := make([]ResourceDataPoint, len(sm.resourceHistory))
+	copy(memoryData, sm.resourceHistory)
+	sm.mutex.RUnlock()
+
+	var cutoff time.Time
+	now := time.Now()
+
+	switch timeRange {
+	case "1h":
+		cutoff = now.Add(-1 * time.Hour)
+	case "6h":
+		cutoff = now.Add(-6 * time.Hour)
+	case "24h":
+		cutoff = now.Add(-24 * time.Hour)
+	case "7d":
+		cutoff = now.Add(-7 * 24 * time.Hour)
+	default:
+		cutoff = now.Add(-1 * time.Hour)
+	}
+
+	var history []ResourceDataPoint
+	for _, point := range memoryData {
+		if point.Time.After(cutoff) {
+			history = append(history, point)
+		}
+	}
+
+	if len(history) > 0 {
+		oldestInMemory := history[0].Time
+		if oldestInMemory.After(cutoff) {
+			dbRecords, err := database.GetResourceHistoryByTimeRange(cutoff, oldestInMemory)
+			if err == nil && len(dbRecords) > 0 {
+				prepend := make([]ResourceDataPoint, len(dbRecords))
+				for i, r := range dbRecords {
+					prepend[i] = ResourceDataPoint{Time: r.Timestamp, CPU: r.CPU, Memory: r.Memory, Disk: r.Disk}
+				}
+				history = append(prepend, history...)
+			}
+		}
+	} else {
+		dbRecords, err := database.GetResourceHistoryByTimeRange(cutoff, now)
+		if err == nil {
+			history = make([]ResourceDataPoint, len(dbRecords))
+			for i, r := range dbRecords {
+				history[i] = ResourceDataPoint{Time: r.Timestamp, CPU: r.CPU, Memory: r.Memory, Disk: r.Disk}
+			}
+		}
+	}
+
+	return history
+}
+
+// aggregateResourceData 聚合资源使用数据
+func (sm *StatsManager) aggregateResourceData(data []ResourceDataPoint, points int, timeRange string) *AggregatedResourceUsage {
+	result := &AggregatedResourceUsage{
+		TimeLabels: make([]string, 0),
+		CPUValues:  make([]int, 0),
+		MemValues:  make([]int, 0),
+		DiskValues: make([]int, 0),
+	}
+
+	if len(data) == 0 {
+		return result
+	}
+
+	var timeFormat string
+	switch timeRange {
+	case "1h", "6h", "24h":
+		timeFormat = "15:04"
+	case "7d":
+		timeFormat = "01-02 15:04"
+	default:
+		timeFormat = "15:04"
+	}
+
+	now := time.Now()
+	var totalDuration time.Duration
+	switch timeRange {
+	case "1h":
+		totalDuration = time.Hour
+	case "6h":
+		totalDuration = 6 * time.Hour
+	case "24h":
+		totalDuration = 24 * time.Hour
+	case "7d":
+		totalDuration = 7 * 24 * time.Hour
+	default:
+		totalDuration = time.Hour
+	}
+
+	if points <= 0 {
+		points = 12
+	}
+
+	interval := totalDuration / time.Duration(points)
+	for i := 0; i < points; i++ {
+		slotStart := now.Add(-totalDuration + time.Duration(i)*interval)
+		slotEnd := slotStart.Add(interval)
+
+		var sumCPU, sumMem, sumDisk int
+		var count int
+		for _, point := range data {
+			if point.Time.After(slotStart) && !point.Time.After(slotEnd) {
+				sumCPU += point.CPU
+				sumMem += point.Memory
+				sumDisk += point.Disk
+				count++
+			}
+		}
+
+		var avgCPU, avgMem, avgDisk int
+		if count > 0 {
+			avgCPU = sumCPU / count
+			avgMem = sumMem / count
+			avgDisk = sumDisk / count
+		}
+
+		result.TimeLabels = append(result.TimeLabels, slotStart.Format(timeFormat))
+		result.CPUValues = append(result.CPUValues, avgCPU)
+		result.MemValues = append(result.MemValues, avgMem)
+		result.DiskValues = append(result.DiskValues, avgDisk)
+	}
+
+	stats := sm.calculateResourceStatistics(data)
+	result.Statistics = stats
+
+	return result
+}
+
+// calculateResourceStatistics 计算资源使用统计信息
+func (sm *StatsManager) calculateResourceStatistics(data []ResourceDataPoint) ResourceStatistics {
+	if len(data) == 0 {
+		return ResourceStatistics{}
+	}
+
+	minCPU := data[0].CPU
+	maxCPU := data[0].CPU
+	sumCPU := 0
+	minMem := data[0].Memory
+	maxMem := data[0].Memory
+	sumMem := 0
+	minDisk := data[0].Disk
+	maxDisk := data[0].Disk
+	sumDisk := 0
+
+	for _, point := range data {
+		if point.CPU < minCPU {
+			minCPU = point.CPU
+		}
+		if point.CPU > maxCPU {
+			maxCPU = point.CPU
+		}
+		sumCPU += point.CPU
+
+		if point.Memory < minMem {
+			minMem = point.Memory
+		}
+		if point.Memory > maxMem {
+			maxMem = point.Memory
+		}
+		sumMem += point.Memory
+
+		if point.Disk < minDisk {
+			minDisk = point.Disk
+		}
+		if point.Disk > maxDisk {
+			maxDisk = point.Disk
+		}
+		sumDisk += point.Disk
+	}
+
+	count := len(data)
+	return ResourceStatistics{
+		CPU: ResourceStatItem{
+			Min:        minCPU,
+			Max:        maxCPU,
+			Avg:        round2(float64(sumCPU) / float64(count)),
+			DataPoints: count,
+		},
+		Memory: ResourceStatItem{
+			Min:        minMem,
+			Max:        maxMem,
+			Avg:        round2(float64(sumMem) / float64(count)),
+			DataPoints: count,
+		},
+		Disk: ResourceStatItem{
+			Min:        minDisk,
+			Max:        maxDisk,
+			Avg:        round2(float64(sumDisk) / float64(count)),
+			DataPoints: count,
+		},
+	}
+}
+
+// getCachedAggregatedResourceUsage 获取缓存的聚合资源使用数据
+func (sm *StatsManager) getCachedAggregatedResourceUsage(cacheKey string) *AggregatedResourceUsage {
+	sm.cacheMutex.RLock()
+	defer sm.cacheMutex.RUnlock()
+
+	if time.Since(sm.lastCacheUpdate) > sm.cacheExpiration {
+		return nil
+	}
+
+	return nil
+}
+
+// cacheAggregatedResourceUsage 缓存聚合资源使用数据
+func (sm *StatsManager) cacheAggregatedResourceUsage(cacheKey string, data *AggregatedResourceUsage) {
+	sm.cacheMutex.Lock()
+	defer sm.cacheMutex.Unlock()
+	sm.lastCacheUpdate = time.Now()
+}
+
+// round2 保留2位小数
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
 }

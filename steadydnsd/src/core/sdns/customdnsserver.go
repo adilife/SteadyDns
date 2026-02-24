@@ -523,14 +523,10 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 		// 增加消息计数
 		messageCount++
 
-		// 记录开始时间
-		startTime := time.Now()
 		// 提交到协程池处理
 		s.pool.SubmitWithClientIP(s.handler, writer, &msg, clientIP)
-		// 计算响应时间
-		responseTime := time.Since(startTime)
-		// 更新统计信息
-		s.updateStats(n, 0, true, responseTime)
+		// 更新网络流量统计（延迟数据已在 DNSHandler.ServeDNS 中记录）
+		s.updateStats(n, 0, true)
 	}
 
 	// 关闭连接（实际上会由defer语句处理）
@@ -538,7 +534,7 @@ func (s *CustomDNSServer) handleTCPConnection(conn net.Conn) {
 }
 
 // updateStats 更新网络统计信息
-func (s *CustomDNSServer) updateStats(bytesIn, bytesOut int, success bool, responseTime time.Duration) {
+func (s *CustomDNSServer) updateStats(bytesIn, bytesOut int, success bool) {
 	s.statsMu.Lock()
 	defer s.statsMu.Unlock()
 
@@ -570,9 +566,10 @@ func (s *CustomDNSServer) updateStats(bytesIn, bytesOut int, success bool, respo
 		s.stats.RequestRate = float64(s.stats.TotalRequests) / elapsed.Seconds()
 	}
 
-	// 使用统计管理器更新统计信息
+	// 使用统计管理器更新网络流量统计
+	// 注意：延迟数据已在 DNSHandler.ServeDNS 的 RecordQuery 中记录
 	if s.statsManager != nil {
-		s.statsManager.UpdateNetworkStats(bytesIn, bytesOut, success, responseTime)
+		s.statsManager.UpdateNetworkStats(bytesIn, bytesOut, success)
 	}
 }
 
@@ -691,14 +688,10 @@ func (s *CustomDNSServer) processUDPPacket(pc net.PacketConn, udpConn *net.UDPCo
 		clientIP: clientIP,
 	}
 
-	// 记录开始时间
-	startTime := time.Now()
 	// 提交到协程池处理
 	s.pool.SubmitWithClientIP(s.handler, writer, &msg, clientIP)
-	// 计算响应时间
-	responseTime := time.Since(startTime)
-	// 更新统计信息
-	s.updateStats(task.n, 0, true, responseTime)
+	// 更新网络流量统计（延迟数据已在 DNSHandler.ServeDNS 中记录）
+	s.updateStats(task.n, 0, true)
 
 	// 处理完成后归还缓冲区
 	if s.bufPool != nil {
@@ -725,6 +718,12 @@ func (s *CustomDNSServer) Shutdown() error {
 	}
 
 	s.logger.Info("开始关闭DNS服务器...")
+
+	// 停止持久化任务
+	if s.statsManager != nil {
+		s.statsManager.StopPersistence()
+		s.logger.Info("QPS历史数据持久化任务已停止")
+	}
 
 	// 标记服务器为关闭状态
 	s.isShutdown = true
