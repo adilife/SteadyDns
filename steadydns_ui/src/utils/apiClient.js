@@ -681,6 +681,40 @@ class APIClient {
       method: 'GET'
     })
   }
+
+  /**
+   * Get Dashboard summary data
+   * @returns {Promise<any>} Dashboard summary data
+   */
+  async getDashboardSummary() {
+    return this.request('/dashboard/summary', {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Get Dashboard trends data
+   * @param {string} type - Data type (all, qps, resource)
+   * @param {string} timeRange - Time range (1h, 6h, 24h, 7d)
+   * @param {number} points - Number of data points
+   * @returns {Promise<any>} Dashboard trends data
+   */
+  async getDashboardTrends(type = 'all', timeRange = '1h', points = 12) {
+    return this.request(`/dashboard/trends?type=${type}&timeRange=${timeRange}&points=${points}`, {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Get Dashboard top data
+   * @param {number} limit - Limit number of records
+   * @returns {Promise<any>} Dashboard top data
+   */
+  async getDashboardTop(limit = 10) {
+    return this.request(`/dashboard/top?limit=${limit}`, {
+      method: 'GET'
+    })
+  }
 }
 
 // Export singleton instance
