@@ -4,6 +4,8 @@ package sdns
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/miekg/dns"
@@ -131,7 +133,7 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 		var healthyServers []*DNSServer
 		var unhealthyCount int
 		for _, server := range servers {
-			addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 			if f.IsServerHealthy(addr) {
 				healthyServers = append(healthyServers, server)
 				allHealthyServers = append(allHealthyServers, server)
@@ -156,7 +158,7 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 
 			server = servers[0]
 
-			addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 			f.logger.Debug("转发查询 - 尝试服务器 %d: %s (优先级 %d)", i+1, addr, priority)
 
 			// 创建转发任务

@@ -160,6 +160,10 @@ func (h *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	cachedResult, err := h.cacheUpdater.CheckCache(r)
 	cacheDuration := time.Since(cacheStart)
 
+	// 输出debug日志
+	h.logger.Debug("缓存查询 - 域名: %s, 类型: %s, 缓存状态: %v, 耗时: %.2fms",
+		queryDomain, queryType, err, float64(cacheDuration)/float64(time.Millisecond))
+
 	if err == nil && cachedResult != nil {
 		// 缓存命中（包括成功响应和错误响应）
 		if cachedResult.Rcode == dns.RcodeSuccess && len(cachedResult.Answer) > 0 {

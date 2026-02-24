@@ -251,6 +251,9 @@ func startDaemon(daemonManager *common.DaemonManager) error {
 
 // runService 运行服务（前台和后台共用）
 func runService(daemonManager *common.DaemonManager) error {
+	// 加载环境变量
+	common.LoadEnv()
+
 	// 初始化日志
 	if err := initLogger(); err != nil {
 		return fmt.Errorf("初始化日志失败: %v", err)
@@ -275,9 +278,6 @@ func runService(daemonManager *common.DaemonManager) error {
 	logger.Info("版本: %s", Version)
 	logger.Info("配置文件: %s", cliConfig.ConfigPath)
 	logger.Info("日志目录: %s", cliConfig.LogDir)
-
-	// 加载环境变量
-	common.LoadEnv()
 
 	// 检查数据库文件是否存在
 	dbPath := os.Getenv("DB_PATH")
@@ -426,6 +426,10 @@ func initLogger() error {
 	if cliConfig.LogStdout {
 		rotateLogger.SetStdout(true)
 	}
+
+	// 重新加载日志级别（确保配置已加载）
+	logLevel := common.GetLogLevelFromEnv()
+	rotateLogger.SetLevel(logLevel)
 
 	// 设置全局日志器，让所有 Logger 实例使用同一个输出
 	common.SetGlobalLogger(rotateLogger)

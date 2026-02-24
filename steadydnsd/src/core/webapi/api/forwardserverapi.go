@@ -3,6 +3,7 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -284,7 +285,8 @@ func checkForwardServerHealthGin(c *gin.Context, serverID uint) {
 	}
 
 	// 构建服务器地址
-	serverAddr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+
+	serverAddr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 
 	// 创建DNS查询消息
 	query := new(dns.Msg)

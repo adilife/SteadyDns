@@ -186,6 +186,9 @@ func (sm *ServerManager) SetLogLevel(level string) error {
 	globalLogger := common.NewLogger()
 	globalLogger.SetLevel(logLevel)
 
+	// 同时更新全局logger的日志级别
+	common.GetGlobalLogger().SetLevel(logLevel) // ✅ 使用 GetGlobalLogger() 获取真正的全局日志器
+
 	sm.logger.Info("日志级别设置成功: %s", level)
 	return nil
 }

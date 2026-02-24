@@ -3,7 +3,8 @@
 package sdns
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -103,7 +104,7 @@ func (f *DNSForwarder) CleanupServerStats(activeServers []database.DNSServer) {
 	// 创建活跃服务器地址集合
 	activeServerAddrs := make(map[string]bool)
 	for _, server := range activeServers {
-		addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+		addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 		activeServerAddrs[addr] = true
 	}
 
