@@ -480,7 +480,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
               <LineChart data={dashboardData.networkUsage}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
-                <YAxis />
+                <YAxis tickFormatter={(value) => `${(value / 1024).toFixed(1)} KB/s`} />
                 <Tooltip formatter={(value, name) => [formatNetworkSpeed(value), name === 'inbound' ? t('dashboard.inbound', currentLanguage) : t('dashboard.outbound', currentLanguage)]} />
                 <Legend />
                 <Line type="monotone" dataKey="inbound" stroke="#1890ff" name={t('dashboard.inbound', currentLanguage)} />
