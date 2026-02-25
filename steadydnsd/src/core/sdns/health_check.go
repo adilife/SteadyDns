@@ -3,7 +3,8 @@
 package sdns
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/miekg/dns"
@@ -59,7 +60,7 @@ func (f *DNSForwarder) runHealthChecks() {
 	for _, group := range f.groups {
 		for _, priorityServers := range group.PriorityQueues {
 			for _, server := range priorityServers {
-				addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+				addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 				servers = append(servers, addr)
 			}
 		}

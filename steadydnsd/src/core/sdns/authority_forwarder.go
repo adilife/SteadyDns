@@ -6,6 +6,7 @@ package sdns
 import (
 	"SteadyDNS/core/bind"
 	"SteadyDNS/core/common"
+	"SteadyDNS/core/plugin"
 	"fmt"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ type AuthorityForwarder struct {
 	bindManager    *bind.BindManager // 现有的BIND管理器
 	authorityZones []string          // 权威域列表，按长度降序排列
 	bindAddress    string            // BIND服务器地址
+	enabled        bool              // BIND插件是否启用
 	mu             sync.RWMutex      // 保护权威域列表的锁
 }
 
@@ -30,14 +32,21 @@ func NewAuthorityForwarder() *AuthorityForwarder {
 		bindAddress = "127.0.0.1:5300" // 默认值
 	}
 
+	// 检查BIND插件是否启用
+	enabled := plugin.GetPluginManager().IsPluginEnabled("bind")
+
 	forwarder := &AuthorityForwarder{
 		bindManager:    bindManager,
 		authorityZones: []string{},
 		bindAddress:    bindAddress,
+		enabled:        enabled,
 	}
 
-	// 初始化权威域列表
-	forwarder.LoadAuthorityZones()
+	// 只有BIND插件启用时才加载权威域列表
+	if enabled {
+		// 初始化权威域列表
+		forwarder.LoadAuthorityZones()
+	}
 
 	return forwarder
 }
@@ -74,7 +83,13 @@ func (af *AuthorityForwarder) LoadAuthorityZones() error {
 }
 
 // MatchAuthorityZone 匹配权威域
+// 如果BIND插件禁用，直接返回false，不进行匹配
 func (af *AuthorityForwarder) MatchAuthorityZone(queryDomain string) (bool, string) {
+	// 检查BIND插件是否启用
+	if !af.enabled {
+		return false, ""
+	}
+
 	af.mu.RLock()
 	defer af.mu.RUnlock()
 
@@ -101,7 +116,18 @@ func (af *AuthorityForwarder) GetBindAddress() string {
 	return af.bindAddress
 }
 
+// IsBindPluginEnabled 检查BIND插件是否启用
+// 返回值: true表示启用，false表示禁用
+func (af *AuthorityForwarder) IsBindPluginEnabled() bool {
+	return af.enabled
+}
+
 // ReloadAuthorityZones 重新加载权威域列表
+// 如果BIND插件禁用，直接返回nil，不进行加载
 func (af *AuthorityForwarder) ReloadAuthorityZones() error {
+	// 检查BIND插件是否启用
+	if !af.enabled {
+		return nil
+	}
 	return af.LoadAuthorityZones()
 }

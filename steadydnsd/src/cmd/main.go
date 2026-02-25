@@ -30,6 +30,8 @@ import (
 	"SteadyDNS/core/bind"
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/database"
+	"SteadyDNS/core/plugin"
+	"SteadyDNS/core/plugin/plugins"
 	"SteadyDNS/core/webapi/api"
 
 	"github.com/gin-gonic/gin"
@@ -251,6 +253,9 @@ func startDaemon(daemonManager *common.DaemonManager) error {
 
 // runService 运行服务（前台和后台共用）
 func runService(daemonManager *common.DaemonManager) error {
+	// 加载环境变量
+	common.LoadEnv()
+
 	// 初始化日志
 	if err := initLogger(); err != nil {
 		return fmt.Errorf("初始化日志失败: %v", err)
@@ -276,9 +281,6 @@ func runService(daemonManager *common.DaemonManager) error {
 	logger.Info("配置文件: %s", cliConfig.ConfigPath)
 	logger.Info("日志目录: %s", cliConfig.LogDir)
 
-	// 加载环境变量
-	common.LoadEnv()
-
 	// 检查数据库文件是否存在
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
@@ -301,6 +303,43 @@ func runService(daemonManager *common.DaemonManager) error {
 		logger.Warn("数据库初始化完成")
 	} else {
 		logger.Info("数据库文件已存在，使用现有数据库")
+	}
+
+	// 初始化插件系统
+	logger.Info("初始化插件系统...")
+	pm := plugin.GetPluginManager()
+
+	// 注册BIND插件
+	bindPlugin := plugins.NewBindPlugin()
+	if err := pm.RegisterPlugin(bindPlugin); err != nil {
+		logger.Warn("注册BIND插件失败: %v", err)
+	} else {
+		logger.Info("BIND插件注册成功")
+	}
+
+	// 根据配置设置插件状态
+	bindEnabled := common.GetConfigBool("Plugins", "BIND_ENABLED", true)
+	pm.SetPluginEnabled("bind", bindEnabled)
+	if bindEnabled {
+		logger.Info("BIND插件已启用")
+	} else {
+		logger.Info("BIND插件已禁用")
+	}
+
+	// 设置预留插件状态（功能暂未实现）
+	dnsRulesEnabled := common.GetConfigBool("Plugins", "DNS_RULES_ENABLED", false)
+	pm.SetPluginEnabled(plugin.PluginNameDNSRules, dnsRulesEnabled)
+	logger.Info("DNS规则插件状态: %v (预留功能)", dnsRulesEnabled)
+
+	logAnalysisEnabled := common.GetConfigBool("Plugins", "LOG_ANALYSIS_ENABLED", false)
+	pm.SetPluginEnabled(plugin.PluginNameLogAnalysis, logAnalysisEnabled)
+	logger.Info("日志分析插件状态: %v (预留功能)", logAnalysisEnabled)
+
+	// 初始化所有启用的插件
+	if err := pm.InitializeEnabledPlugins(); err != nil {
+		logger.Warn("初始化插件失败: %v", err)
+	} else {
+		logger.Info("插件系统初始化完成")
 	}
 
 	// 获取ServerManager实例
@@ -427,6 +466,10 @@ func initLogger() error {
 		rotateLogger.SetStdout(true)
 	}
 
+	// 重新加载日志级别（确保配置已加载）
+	logLevel := common.GetLogLevelFromEnv()
+	rotateLogger.SetLevel(logLevel)
+
 	// 设置全局日志器，让所有 Logger 实例使用同一个输出
 	common.SetGlobalLogger(rotateLogger)
 
@@ -488,6 +531,15 @@ func checkDBFileExists(dbPath string) bool {
 //
 //	error: 操作过程中遇到的错误
 func checkAndStartBindService() error {
+	// 获取插件管理器实例
+	pm := plugin.GetPluginManager()
+
+	// 检查BIND插件是否启用
+	if !pm.IsPluginEnabled("bind") {
+		logger.Info("BIND插件已禁用，跳过BIND服务检查和启动")
+		return nil
+	}
+
 	// 创建BIND管理器实例
 	bindManager := bind.NewBindManager()
 

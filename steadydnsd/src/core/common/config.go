@@ -219,6 +219,19 @@ DNS_MESSAGE_SIZE_LIMIT=4096
 # Default: true, Recommended: true
 # Enable DNS message validation to prevent poisoning attacks
 DNS_VALIDATION_ENABLED=true
+
+[Plugins]
+# BIND Plugin - Authoritative Domain Management, BIND Server Management, Forwarding Queries, Backup
+# Restart the service for changes to take effect
+BIND_ENABLED=true
+
+# DNS Rules Plugin - DNS query rules management (Reserved - feature not implemented yet)
+# Restart the service for changes to take effect
+DNS_RULES_ENABLED=false
+
+# Log Analysis Plugin - DNS query log analysis (Reserved - feature not implemented yet)
+# Restart the service for changes to take effect
+LOG_ANALYSIS_ENABLED=false
 `
 
 // Config 存储配置信息
@@ -356,6 +369,7 @@ func setDefaultConfig() {
 	ensureSection("Cache")
 	ensureSection("Logging")
 	ensureSection("Security")
+	ensureSection("Plugins")
 
 	// 设置默认值
 	setDefault("Database", "DB_PATH", "steadydns.db")
@@ -418,6 +432,11 @@ func setDefaultConfig() {
 	setDefault("Security", "DNS_BAN_DURATION", "5")
 	setDefault("Security", "DNS_MESSAGE_SIZE_LIMIT", "4096")
 	setDefault("Security", "DNS_VALIDATION_ENABLED", "true")
+	// 插件配置
+	setDefault("Plugins", "BIND_ENABLED", "true")
+	// 预留插件配置（功能暂未实现）
+	setDefault("Plugins", "DNS_RULES_ENABLED", "false")
+	setDefault("Plugins", "LOG_ANALYSIS_ENABLED", "false")
 }
 
 // ensureSection 确保节存在

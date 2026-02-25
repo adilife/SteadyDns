@@ -34,7 +34,7 @@ type Record struct {
 	Value    string `json:"value"`
 	Priority int    `json:"priority,omitempty"` // 可选，用于MX记录
 	TTL      int    `json:"ttl,omitempty"`      // 可选，记录的生存时间
-	Comment  string `json:"comment,omitempty"`   // 可选，记录后的注释信息
+	Comment  string `json:"comment,omitempty"`  // 可选，记录后的注释信息
 }
 
 // AuthZone 权威域信息
@@ -43,6 +43,7 @@ type AuthZone struct {
 	Type       string    `json:"type"`
 	File       string    `json:"file"`
 	AllowQuery string    `json:"allow_query"`
+	Comment    string    `json:"comment,omitempty"` // 权威域注释信息，对应 named.conf 中 zone 配置块的前置注释
 	SOA        SOARecord `json:"soa"`
 	Records    []Record  `json:"records"` // 通用记录切片，包含除SOA外的所有记录
 }

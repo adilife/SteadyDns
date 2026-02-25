@@ -161,9 +161,12 @@ func CheckConnection() error {
 func InitializeDatabase() error {
 	// 创建表 - 按依赖关系排序
 	tables := []interface{}{
-		&User{},         // 用户表
-		&ForwardGroup{}, // 转发组表
-		&DNSServer{},    // DNS服务器表
+		&User{},            // 用户表
+		&ForwardGroup{},    // 转发组表
+		&DNSServer{},       // DNS服务器表
+		&QPSHistory{},      // QPS历史记录表
+		&ResourceHistory{}, // 资源使用历史记录表
+		&NetworkHistory{},  // 网络流量历史记录表
 	}
 
 	for _, table := range tables {

@@ -17,6 +17,26 @@ import (
 	"SteadyDNS/core/common"
 )
 
+// systemZones 定义系统区域列表，这些区域对前端完全屏蔽
+var systemZones = map[string]bool{
+	".":                    true, // 根区域
+	"localhost":            true, // 本地回环正向解析
+	"0.0.127.in-addr.arpa": true, // IPv4 本地回环反向解析
+	"1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa": true, // IPv6 本地回环反向解析
+	"rpz.local": true, // 响应策略区（RPZ）
+}
+
+// isSystemZone 判断指定域名是否为系统区域
+// 参数:
+//   - domain: 域名
+//
+// 返回:
+//   - true: 是系统区域
+//   - false: 不是系统区域
+func isSystemZone(domain string) bool {
+	return systemZones[domain]
+}
+
 // NewBindManager 创建BIND管理器实例
 func NewBindManager() *BindManager {
 	logger := common.NewLogger()
@@ -65,36 +85,91 @@ func NewBindManager() *BindManager {
 	return bm
 }
 
+// extractZoneComment 从 named.conf 内容中提取指定 zone 的前置注释
+// 参数:
+//   - content: named.conf 文件内容
+//   - zoneStartIndex: zone 配置块在内容中的起始位置
+//
+// 返回:
+//   - 前置注释内容（多行注释用换行符连接），如果没有注释则返回空字符串
+func extractZoneComment(content string, zoneStartIndex int) string {
+	if zoneStartIndex <= 0 {
+		return ""
+	}
+
+	// 获取 zone 之前的文本
+	beforeZone := content[:zoneStartIndex]
+	lines := strings.Split(beforeZone, "\n")
+
+	var comments []string
+	// 从后向前遍历，收集连续的注释行
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+
+		// 跳过空行
+		if line == "" {
+			continue
+		}
+
+		// 检查是否是注释行
+		if strings.HasPrefix(line, "//") {
+			comment := strings.TrimPrefix(line, "//")
+			comments = append([]string{strings.TrimSpace(comment)}, comments...)
+		} else if strings.HasPrefix(line, "#") {
+			comment := strings.TrimPrefix(line, "#")
+			comments = append([]string{strings.TrimSpace(comment)}, comments...)
+		} else {
+			// 遇到非注释行，停止收集
+			break
+		}
+	}
+
+	if len(comments) == 0 {
+		return ""
+	}
+
+	return strings.Join(comments, "\n")
+}
+
 // GetAuthZones 获取所有权威域
 func (bm *BindManager) GetAuthZones() ([]AuthZone, error) {
 	zones := make([]AuthZone, 0)
 
 	// 读取named.conf文件
 	namedConfPath := filepath.Join(bm.config.NamedConfPath, "named.conf")
-	content, err := os.ReadFile(namedConfPath)
+	contentBytes, err := os.ReadFile(namedConfPath)
 	if err != nil {
 		bm.logger.Error("读取named.conf文件失败: %v", err)
 		return nil, fmt.Errorf("读取named.conf文件失败: %v", err)
 	}
+	content := string(contentBytes)
 
 	// 放宽正则表达式，允许缺少allow-query配置
 	zoneRegex := regexp.MustCompile(`zone\s+"([^"]+)"\s+IN\s+\{[^\}]*type\s+master;[^\}]*file\s+"([^"]+)"[^\}]*\}`)
-	matches := zoneRegex.FindAllStringSubmatch(string(content), -1)
+	matches := zoneRegex.FindAllStringSubmatchIndex(content, -1)
 
 	for _, match := range matches {
-		if len(match) < 3 {
+		if len(match) < 6 {
 			continue
 		}
 
+		// 提取域名和文件路径
+		domain := content[match[2]:match[3]]
+		zoneFile := content[match[4]:match[5]]
+
 		zone := AuthZone{
-			Domain: match[1],
+			Domain: domain,
 			Type:   "master",
-			File:   match[2],
+			File:   zoneFile,
 		}
 
+		// 提取前置注释
+		zoneStartIndex := match[0]
+		zone.Comment = extractZoneComment(content, zoneStartIndex)
+
 		// 提取allow-query配置（如果存在）
-		allowQueryRegex := regexp.MustCompile(fmt.Sprintf(`zone\s+"%s"\s+IN\s+\{[^\}]*allow-query\s+\{\s*([^\}]+)\s*\}[^\}]*\}`, regexp.QuoteMeta(match[1])))
-		allowQueryMatch := allowQueryRegex.FindStringSubmatch(string(content))
+		allowQueryRegex := regexp.MustCompile(fmt.Sprintf(`zone\s+"%s"\s+IN\s+\{[^\}]*allow-query\s+\{\s*([^\}]+)\s*\}[^\}]*\}`, regexp.QuoteMeta(domain)))
+		allowQueryMatch := allowQueryRegex.FindStringSubmatch(content)
 		if len(allowQueryMatch) > 1 {
 			zone.AllowQuery = strings.TrimSpace(allowQueryMatch[1])
 		} else {
@@ -109,7 +184,7 @@ func (bm *BindManager) GetAuthZones() ([]AuthZone, error) {
 		}
 
 		// 读取zone文件获取详细信息
-		zoneFilePath := filepath.Join(bm.config.ZoneFilePath, filepath.Base(match[2]))
+		zoneFilePath := filepath.Join(bm.config.ZoneFilePath, filepath.Base(zoneFile))
 		zoneDetail, err := bm.parseZoneFile(zoneFilePath, zone.Domain)
 		if err != nil {
 			bm.logger.Warn("解析zone文件失败: %v, 跳过该域", err)
@@ -120,6 +195,12 @@ func (bm *BindManager) GetAuthZones() ([]AuthZone, error) {
 		zone.SOA = zoneDetail.SOA
 		zone.Records = zoneDetail.Records
 
+		// 跳过系统区域
+		if isSystemZone(zone.Domain) {
+			bm.logger.Debug("跳过系统区域: %s", zone.Domain)
+			continue
+		}
+
 		zones = append(zones, zone)
 	}
 
@@ -128,6 +209,11 @@ func (bm *BindManager) GetAuthZones() ([]AuthZone, error) {
 
 // GetAuthZone 获取单个权威域
 func (bm *BindManager) GetAuthZone(domain string) (*AuthZone, error) {
+	// 检查是否为系统区域
+	if isSystemZone(domain) {
+		return nil, fmt.Errorf("系统区域不允许查询: %s", domain)
+	}
+
 	zones, err := bm.GetAuthZones()
 	if err != nil {
 		return nil, err
@@ -160,6 +246,11 @@ func (bm *BindManager) getAllZoneFiles() ([]string, error) {
 
 // CreateAuthZone 创建权威域
 func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
+	// 检查是否为系统区域
+	if isSystemZone(zone.Domain) {
+		return fmt.Errorf("不能创建系统区域: %s", zone.Domain)
+	}
+
 	// 自动生成SOA序列号，忽略前端传入的值
 	zone.SOA.Serial = generateSerial()
 
@@ -313,7 +404,7 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 	}
 
 	// 更新named.conf文件
-	if err := bm.addZoneToNamedConf(namedConfPath, zone.Domain, zoneFileName, zone.AllowQuery); err != nil {
+	if err := bm.addZoneToNamedConf(namedConfPath, zone.Domain, zoneFileName, zone.AllowQuery, zone.Comment); err != nil {
 		// 回滚：删除创建的zone文件
 		os.Remove(zoneFilePath)
 		// 操作失败，删除备份记录
@@ -364,6 +455,11 @@ func (bm *BindManager) CreateAuthZone(zone AuthZone) error {
 
 // UpdateAuthZone 更新权威域
 func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
+	// 检查是否为系统区域
+	if isSystemZone(zone.Domain) {
+		return fmt.Errorf("不能更新系统区域: %s", zone.Domain)
+	}
+
 	// 检查CNAME冲突
 	if err := CheckCNAMEConflicts(zone); err != nil {
 		return err
@@ -376,8 +472,45 @@ func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
 		}
 	}
 
+	// 获取现有 zone 信息，用于比较是否需要更新 named.conf
+	existingZones, err := bm.GetAuthZones()
+	if err != nil {
+		return fmt.Errorf("获取现有权威域失败: %v", err)
+	}
+
+	var existingZone *AuthZone
+	for i := range existingZones {
+		if existingZones[i].Domain == zone.Domain {
+			existingZone = &existingZones[i]
+			break
+		}
+	}
+
+	if existingZone == nil {
+		return fmt.Errorf("权威域不存在: %s", zone.Domain)
+	}
+
+	// 检查是否需要更新 named.conf（allow-query 或 comment 变更）
+	needUpdateNamedConf := false
+	if zone.AllowQuery != "" && zone.AllowQuery != existingZone.AllowQuery {
+		needUpdateNamedConf = true
+	}
+	if zone.Comment != existingZone.Comment {
+		needUpdateNamedConf = true
+	}
+
+	// 如果前端未提供 AllowQuery，使用现有值
+	if zone.AllowQuery == "" {
+		zone.AllowQuery = existingZone.AllowQuery
+	}
+
+	// 保持 file 字段一致
+	zoneFileName := filepath.Base(existingZone.File)
+	if zone.File == "" {
+		zone.File = existingZone.File
+	}
+
 	// 生成zone文件路径
-	zoneFileName := fmt.Sprintf("%s.zone", zone.Domain)
 	zoneFilePath := filepath.Join(bm.config.ZoneFilePath, zoneFileName)
 
 	// 读取操作前的zone文件内容用于备份
@@ -508,6 +641,24 @@ func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
 		return fmt.Errorf("验证zone文件失败: %v", err)
 	}
 
+	// 如果需要更新 named.conf
+	if needUpdateNamedConf {
+		namedConfPath := filepath.Join(bm.config.NamedConfPath, "named.conf")
+		if err := bm.updateZoneInNamedConf(namedConfPath, zone.Domain, zoneFileName, zone.AllowQuery, zone.Comment); err != nil {
+			bm.logger.Error("更新named.conf文件失败: %v", err)
+			return fmt.Errorf("更新named.conf文件失败: %v", err)
+		}
+
+		// 验证named.conf配置
+		if err := bm.ValidateConfig(); err != nil {
+			// 回滚：恢复原始named.conf
+			bm.updateZoneInNamedConf(namedConfPath, existingZone.Domain,
+				filepath.Base(existingZone.File), existingZone.AllowQuery, existingZone.Comment)
+			bm.logger.Error("验证named.conf配置失败: %v", err)
+			return fmt.Errorf("验证named.conf配置失败: %v", err)
+		}
+	}
+
 	// 刷新BIND服务器
 	if err := bm.ReloadBind(); err != nil {
 		bm.logger.Error("刷新BIND服务器失败: %v", err)
@@ -520,6 +671,11 @@ func (bm *BindManager) UpdateAuthZone(zone AuthZone) error {
 
 // DeleteAuthZone 删除权威域
 func (bm *BindManager) DeleteAuthZone(domain string) error {
+	// 检查是否为系统区域
+	if isSystemZone(domain) {
+		return fmt.Errorf("不能删除系统区域: %s", domain)
+	}
+
 	// 生成zone文件路径
 	zoneFileName := fmt.Sprintf("%s.zone", domain)
 	zoneFilePath := filepath.Join(bm.config.ZoneFilePath, zoneFileName)

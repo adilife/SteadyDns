@@ -4,6 +4,8 @@ package sdns
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/miekg/dns"
@@ -55,6 +57,7 @@ func (t *DNSForwardTask) Process() {
 }
 
 // ForwardQuery 转发DNS查询
+// 如果BIND插件禁用，跳过权威域转发逻辑
 func (f *DNSForwarder) ForwardQuery(query *dns.Msg) (*dns.Msg, error) {
 	startTime := time.Now()
 
@@ -64,22 +67,25 @@ func (f *DNSForwarder) ForwardQuery(query *dns.Msg) (*dns.Msg, error) {
 		queryType = dns.TypeToString[query.Question[0].Qtype]
 	}
 
-	// 检查是否匹配权威域
-	isAuthority, authorityZone := f.authorityForwarder.MatchAuthorityZone(queryDomain)
-	if isAuthority {
-		// 匹配权威域，转发至BIND服务器
-		bindAddr := f.authorityForwarder.GetBindAddress()
-		f.logger.Debug("转发查询 - 匹配权威域: %s, 转发至BIND服务器: %s", authorityZone, bindAddr)
-		result, err := f.forwardToServer(bindAddr, query, nil)
-		if err == nil && result != nil {
-			return result, nil
+	// 检查BIND插件是否启用，只有启用时才进行权威域匹配
+	if f.authorityForwarder.IsBindPluginEnabled() {
+		// 检查是否匹配权威域
+		isAuthority, authorityZone := f.authorityForwarder.MatchAuthorityZone(queryDomain)
+		if isAuthority {
+			// 匹配权威域，转发至BIND服务器
+			bindAddr := f.authorityForwarder.GetBindAddress()
+			f.logger.Debug("转发查询 - 匹配权威域: %s, 转发至BIND服务器: %s", authorityZone, bindAddr)
+			result, err := f.forwardToServer(bindAddr, query, nil)
+			if err == nil && result != nil {
+				return result, nil
+			}
+			// 权威域查询失败，直接返回错误，不再尝试其他服务器
+			f.logger.Error("权威域查询失败: %v", err)
+			return nil, fmt.Errorf("权威域查询失败: %v", err)
 		}
-		// 权威域查询失败，直接返回错误，不再尝试其他服务器
-		f.logger.Error("权威域查询失败: %v", err)
-		return nil, fmt.Errorf("权威域查询失败: %v", err)
 	}
 
-	// 非权威域查询，使用最长匹配算法选择合适的转发组
+	// 非权威域查询或BIND插件禁用，使用最长匹配算法选择合适的转发组
 	matchedGroup := f.matchDomain(queryDomain)
 	if matchedGroup == nil {
 		f.logger.Error("转发查询 - 没有可用的转发组")
@@ -131,7 +137,7 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 		var healthyServers []*DNSServer
 		var unhealthyCount int
 		for _, server := range servers {
-			addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 			if f.IsServerHealthy(addr) {
 				healthyServers = append(healthyServers, server)
 				allHealthyServers = append(allHealthyServers, server)
@@ -156,7 +162,7 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 
 			server = servers[0]
 
-			addr := fmt.Sprintf("%s:%d", server.Address, server.Port)
+			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 			f.logger.Debug("转发查询 - 尝试服务器 %d: %s (优先级 %d)", i+1, addr, priority)
 
 			// 创建转发任务
