@@ -175,6 +175,35 @@ type ResourceStatItem struct {
 	DataPoints int     `json:"dataPoints"`
 }
 
+// NetworkUsage 网络流量趋势数据结构
+type NetworkUsage struct {
+	Time     string `json:"time"`
+	Inbound  uint64 `json:"inbound"`
+	Outbound uint64 `json:"outbound"`
+}
+
+// NetworkUsageAggregated 网络流量聚合数据结构
+type NetworkUsageAggregated struct {
+	TimeLabels     []string               `json:"timeLabels"`
+	InboundValues  []uint64               `json:"inboundValues"`
+	OutboundValues []uint64               `json:"outboundValues"`
+	Statistics     NetworkUsageStatistics `json:"statistics"`
+}
+
+// NetworkUsageStatistics 网络流量统计信息
+type NetworkUsageStatistics struct {
+	Inbound  NetworkStatItem `json:"inbound"`
+	Outbound NetworkStatItem `json:"outbound"`
+}
+
+// NetworkStatItem 网络流量统计项
+type NetworkStatItem struct {
+	Min        uint64  `json:"min"`
+	Max        uint64  `json:"max"`
+	Avg        float64 `json:"avg"`
+	DataPoints int     `json:"dataPoints"`
+}
+
 // 热门域名结构
 type TopDomain struct {
 	Rank       int     `json:"rank"`
@@ -204,6 +233,7 @@ type DashboardTrendsResponse struct {
 	QPSTrend      interface{}       `json:"qpsTrend"`
 	LatencyData   []LatencyData     `json:"latencyData"`
 	ResourceUsage interface{}       `json:"resourceUsage"`
+	NetworkUsage  interface{}       `json:"networkUsage"`
 	RequestInfo   *TrendRequestInfo `json:"requestInfo,omitempty"`
 }
 
@@ -260,11 +290,11 @@ func getDashboardTrendsGin(c *gin.Context) {
 		dataType = "all"
 	}
 
-	validTypes := map[string]bool{"qps": true, "resource": true, "all": true}
+	validTypes := map[string]bool{"qps": true, "resource": true, "network": true, "all": true}
 	if !validTypes[dataType] {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "无效的type参数，可选值：qps, resource, all",
+			"error":   "无效的type参数，可选值：qps, resource, network, all",
 		})
 		return
 	}
@@ -316,6 +346,14 @@ func getDashboardTrendsGin(c *gin.Context) {
 			response.ResourceUsage = getResourceUsageAggregated(timeRange, points)
 		} else {
 			response.ResourceUsage = getResourceUsage(timeRange)
+		}
+	}
+
+	if dataType == "network" || dataType == "all" {
+		if points > 0 {
+			response.NetworkUsage = getNetworkUsageAggregated(timeRange, points)
+		} else {
+			response.NetworkUsage = getNetworkUsage(timeRange)
 		}
 	}
 
@@ -567,14 +605,28 @@ func formatSize(bytes int64) string {
 
 // getSystemResources 获取系统资源使用情况
 func getSystemResources() SystemResources {
-	// TODO: 从实际系统中获取数据
-	// 暂时返回模拟数据
 	var resources SystemResources
-	resources.CPU = 45
-	resources.Memory = 68
-	resources.Disk = 32
-	resources.Network.Inbound = "12 MB/s"
-	resources.Network.Outbound = "8 MB/s"
+
+	statsManager := sdns.GetStatsManager()
+	if statsManager != nil {
+		resources.CPU, resources.Memory, resources.Disk = statsManager.GetSystemResourceUsageForAPI()
+
+		networkSpeed := statsManager.GetNetworkSpeed()
+		if networkSpeed != nil {
+			resources.Network.Inbound = sdns.FormatNetworkSpeed(networkSpeed.InboundBps)
+			resources.Network.Outbound = sdns.FormatNetworkSpeed(networkSpeed.OutboundBps)
+		} else {
+			resources.Network.Inbound = "0 B/s"
+			resources.Network.Outbound = "0 B/s"
+		}
+	} else {
+		resources.CPU = 0
+		resources.Memory = 0
+		resources.Disk = 0
+		resources.Network.Inbound = "0 B/s"
+		resources.Network.Outbound = "0 B/s"
+	}
+
 	return resources
 }
 
@@ -807,4 +859,93 @@ func getTopClients(limit int) []TopClient {
 	}
 
 	return clients
+}
+
+// getNetworkUsage 获取网络流量趋势数据
+// 参数：
+//   - timeRange: 时间范围（1h, 6h, 24h, 7d）
+//
+// 返回：
+//   - []NetworkUsage: 网络流量趋势数据数组
+func getNetworkUsage(timeRange string) []NetworkUsage {
+	// 获取统计管理器
+	statsManager := sdns.GetStatsManager()
+	if statsManager == nil {
+		// 统计管理器不可用，返回空数组
+		return []NetworkUsage{}
+	}
+
+	// 获取网络流量历史数据
+	networkHistory := statsManager.GetNetworkHistory(timeRange)
+
+	// 转换为响应格式
+	usage := make([]NetworkUsage, 0)
+	for _, point := range networkHistory {
+		var timeFormat string
+		switch timeRange {
+		case "1h", "6h", "24h":
+			timeFormat = "15:04"
+		case "7d":
+			timeFormat = "01-02"
+		default:
+			timeFormat = "15:04"
+		}
+
+		usage = append(usage, NetworkUsage{
+			Time:     point.Time.Format(timeFormat),
+			Inbound:  point.InboundBps,
+			Outbound: point.OutboundBps,
+		})
+	}
+
+	return usage
+}
+
+// getNetworkUsageAggregated 获取聚合后的网络流量趋势数据
+// 参数：
+//   - timeRange: 时间范围（1h, 6h, 24h, 7d）
+//   - points: 数据点数量
+//
+// 返回：
+//   - NetworkUsageAggregated: 聚合后的网络流量趋势数据
+func getNetworkUsageAggregated(timeRange string, points int) NetworkUsageAggregated {
+	statsManager := sdns.GetStatsManager()
+	if statsManager == nil {
+		return NetworkUsageAggregated{
+			TimeLabels:     []string{},
+			InboundValues:  []uint64{},
+			OutboundValues: []uint64{},
+			Statistics:     NetworkUsageStatistics{},
+		}
+	}
+
+	aggregated := statsManager.GetAggregatedNetworkUsage(timeRange, points)
+	if aggregated == nil {
+		return NetworkUsageAggregated{
+			TimeLabels:     []string{},
+			InboundValues:  []uint64{},
+			OutboundValues: []uint64{},
+			Statistics:     NetworkUsageStatistics{},
+		}
+	}
+
+	return NetworkUsageAggregated{
+		TimeLabels:     aggregated.TimeLabels,
+		InboundValues:  aggregated.InboundValues,
+		OutboundValues: aggregated.OutboundValues,
+		Statistics: NetworkUsageStatistics{
+			Inbound: NetworkStatItem{
+				Min:        aggregated.Statistics.Inbound.Min,
+				Max:        aggregated.Statistics.Inbound.Max,
+				Avg:        aggregated.Statistics.Inbound.Avg,
+				DataPoints: aggregated.Statistics.Inbound.DataPoints,
+			},
+			Outbound: NetworkStatItem{
+				Min:        aggregated.Statistics.Outbound.Min,
+				Max:        aggregated.Statistics.Outbound.Max,
+				Avg:        aggregated.Statistics.Outbound.Avg,
+				DataPoints: aggregated.Statistics.Outbound.DataPoints,
+			},
+		},
+	}
 }

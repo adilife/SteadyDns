@@ -27,6 +27,7 @@ type StatsManager struct {
 	qpsHistory       []QPSDataPoint
 	latencyData      []int64
 	resourceHistory  []ResourceDataPoint
+	networkHistory   []NetworkDataPoint
 	lastCleanupTime  time.Time
 	cleanupInterval  time.Duration
 	maxHistoryPoints int
@@ -49,6 +50,27 @@ type StatsManager struct {
 
 	// 资源监控相关
 	stopResourceMonitor chan struct{}
+
+	// 网络流量监控相关
+	networkMonitorMutex sync.RWMutex
+	lastNetworkStats    *NetworkInterfaceStats
+	currentNetworkSpeed *NetworkSpeed
+}
+
+// NetworkInterfaceStats 网络接口统计信息
+type NetworkInterfaceStats struct {
+	BytesRecv   uint64
+	BytesSent   uint64
+	PacketsRecv uint64
+	PacketsSent uint64
+	Timestamp   time.Time
+}
+
+// NetworkSpeed 网络速度
+type NetworkSpeed struct {
+	InboundBps  uint64
+	OutboundBps uint64
+	Timestamp   time.Time
 }
 
 // QPSDataPoint QPS数据点
@@ -65,6 +87,13 @@ type ResourceDataPoint struct {
 	Disk   int
 }
 
+// NetworkDataPoint 网络流量数据点
+type NetworkDataPoint struct {
+	Time        time.Time
+	InboundBps  uint64
+	OutboundBps uint64
+}
+
 // NewStatsManager 创建统计管理器
 func NewStatsManager(logger *common.Logger) *StatsManager {
 	return &StatsManager{
@@ -75,6 +104,7 @@ func NewStatsManager(logger *common.Logger) *StatsManager {
 		qpsHistory:       make([]QPSDataPoint, 0),
 		latencyData:      make([]int64, 0),
 		resourceHistory:  make([]ResourceDataPoint, 0),
+		networkHistory:   make([]NetworkDataPoint, 0),
 		lastCleanupTime:  time.Now(),
 		cleanupInterval:  5 * time.Minute,
 		maxHistoryPoints: 10080, // 7天 * 24小时 * 60分钟
@@ -95,6 +125,9 @@ func NewStatsManager(logger *common.Logger) *StatsManager {
 
 		// 初始化资源监控
 		stopResourceMonitor: make(chan struct{}),
+
+		// 初始化网络流量监控
+		currentNetworkSpeed: &NetworkSpeed{Timestamp: time.Now()},
 	}
 }
 
@@ -157,6 +190,15 @@ func (sm *StatsManager) asyncCleanup() {
 		}
 	}
 	sm.resourceHistory = filteredResources
+
+	// 清理网络流量历史数据
+	var filteredNetwork []NetworkDataPoint
+	for _, point := range sm.networkHistory {
+		if point.Time.After(cutoff) {
+			filteredNetwork = append(filteredNetwork, point)
+		}
+	}
+	sm.networkHistory = filteredNetwork
 
 	// 限制延迟数据点数量
 	if len(sm.latencyData) > 10000 {
@@ -775,6 +817,8 @@ func (sm *StatsManager) StopPersistence() {
 
 // StartResourceMonitor 启动系统资源监控
 func (sm *StatsManager) StartResourceMonitor() {
+	sm.collectNetworkStats()
+
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
@@ -804,6 +848,14 @@ func (sm *StatsManager) StopResourceMonitor() {
 func (sm *StatsManager) collectResourceUsage() {
 	cpu, memory, disk := sm.getSystemResourceUsage()
 	sm.UpdateResourceUsage(cpu, memory, disk)
+	sm.collectNetworkStats()
+
+	// 保存网络流量数据到历史记录
+	sm.networkMonitorMutex.RLock()
+	if sm.currentNetworkSpeed != nil {
+		sm.UpdateNetworkHistory(sm.currentNetworkSpeed.InboundBps, sm.currentNetworkSpeed.OutboundBps)
+	}
+	sm.networkMonitorMutex.RUnlock()
 }
 
 // getSystemResourceUsage 获取系统资源使用率
@@ -812,6 +864,11 @@ func (sm *StatsManager) getSystemResourceUsage() (cpu int, memory int, disk int)
 	memory = sm.getMemoryUsage()
 	disk = sm.getDiskUsage()
 	return
+}
+
+// GetSystemResourceUsageForAPI 获取系统资源使用率（供API调用）
+func (sm *StatsManager) GetSystemResourceUsageForAPI() (cpu int, memory int, disk int) {
+	return sm.getSystemResourceUsage()
 }
 
 // getCPUUsage 获取CPU使用率
@@ -932,7 +989,7 @@ func (sm *StatsManager) persistToDatabase() {
 	defer sm.persistMutex.Unlock()
 
 	sm.mutex.RLock()
-	if len(sm.qpsHistory) == 0 && len(sm.resourceHistory) == 0 {
+	if len(sm.qpsHistory) == 0 && len(sm.resourceHistory) == 0 && len(sm.networkHistory) == 0 {
 		sm.mutex.RUnlock()
 		return
 	}
@@ -949,6 +1006,13 @@ func (sm *StatsManager) persistToDatabase() {
 	for _, point := range sm.resourceHistory {
 		if point.Time.After(lastPersist) {
 			toPersistResource = append(toPersistResource, point)
+		}
+	}
+
+	var toPersistNetwork []NetworkDataPoint
+	for _, point := range sm.networkHistory {
+		if point.Time.After(lastPersist) {
+			toPersistNetwork = append(toPersistNetwork, point)
 		}
 	}
 	sm.mutex.RUnlock()
@@ -987,12 +1051,31 @@ func (sm *StatsManager) persistToDatabase() {
 		}
 	}
 
-	if len(toPersistQPS) > 0 || len(toPersistResource) > 0 {
+	if len(toPersistNetwork) > 0 {
+		records := make([]database.NetworkHistory, len(toPersistNetwork))
+		for i, point := range toPersistNetwork {
+			records[i] = database.NetworkHistory{
+				Timestamp:   point.Time,
+				InboundBps:  point.InboundBps,
+				OutboundBps: point.OutboundBps,
+			}
+		}
+
+		if err := database.SaveNetworkHistoryBatch(records); err != nil {
+			sm.logger.Error("持久化网络流量历史数据失败: %v", err)
+		} else {
+			sm.logger.Debug("持久化了 %d 条网络流量历史记录", len(toPersistNetwork))
+		}
+	}
+
+	if len(toPersistQPS) > 0 || len(toPersistResource) > 0 || len(toPersistNetwork) > 0 {
 		sm.mutex.Lock()
 		if len(toPersistQPS) > 0 {
 			sm.lastPersistTime = toPersistQPS[len(toPersistQPS)-1].Time
 		} else if len(toPersistResource) > 0 {
 			sm.lastPersistTime = toPersistResource[len(toPersistResource)-1].Time
+		} else if len(toPersistNetwork) > 0 {
+			sm.lastPersistTime = toPersistNetwork[len(toPersistNetwork)-1].Time
 		}
 		sm.mutex.Unlock()
 	}
@@ -1005,6 +1088,9 @@ func (sm *StatsManager) cleanOldDatabaseRecords() {
 	}
 	if err := database.CleanOldResourceHistory(sm.retentionDays); err != nil {
 		sm.logger.Error("清理过期资源使用历史记录失败: %v", err)
+	}
+	if err := database.CleanOldNetworkHistory(sm.retentionDays); err != nil {
+		sm.logger.Error("清理过期网络流量历史记录失败: %v", err)
 	}
 }
 
@@ -1036,6 +1122,11 @@ func (sm *StatsManager) LoadFromDatabase(timeRange string) error {
 		sm.logger.Warn("加载资源使用历史数据失败: %v", err)
 	}
 
+	networkRecords, err := database.GetNetworkHistoryByTimeRange(cutoff, now)
+	if err != nil {
+		sm.logger.Warn("加载网络流量历史数据失败: %v", err)
+	}
+
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -1055,13 +1146,24 @@ func (sm *StatsManager) LoadFromDatabase(timeRange string) error {
 		})
 	}
 
+	for _, record := range networkRecords {
+		sm.networkHistory = append(sm.networkHistory, NetworkDataPoint{
+			Time:        record.Timestamp,
+			InboundBps:  record.InboundBps,
+			OutboundBps: record.OutboundBps,
+		})
+	}
+
 	if len(sm.qpsHistory) > 0 {
 		sm.lastPersistTime = sm.qpsHistory[len(sm.qpsHistory)-1].Time
 	} else if len(sm.resourceHistory) > 0 {
 		sm.lastPersistTime = sm.resourceHistory[len(sm.resourceHistory)-1].Time
+	} else if len(sm.networkHistory) > 0 {
+		sm.lastPersistTime = sm.networkHistory[len(sm.networkHistory)-1].Time
 	}
 
-	sm.logger.Info("从数据库加载了 %d 条QPS历史记录和 %d 条资源使用历史记录", len(qpsRecords), len(resourceRecords))
+	sm.logger.Info("从数据库加载了 %d 条QPS历史记录、%d 条资源使用历史记录和 %d 条网络流量历史记录",
+		len(qpsRecords), len(resourceRecords), len(networkRecords))
 	return nil
 }
 
@@ -1584,4 +1686,444 @@ func (sm *StatsManager) cacheAggregatedResourceUsage(cacheKey string, data *Aggr
 // round2 保留2位小数
 func round2(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// GetNetworkSpeed 获取当前网络速度
+func (sm *StatsManager) GetNetworkSpeed() *NetworkSpeed {
+	sm.networkMonitorMutex.RLock()
+	defer sm.networkMonitorMutex.RUnlock()
+
+	if sm.currentNetworkSpeed == nil {
+		return &NetworkSpeed{}
+	}
+
+	speed := *sm.currentNetworkSpeed
+	return &speed
+}
+
+// collectNetworkStats 采集网络流量统计
+func (sm *StatsManager) collectNetworkStats() {
+	currentStats, err := sm.readNetworkInterfaceStats()
+	if err != nil {
+		sm.logger.Debug("读取网络接口统计失败: %v", err)
+		return
+	}
+
+	sm.networkMonitorMutex.Lock()
+	defer sm.networkMonitorMutex.Unlock()
+
+	if sm.lastNetworkStats != nil {
+		timeDiff := currentStats.Timestamp.Sub(sm.lastNetworkStats.Timestamp).Seconds()
+		if timeDiff > 0 {
+			sm.currentNetworkSpeed = &NetworkSpeed{
+				InboundBps:  uint64(float64(currentStats.BytesRecv-sm.lastNetworkStats.BytesRecv) / timeDiff),
+				OutboundBps: uint64(float64(currentStats.BytesSent-sm.lastNetworkStats.BytesSent) / timeDiff),
+				Timestamp:   currentStats.Timestamp,
+			}
+		}
+	}
+
+	sm.lastNetworkStats = currentStats
+}
+
+// readNetworkInterfaceStats 读取网络接口统计信息
+func (sm *StatsManager) readNetworkInterfaceStats() (*NetworkInterfaceStats, error) {
+	data, err := os.ReadFile("/proc/net/dev")
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	var totalBytesRecv, totalBytesSent uint64
+	var totalPacketsRecv, totalPacketsSent uint64
+
+	for _, line := range lines {
+		if strings.Contains(line, ":") {
+			parts := strings.Split(line, ":")
+			if len(parts) != 2 {
+				continue
+			}
+
+			iface := strings.TrimSpace(parts[0])
+			if strings.HasPrefix(iface, "lo") || strings.HasPrefix(iface, "docker") ||
+				strings.HasPrefix(iface, "veth") || strings.HasPrefix(iface, "br-") {
+				continue
+			}
+
+			fields := strings.Fields(strings.TrimSpace(parts[1]))
+			if len(fields) < 16 {
+				continue
+			}
+
+			bytesRecv, _ := strconv.ParseUint(fields[0], 10, 64)
+			packetsRecv, _ := strconv.ParseUint(fields[1], 10, 64)
+			bytesSent, _ := strconv.ParseUint(fields[8], 10, 64)
+			packetsSent, _ := strconv.ParseUint(fields[9], 10, 64)
+
+			totalBytesRecv += bytesRecv
+			totalBytesSent += bytesSent
+			totalPacketsRecv += packetsRecv
+			totalPacketsSent += packetsSent
+		}
+	}
+
+	return &NetworkInterfaceStats{
+		BytesRecv:   totalBytesRecv,
+		BytesSent:   totalBytesSent,
+		PacketsRecv: totalPacketsRecv,
+		PacketsSent: totalPacketsSent,
+		Timestamp:   time.Now(),
+	}, nil
+}
+
+// FormatNetworkSpeed 格式化网络速度显示
+func FormatNetworkSpeed(bytesPerSecond uint64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytesPerSecond >= GB:
+		return fmt.Sprintf("%.1f GB/s", float64(bytesPerSecond)/float64(GB))
+	case bytesPerSecond >= MB:
+		return fmt.Sprintf("%.1f MB/s", float64(bytesPerSecond)/float64(MB))
+	case bytesPerSecond >= KB:
+		return fmt.Sprintf("%.1f KB/s", float64(bytesPerSecond)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B/s", bytesPerSecond)
+	}
+}
+
+// UpdateNetworkHistory 更新网络历史数据
+// 参数：
+//   - inboundBps: 入站流量速率（字节/秒）
+//   - outboundBps: 出站流量速率（字节/秒）
+func (sm *StatsManager) UpdateNetworkHistory(inboundBps, outboundBps uint64) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	now := time.Now()
+	sm.networkHistory = append(sm.networkHistory, NetworkDataPoint{
+		Time:        now,
+		InboundBps:  inboundBps,
+		OutboundBps: outboundBps,
+	})
+
+	// 限制历史数据点数量
+	if len(sm.networkHistory) > sm.maxHistoryPoints {
+		sm.networkHistory = sm.networkHistory[len(sm.networkHistory)-sm.maxHistoryPoints:]
+	}
+}
+
+// GetNetworkHistory 获取网络历史数据
+// 参数：
+//   - timeRange: 时间范围（1h, 6h, 24h, 7d）
+//
+// 返回：
+//   - []NetworkDataPoint: 网络历史数据点数组
+func (sm *StatsManager) GetNetworkHistory(timeRange string) []NetworkDataPoint {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	var history []NetworkDataPoint
+	now := time.Now()
+	var cutoff time.Time
+
+	switch timeRange {
+	case "1h":
+		cutoff = now.Add(-1 * time.Hour)
+	case "6h":
+		cutoff = now.Add(-6 * time.Hour)
+	case "24h":
+		cutoff = now.Add(-24 * time.Hour)
+	case "7d":
+		cutoff = now.Add(-7 * 24 * time.Hour)
+	default:
+		cutoff = now.Add(-1 * time.Hour)
+	}
+
+	for _, point := range sm.networkHistory {
+		if point.Time.After(cutoff) {
+			history = append(history, point)
+		}
+	}
+
+	return history
+}
+
+// GetNetworkHistoryWithDB 获取网络历史数据（优先从内存，不足时从数据库补充）
+// 参数：
+//   - timeRange: 时间范围（1h, 6h, 24h, 7d）
+//
+// 返回：
+//   - []NetworkDataPoint: 网络历史数据点数组
+func (sm *StatsManager) GetNetworkHistoryWithDB(timeRange string) []NetworkDataPoint {
+	sm.mutex.RLock()
+	memoryData := make([]NetworkDataPoint, len(sm.networkHistory))
+	copy(memoryData, sm.networkHistory)
+	sm.mutex.RUnlock()
+
+	var cutoff time.Time
+	now := time.Now()
+
+	switch timeRange {
+	case "1h":
+		cutoff = now.Add(-1 * time.Hour)
+	case "6h":
+		cutoff = now.Add(-6 * time.Hour)
+	case "24h":
+		cutoff = now.Add(-24 * time.Hour)
+	case "7d":
+		cutoff = now.Add(-7 * 24 * time.Hour)
+	default:
+		cutoff = now.Add(-1 * time.Hour)
+	}
+
+	var history []NetworkDataPoint
+	for _, point := range memoryData {
+		if point.Time.After(cutoff) {
+			history = append(history, point)
+		}
+	}
+
+	// 如果内存数据不足，从数据库补充
+	if len(history) > 0 {
+		oldestInMemory := history[0].Time
+		if oldestInMemory.After(cutoff) {
+			dbRecords, err := database.GetNetworkHistoryByTimeRange(cutoff, oldestInMemory)
+			if err == nil && len(dbRecords) > 0 {
+				prepend := make([]NetworkDataPoint, len(dbRecords))
+				for i, r := range dbRecords {
+					prepend[i] = NetworkDataPoint{Time: r.Timestamp, InboundBps: r.InboundBps, OutboundBps: r.OutboundBps}
+				}
+				history = append(prepend, history...)
+			}
+		}
+	} else {
+		dbRecords, err := database.GetNetworkHistoryByTimeRange(cutoff, now)
+		if err == nil {
+			history = make([]NetworkDataPoint, len(dbRecords))
+			for i, r := range dbRecords {
+				history[i] = NetworkDataPoint{Time: r.Timestamp, InboundBps: r.InboundBps, OutboundBps: r.OutboundBps}
+			}
+		}
+	}
+
+	return history
+}
+
+// AggregatedNetworkUsage 聚合后的网络使用数据
+type AggregatedNetworkUsage struct {
+	TimeLabels     []string          `json:"timeLabels"`
+	InboundValues  []uint64          `json:"inboundValues"`
+	OutboundValues []uint64          `json:"outboundValues"`
+	Statistics     NetworkStatistics `json:"statistics"`
+}
+
+// NetworkStatistics 网络流量统计信息
+type NetworkStatistics struct {
+	Inbound  NetworkStatItem `json:"inbound"`
+	Outbound NetworkStatItem `json:"outbound"`
+}
+
+// NetworkStatItem 网络流量统计项
+type NetworkStatItem struct {
+	Min        uint64  `json:"min"`
+	Max        uint64  `json:"max"`
+	Avg        float64 `json:"avg"`
+	DataPoints int     `json:"dataPoints"`
+}
+
+// GetAggregatedNetworkUsage 获取聚合后的网络使用数据
+// 参数：
+//   - timeRange: 时间范围（1h, 6h, 24h, 7d）
+//   - points: 数据点数量
+//
+// 返回：
+//   - *AggregatedNetworkUsage: 聚合后的网络使用数据
+func (sm *StatsManager) GetAggregatedNetworkUsage(timeRange string, points int) *AggregatedNetworkUsage {
+	cacheKey := fmt.Sprintf("network_%s_%d", timeRange, points)
+	if cached := sm.getCachedAggregatedNetworkUsage(cacheKey); cached != nil {
+		return cached
+	}
+
+	history := sm.GetNetworkHistoryWithDB(timeRange)
+
+	if len(history) == 0 {
+		return &AggregatedNetworkUsage{
+			TimeLabels:     []string{},
+			InboundValues:  []uint64{},
+			OutboundValues: []uint64{},
+			Statistics:     NetworkStatistics{},
+		}
+	}
+
+	result := sm.aggregateNetworkData(history, points, timeRange)
+
+	sm.cacheAggregatedNetworkUsage(cacheKey, result)
+
+	return result
+}
+
+// aggregateNetworkData 聚合网络流量数据
+// 参数：
+//   - data: 网络历史数据点数组
+//   - points: 目标数据点数量
+//   - timeRange: 时间范围
+//
+// 返回：
+//   - *AggregatedNetworkUsage: 聚合后的网络使用数据
+func (sm *StatsManager) aggregateNetworkData(data []NetworkDataPoint, points int, timeRange string) *AggregatedNetworkUsage {
+	result := &AggregatedNetworkUsage{
+		TimeLabels:     make([]string, 0),
+		InboundValues:  make([]uint64, 0),
+		OutboundValues: make([]uint64, 0),
+	}
+
+	if len(data) == 0 {
+		return result
+	}
+
+	var timeFormat string
+	switch timeRange {
+	case "1h", "6h", "24h":
+		timeFormat = "15:04"
+	case "7d":
+		timeFormat = "01-02 15:04"
+	default:
+		timeFormat = "15:04"
+	}
+
+	now := time.Now()
+	var totalDuration time.Duration
+	switch timeRange {
+	case "1h":
+		totalDuration = time.Hour
+	case "6h":
+		totalDuration = 6 * time.Hour
+	case "24h":
+		totalDuration = 24 * time.Hour
+	case "7d":
+		totalDuration = 7 * 24 * time.Hour
+	default:
+		totalDuration = time.Hour
+	}
+
+	if points <= 0 {
+		points = 12
+	}
+
+	interval := totalDuration / time.Duration(points)
+	for i := 0; i < points; i++ {
+		slotStart := now.Add(-totalDuration + time.Duration(i)*interval)
+		slotEnd := slotStart.Add(interval)
+
+		var sumInbound, sumOutbound uint64
+		var count int
+		for _, point := range data {
+			if point.Time.After(slotStart) && !point.Time.After(slotEnd) {
+				sumInbound += point.InboundBps
+				sumOutbound += point.OutboundBps
+				count++
+			}
+		}
+
+		var avgInbound, avgOutbound uint64
+		if count > 0 {
+			avgInbound = sumInbound / uint64(count)
+			avgOutbound = sumOutbound / uint64(count)
+		}
+
+		result.TimeLabels = append(result.TimeLabels, slotStart.Format(timeFormat))
+		result.InboundValues = append(result.InboundValues, avgInbound)
+		result.OutboundValues = append(result.OutboundValues, avgOutbound)
+	}
+
+	stats := sm.calculateNetworkStatistics(data)
+	result.Statistics = stats
+
+	return result
+}
+
+// calculateNetworkStatistics 计算网络流量统计信息
+// 参数：
+//   - data: 网络历史数据点数组
+//
+// 返回：
+//   - NetworkStatistics: 网络流量统计信息
+func (sm *StatsManager) calculateNetworkStatistics(data []NetworkDataPoint) NetworkStatistics {
+	if len(data) == 0 {
+		return NetworkStatistics{}
+	}
+
+	minInbound := data[0].InboundBps
+	maxInbound := data[0].InboundBps
+	sumInbound := uint64(0)
+	minOutbound := data[0].OutboundBps
+	maxOutbound := data[0].OutboundBps
+	sumOutbound := uint64(0)
+
+	for _, point := range data {
+		if point.InboundBps < minInbound {
+			minInbound = point.InboundBps
+		}
+		if point.InboundBps > maxInbound {
+			maxInbound = point.InboundBps
+		}
+		sumInbound += point.InboundBps
+
+		if point.OutboundBps < minOutbound {
+			minOutbound = point.OutboundBps
+		}
+		if point.OutboundBps > maxOutbound {
+			maxOutbound = point.OutboundBps
+		}
+		sumOutbound += point.OutboundBps
+	}
+
+	count := len(data)
+	return NetworkStatistics{
+		Inbound: NetworkStatItem{
+			Min:        minInbound,
+			Max:        maxInbound,
+			Avg:        round2(float64(sumInbound) / float64(count)),
+			DataPoints: count,
+		},
+		Outbound: NetworkStatItem{
+			Min:        minOutbound,
+			Max:        maxOutbound,
+			Avg:        round2(float64(sumOutbound) / float64(count)),
+			DataPoints: count,
+		},
+	}
+}
+
+// getCachedAggregatedNetworkUsage 获取缓存的聚合网络使用数据
+// 参数：
+//   - cacheKey: 缓存键
+//
+// 返回：
+//   - *AggregatedNetworkUsage: 缓存的聚合网络使用数据
+func (sm *StatsManager) getCachedAggregatedNetworkUsage(cacheKey string) *AggregatedNetworkUsage {
+	sm.cacheMutex.RLock()
+	defer sm.cacheMutex.RUnlock()
+
+	if time.Since(sm.lastCacheUpdate) > sm.cacheExpiration {
+		return nil
+	}
+
+	return nil
+}
+
+// cacheAggregatedNetworkUsage 缓存聚合网络使用数据
+// 参数：
+//   - cacheKey: 缓存键
+//   - data: 聚合网络使用数据
+func (sm *StatsManager) cacheAggregatedNetworkUsage(cacheKey string, data *AggregatedNetworkUsage) {
+	sm.cacheMutex.Lock()
+	defer sm.cacheMutex.Unlock()
+	sm.lastCacheUpdate = time.Now()
 }

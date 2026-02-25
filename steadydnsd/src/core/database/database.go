@@ -166,6 +166,7 @@ func InitializeDatabase() error {
 		&DNSServer{},       // DNS服务器表
 		&QPSHistory{},      // QPS历史记录表
 		&ResourceHistory{}, // 资源使用历史记录表
+		&NetworkHistory{},  // 网络流量历史记录表
 	}
 
 	for _, table := range tables {

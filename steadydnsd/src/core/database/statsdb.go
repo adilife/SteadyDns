@@ -453,3 +453,173 @@ func EnsureResourceHistoryTableExists() error {
 	}
 	return nil
 }
+
+// NetworkHistory 网络流量历史记录表
+type NetworkHistory struct {
+	ID          uint      `json:"id" gorm:"primaryKey;autoIncrement"`
+	Timestamp   time.Time `json:"timestamp" gorm:"index;not null"`
+	InboundBps  uint64    `json:"inboundBps" gorm:"not null"`
+	OutboundBps uint64    `json:"outboundBps" gorm:"not null"`
+	CreatedAt   time.Time `json:"createdAt" gorm:"autoCreateTime"`
+}
+
+// TableName 指定表名
+func (NetworkHistory) TableName() string {
+	return "network_history"
+}
+
+// SaveNetworkHistoryBatch 批量保存网络流量历史记录
+// 参数：
+//   - records: 网络流量历史记录数组
+// 返回：
+//   - error: 保存失败时返回错误
+func SaveNetworkHistoryBatch(records []NetworkHistory) error {
+	if len(records) == 0 {
+		return nil
+	}
+
+	if err := DB.CreateInBatches(records, 100).Error; err != nil {
+		return fmt.Errorf("批量保存网络流量历史记录失败: %v", err)
+	}
+
+	return nil
+}
+
+// GetNetworkHistoryByTimeRange 根据时间范围获取网络流量历史记录
+// 参数：
+//   - startTime: 开始时间
+//   - endTime: 结束时间
+// 返回：
+//   - []NetworkHistory: 网络流量历史记录数组
+//   - error: 查询失败时返回错误
+func GetNetworkHistoryByTimeRange(startTime, endTime time.Time) ([]NetworkHistory, error) {
+	var records []NetworkHistory
+
+	err := DB.Where("timestamp >= ? AND timestamp <= ?", startTime, endTime).
+		Order("timestamp ASC").
+		Find(&records).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("查询网络流量历史记录失败: %v", err)
+	}
+
+	return records, nil
+}
+
+// CleanOldNetworkHistory 清理过期的网络流量历史记录
+// 参数：
+//   - retentionDays: 数据保留天数
+// 返回：
+//   - error: 清理失败时返回错误
+func CleanOldNetworkHistory(retentionDays int) error {
+	cutoff := time.Now().AddDate(0, 0, -retentionDays)
+
+	result := DB.Where("timestamp < ?", cutoff).Delete(&NetworkHistory{})
+	if result.Error != nil {
+		return fmt.Errorf("清理网络流量历史记录失败: %v", result.Error)
+	}
+
+	if result.RowsAffected > 0 {
+		GetLogManager().logger.Info("清理了 %d 条过期的网络流量历史记录", result.RowsAffected)
+	}
+
+	return nil
+}
+
+// EnsureNetworkHistoryTableExists 确保网络流量历史表存在
+// 返回：
+//   - error: 创建表失败时返回错误
+func EnsureNetworkHistoryTableExists() error {
+	if !DB.Migrator().HasTable(&NetworkHistory{}) {
+		if err := DB.AutoMigrate(&NetworkHistory{}); err != nil {
+			return fmt.Errorf("创建网络流量历史表失败: %v", err)
+		}
+		GetLogManager().logger.Info("网络流量历史表创建成功")
+	}
+	return nil
+}
+
+// NetworkHistoryPoint 用于内存和API传输的网络流量数据点
+type NetworkHistoryPoint struct {
+	Time        time.Time
+	InboundBps  uint64
+	OutboundBps uint64
+}
+
+// ConvertToNetworkHistoryPoints 将数据库记录转换为内存数据点格式
+// 参数：
+//   - records: 数据库记录数组
+// 返回：
+//   - []NetworkHistoryPoint: 内存数据点数组
+func ConvertToNetworkHistoryPoints(records []NetworkHistory) []NetworkHistoryPoint {
+	points := make([]NetworkHistoryPoint, len(records))
+	for i, r := range records {
+		points[i] = NetworkHistoryPoint{
+			Time:        r.Timestamp,
+			InboundBps:  r.InboundBps,
+			OutboundBps: r.OutboundBps,
+		}
+	}
+	return points
+}
+
+// ConvertToNetworkHistory 将内存数据点转换为数据库记录格式
+// 参数：
+//   - points: 内存数据点数组
+// 返回：
+//   - []NetworkHistory: 数据库记录数组
+func ConvertToNetworkHistory(points []NetworkHistoryPoint) []NetworkHistory {
+	records := make([]NetworkHistory, len(points))
+	for i, p := range points {
+		records[i] = NetworkHistory{
+			Timestamp:   p.Time,
+			InboundBps:  p.InboundBps,
+			OutboundBps: p.OutboundBps,
+		}
+	}
+	return records
+}
+
+// GetNetworkHistoryStatsByRange 获取指定时间范围内的网络流量统计信息
+// 参数：
+//   - startTime: 开始时间
+//   - endTime: 结束时间
+// 返回：
+//   - map[string]interface{}: 统计信息
+//   - error: 查询失败时返回错误
+func GetNetworkHistoryStatsByRange(startTime, endTime time.Time) (map[string]interface{}, error) {
+	var result struct {
+		MinInbound   uint64
+		MaxInbound   uint64
+		AvgInbound   float64
+		MinOutbound  uint64
+		MaxOutbound  uint64
+		AvgOutbound  float64
+		Count        int64
+	}
+
+	err := DB.Model(&NetworkHistory{}).
+		Where("timestamp >= ? AND timestamp <= ?", startTime, endTime).
+		Select("MIN(inbound_bps) as min_inbound, MAX(inbound_bps) as max_inbound, AVG(inbound_bps) as avg_inbound, " +
+			"MIN(outbound_bps) as min_outbound, MAX(outbound_bps) as max_outbound, AVG(outbound_bps) as avg_outbound, " +
+			"COUNT(*) as count").
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("获取网络流量统计信息失败: %v", err)
+	}
+
+	return map[string]interface{}{
+		"inbound": map[string]interface{}{
+			"min": result.MinInbound,
+			"max": result.MaxInbound,
+			"avg": result.AvgInbound,
+		},
+		"outbound": map[string]interface{}{
+			"min": result.MinOutbound,
+			"max": result.MaxOutbound,
+			"avg": result.AvgOutbound,
+		},
+		"count": result.Count,
+	}, nil
+}
