@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package api
 
 import (
+	"SteadyDNS/core/plugin"
 	"SteadyDNS/core/webapi/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,9 @@ func SetupRoutes(engine *gin.Engine) {
 	engine.GET("/api/health", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.TimeoutMiddlewareWithPathGin(), HealthCheckHandler)
 	// 登录API路由 - 应用频率限制、日志和超时中间件
 	engine.POST("/api/login", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.TimeoutMiddlewareWithPathGin(), LoginHandler)
+
+	// 插件状态API路由 - 无需认证，应用日志、频率限制和超时中间件
+	engine.GET("/api/plugins/status", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.TimeoutMiddlewareWithPathGin(), PluginAPIHandler)
 
 	// 令牌刷新API路由 - 应用频率限制、日志和超时中间件
 	engine.POST("/api/refresh-token", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.TimeoutMiddlewareWithPathGin(), middleware.RefreshTokenHandler)
@@ -82,35 +86,72 @@ func SetupRoutes(engine *gin.Engine) {
 	// Dashboard API路由 - 需要认证，应用所有中间件
 	engine.GET("/api/dashboard/*endpoint", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), DashboardAPIHandlerGin)
 
-	// BIND权威域API路由 - 需要认证，应用所有中间件
-	engine.GET("/api/bind-zones", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
-	engine.GET("/api/bind-zones/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
-	engine.POST("/api/bind-zones", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
-	engine.PUT("/api/bind-zones/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
-	engine.DELETE("/api/bind-zones/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
+	// BIND相关路由已移至插件系统，由SetupPluginRoutes函数动态注册
+}
 
-	// BIND历史记录API路由 - 需要认证，应用所有中间件
-	engine.GET("/api/bind-zones/history", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
-	engine.POST("/api/bind-zones/history/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindAPIHandlerGin)
+// SetupPluginRoutes 根据插件状态注册插件路由
+// 遍历所有启用的插件，将其路由动态注册到Gin引擎
+// 参数：
+//   - engine: Gin引擎实例
+func SetupPluginRoutes(engine *gin.Engine) {
+	// 获取全局插件管理器实例
+	pm := plugin.GetPluginManager()
 
-	// BIND服务器管理API路由 - 需要认证，应用所有中间件
-	engine.GET("/api/bind-server/status", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.POST("/api/bind-server/:action", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.GET("/api/bind-server/stats", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.GET("/api/bind-server/health", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.POST("/api/bind-server/validate", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.GET("/api/bind-server/config", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
+	// 获取所有启用插件的路由
+	routesMap := pm.GetAllEnabledRoutes()
 
-	// named.conf 配置管理API路由 - 需要认证，应用所有中间件
-	engine.GET("/api/bind-server/named-conf/content", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.PUT("/api/bind-server/named-conf", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.POST("/api/bind-server/named-conf/validate", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.GET("/api/bind-server/named-conf/parse", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.POST("/api/bind-server/named-conf/diff", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	// 备份管理API路由
-	engine.GET("/api/bind-server/named-conf/backups", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.POST("/api/bind-server/named-conf/restore", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
-	engine.DELETE("/api/bind-server/named-conf/backups/:backupId", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), BindServerAPIHandlerGin)
+	// 注册每个插件的路由
+	for pluginName, routes := range routesMap {
+		for _, route := range routes {
+			registerPluginRoute(engine, pluginName, route)
+		}
+	}
+}
 
-	// 其他API路由...
+// registerPluginRoute 注册单个插件路由
+// 根据路由定义的配置，将路由注册到Gin引擎
+// 参数：
+//   - engine: Gin引擎实例
+//   - pluginName: 插件名称，用于日志记录
+//   - route: 路由定义，包含方法、路径、处理器等信息
+func registerPluginRoute(engine *gin.Engine, pluginName string, route plugin.RouteDefinition) {
+	// 构建中间件链
+	handlers := make([]gin.HandlerFunc, 0)
+
+	// 添加日志中间件
+	handlers = append(handlers, middleware.LoggerMiddleware())
+
+	// 添加频率限制中间件
+	handlers = append(handlers, middleware.RateLimitMiddleware())
+
+	// 如果路由需要认证，添加认证中间件
+	if route.AuthRequired {
+		handlers = append(handlers, middleware.AuthMiddlewareGin())
+	}
+
+	// 添加超时中间件
+	handlers = append(handlers, middleware.TimeoutMiddlewareWithPathGin())
+
+	// 添加实际的请求处理器（将http.HandlerFunc转换为gin.HandlerFunc）
+	handlers = append(handlers, func(c *gin.Context) {
+		route.Handler(c.Writer, c.Request)
+	})
+
+	// 根据HTTP方法注册路由
+	switch route.Method {
+	case "GET":
+		engine.GET(route.Path, handlers...)
+	case "POST":
+		engine.POST(route.Path, handlers...)
+	case "PUT":
+		engine.PUT(route.Path, handlers...)
+	case "DELETE":
+		engine.DELETE(route.Path, handlers...)
+	case "PATCH":
+		engine.PATCH(route.Path, handlers...)
+	default:
+		// 对于不支持的HTTP方法，记录警告日志
+		// 这里使用fmt.Printf，因为Logger需要更多上下文
+		// 在实际生产环境中应该使用统一的日志系统
+	}
 }

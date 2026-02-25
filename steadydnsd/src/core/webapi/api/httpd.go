@@ -146,6 +146,8 @@ func (hs *HTTPServer) Start() error {
 	// 创建一个新的Gin引擎并设置路由
 	engine := gin.Default()
 	SetupRoutes(engine)
+	// 注册插件路由
+	SetupPluginRoutes(engine)
 
 	// 智能创建服务器实例
 	// 情况1：如果IPv6地址为"::"（默认值），则只启动IPv6服务器（双栈监听）
@@ -347,6 +349,8 @@ func (hs *HTTPServer) createHTTPServer() *http.Server {
 	engine := gin.Default()
 
 	SetupRoutes(engine)
+	// 注册插件路由
+	SetupPluginRoutes(engine)
 
 	// 创建HTTP服务器实例
 	return &http.Server{
@@ -379,6 +383,8 @@ func (hs *HTTPServer) createIPv6HTTPServer() *http.Server {
 	engine := gin.Default()
 
 	SetupRoutes(engine)
+	// 注册插件路由
+	SetupPluginRoutes(engine)
 
 	// 创建HTTP服务器实例
 	return &http.Server{
