@@ -29,6 +29,7 @@ export default {
     language: 'Language',
     chinese: '中文',
     english: 'English',
+    arabic: 'Arabic',
     welcome: 'Welcome, {{username}}'
   },
   
@@ -458,7 +459,25 @@ export default {
     valueRequired: 'Please enter record value',
     priorityRequired: 'Please enter priority',
     ttlRequired: 'Please enter TTL value',
-    customTypeRequired: 'Please enter custom record type'
+    customTypeRequired: 'Please enter custom record type',
+    
+    // Operation history
+    operationHistory: 'Operation History',
+    operationHistoryTitle: 'Authority Zone Operation History',
+    operationHistoryRecords: 'Operation History Records',
+    operationType: 'Operation Type',
+    operationTime: 'Operation Time',
+    create: 'Create',
+    update: 'Update',
+    deleteOperation: 'Delete',
+    rollback: 'Rollback Operation',
+    restore: 'Restore',
+    close: 'Close',
+    cancel: 'Cancel',
+    noOperationHistory: 'No Operation History Records',
+    noOperationHistoryDescription: 'There are no authority zone operation history records currently',
+    restoreFromHistory: 'Restore from History',
+    confirmRestoreMessage: 'Are you sure to restore from history? This will overwrite the current configuration.'
   },
   
   // Configuration page
@@ -565,7 +584,28 @@ export default {
     restartWarning: 'Restarting BIND server will temporarily stop and then start the service, causing a brief interruption in DNS resolution.',
     reloadWarning: 'Reloading BIND server will reload the configuration without restarting the service, but may still cause brief disruptions.',
     validateWarning: 'Validating configuration will check for syntax errors in the BIND configuration files.',
-    updateWarning: 'Updating configuration will modify the BIND server settings. Incorrect settings may cause BIND server to fail to start or function properly.'
+    updateWarning: 'Updating configuration will modify the BIND server settings. Incorrect settings may cause BIND server to fail to start or function properly.',
+    
+    // Backup management
+    backupManagement: 'Backup Management',
+    backupManagementTitle: 'BIND Configuration Backup Management',
+    backupList: 'Backup Files List',
+    time: 'Time',
+    size: 'Size',
+    restore: 'Restore',
+    delete: 'Delete',
+    close: 'Close',
+    noBackups: 'No Backup Files',
+    noBackupsDescription: 'There are no available BIND configuration backup files currently',
+    
+    // Plugin status
+    pluginNotEnabled: 'BIND Plugin Not Enabled',
+    pluginNotEnabledDescription: 'BIND server management features require BIND plugin support. Please enable the plugin before accessing.',
+    enableMethod: 'Enable Method',
+    editConfigFile: 'Edit configuration file',
+    setBindEnabled: 'Set BIND_ENABLED to',
+    restartService: 'Restart SteadyDNS service for the configuration to take effect',
+    checkingPluginStatus: 'Checking plugin status...'
   },
   
   // ServerManager page
@@ -756,5 +796,49 @@ export default {
     context: 'Context：',
     configConsistent: 'Config Consistent',
     configConsistentDescription: 'Current configuration is completely consistent with the original configuration, no differences found.'
+  },
+  
+  // User Management
+  userManagement: {
+    title: 'User Management',
+    addUser: 'Add User',
+    editUser: 'Edit User',
+    id: 'ID',
+    username: 'Username',
+    email: 'Email',
+    password: 'Password',
+    oldPassword: 'Old Password',
+    newPassword: 'New Password',
+    confirmPassword: 'Confirm Password',
+    actions: 'Actions',
+    edit: 'Edit',
+    delete: 'Delete',
+    changePassword: 'Change Password',
+    confirmDelete: 'Are you sure to delete this user?',
+    confirmDeleteAdmin: 'Cannot delete default admin user',
+    usernameExists: 'Username already exists',
+    emailExists: 'Email already exists',
+    oldPasswordError: 'Old password is incorrect',
+    userCreated: 'User created successfully',
+    userUpdated: 'User updated successfully',
+    userDeleted: 'User deleted successfully',
+    passwordChanged: 'Password changed successfully',
+    fetchError: 'Failed to fetch user list',
+    createError: 'Failed to create user',
+    updateError: 'Failed to update user',
+    deleteError: 'Failed to delete user',
+    passwordError: 'Failed to change password',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    pleaseInputUsername: 'Please input username',
+    pleaseInputEmail: 'Please input email',
+    pleaseInputPassword: 'Please input password',
+    pleaseInputOldPassword: 'Please input old password',
+    pleaseInputNewPassword: 'Please input new password',
+    pleaseConfirmPassword: 'Please confirm password',
+    passwordNotMatch: 'Passwords do not match',
+    invalidEmail: 'Invalid email format',
+    usernameMinLength: 'Username must be at least 3 characters',
+    passwordMinLength: 'Password must be at least 6 characters'
   }
 }

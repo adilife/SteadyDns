@@ -29,6 +29,7 @@ export default {
     language: '语言',
     chinese: '中文',
     english: '英文',
+    arabic: '阿拉伯语',
     welcome: '欢迎，{{username}}'
   },
   
@@ -458,7 +459,25 @@ export default {
     valueRequired: '请输入记录值',
     priorityRequired: '请输入优先级',
     ttlRequired: '请输入TTL值',
-    customTypeRequired: '请输入自定义记录类型'
+    customTypeRequired: '请输入自定义记录类型',
+    
+    // Operation history
+    operationHistory: '操作历史',
+    operationHistoryTitle: '权威域操作历史',
+    operationHistoryRecords: '操作历史记录',
+    operationType: '操作类型',
+    operationTime: '操作时间',
+    create: '创建',
+    update: '更新',
+    deleteOperation: '删除',
+    rollback: '回滚操作',
+    restore: '恢复',
+    close: '关闭',
+    cancel: '取消',
+    noOperationHistory: '没有操作历史记录',
+    noOperationHistoryDescription: '当前没有权威域的操作历史记录',
+    restoreFromHistory: '从历史记录恢复',
+    confirmRestoreMessage: '确定要从历史记录恢复吗？这将覆盖当前的配置。'
   },
   
   // Configuration page
@@ -551,21 +570,42 @@ export default {
     validateSuccess: '配置验证成功',
     validateError: '配置验证失败',
     updateSuccess: '配置更新成功',
-    updateError: '配置更新失败',
+    updateError: '更新配置失败',
     formError: '请检查表单字段',
     
     // Confirm modal
     confirm: '确认',
     cancel: '取消',
-    confirmMessage: '此操作不可撤销，请确认您的操作。',
+    confirmMessage: '此操作不可撤销。请确认您的操作。',
     
     // Action warnings
-    startWarning: '启动BIND服务器将使其监听DNS查询，这可能会影响系统上现有的DNS服务。',
-    stopWarning: '停止BIND服务器将停止所有DNS解析服务，这可能会导致依赖此服务器的客户端DNS解析失败。',
-    restartWarning: '重启BIND服务器将临时停止然后启动服务，导致DNS解析短暂中断。',
-    reloadWarning: '重载BIND服务器将重新加载配置而不重启服务，但仍可能导致短暂的服务中断。',
+    startWarning: '启动BIND服务器将使其监听DNS查询。这可能会影响系统上现有的DNS服务。',
+    stopWarning: '停止BIND服务器将停止所有DNS解析服务。这可能会导致依赖此服务器的客户端DNS解析失败。',
+    restartWarning: '重启BIND服务器将暂时停止然后启动服务，导致DNS解析短暂中断。',
+    reloadWarning: '重新加载BIND服务器将在不重启服务的情况下重新加载配置，但仍可能导致短暂中断。',
     validateWarning: '验证配置将检查BIND配置文件中的语法错误。',
-    updateWarning: '更新配置将修改BIND服务器设置，不正确的设置可能导致BIND服务器无法启动或正常运行。'
+    updateWarning: '更新配置将修改BIND服务器设置。不正确的设置可能导致BIND服务器无法启动或正常工作。',
+    
+    // Backup management
+    backupManagement: '备份管理',
+    backupManagementTitle: 'BIND 配置备份管理',
+    backupList: '备份文件列表',
+    time: '时间',
+    size: '大小',
+    restore: '恢复',
+    delete: '删除',
+    close: '关闭',
+    noBackups: '没有备份文件',
+    noBackupsDescription: '当前没有可用的 BIND 配置备份文件',
+    
+    // Plugin status
+    pluginNotEnabled: 'BIND插件未启用',
+    pluginNotEnabledDescription: 'BIND服务器管理功能需要BIND插件支持，请先启用插件后再访问。',
+    enableMethod: '启用方法',
+    editConfigFile: '编辑配置文件',
+    setBindEnabled: '将 BIND_ENABLED 设置为',
+    restartService: '重启SteadyDNS服务使配置生效',
+    checkingPluginStatus: '检查插件状态...'
   },
   
   // ServerManager page
@@ -756,5 +796,49 @@ export default {
     context: '上下文：',
     configConsistent: '配置一致',
     configConsistentDescription: '当前配置与原始配置完全一致，没有发现任何差异。'
+  },
+  
+  // 用户管理
+  userManagement: {
+    title: '用户管理',
+    addUser: '添加用户',
+    editUser: '编辑用户',
+    id: 'ID',
+    username: '用户名',
+    email: '邮箱',
+    password: '密码',
+    oldPassword: '旧密码',
+    newPassword: '新密码',
+    confirmPassword: '确认密码',
+    actions: '操作',
+    edit: '编辑',
+    delete: '删除',
+    changePassword: '修改密码',
+    confirmDelete: '确定要删除此用户吗？',
+    confirmDeleteAdmin: '不能删除默认管理员用户',
+    usernameExists: '用户名已存在',
+    emailExists: '邮箱已存在',
+    oldPasswordError: '旧密码错误',
+    userCreated: '用户创建成功',
+    userUpdated: '用户更新成功',
+    userDeleted: '用户删除成功',
+    passwordChanged: '密码修改成功',
+    fetchError: '获取用户列表失败',
+    createError: '创建用户失败',
+    updateError: '更新用户失败',
+    deleteError: '删除用户失败',
+    passwordError: '修改密码失败',
+    confirm: '确定',
+    cancel: '取消',
+    pleaseInputUsername: '请输入用户名',
+    pleaseInputEmail: '请输入邮箱',
+    pleaseInputPassword: '请输入密码',
+    pleaseInputOldPassword: '请输入旧密码',
+    pleaseInputNewPassword: '请输入新密码',
+    pleaseConfirmPassword: '请确认密码',
+    passwordNotMatch: '两次输入的密码不一致',
+    invalidEmail: '邮箱格式不正确',
+    usernameMinLength: '用户名至少3个字符',
+    passwordMinLength: '密码至少6个字符'
   }
 }
