@@ -132,6 +132,8 @@ type CustomDNSServer struct {
 	// 数据包计数管理
 	packetCount   int        // 并发数据包计数
 	packetCountMu sync.Mutex // 数据包计数互斥锁
+	// 是否为共享的统计管理器（用于区分是否需要关闭持久化任务）
+	sharedStatsManager bool
 }
 
 // NewCustomDNSServer 创建自定义DNS服务器
@@ -588,6 +590,12 @@ func (s *CustomDNSServer) GetStatsManager() *StatsManager {
 	return s.statsManager
 }
 
+// SetStatsManager 设置统计管理器（用于TCP和UDP服务器共享同一个StatsManager）
+func (s *CustomDNSServer) SetStatsManager(sm *StatsManager) {
+	s.statsManager = sm
+	s.sharedStatsManager = true
+}
+
 // incrementPacketCount 增加数据包计数
 func (s *CustomDNSServer) incrementPacketCount() {
 	s.packetCountMu.Lock()
@@ -719,9 +727,10 @@ func (s *CustomDNSServer) Shutdown() error {
 
 	s.logger.Info("开始关闭DNS服务器...")
 
-	// 停止持久化任务
-	if s.statsManager != nil {
+	// 停止持久化任务（只有非共享的StatsManager才停止）
+	if s.statsManager != nil && !s.sharedStatsManager {
 		s.statsManager.StopPersistence()
+		s.statsManager.StopResourceMonitor()
 		s.logger.Info("QPS历史数据持久化任务已停止")
 	}
 

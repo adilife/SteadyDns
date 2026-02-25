@@ -399,18 +399,16 @@ func getClientIP(w interface{}) string {
 		if addr == "" {
 			return "unknown"
 		}
-		if strings.Contains(addr, ":") {
-			parts := strings.Split(addr, ":")
-			if len(parts) >= 2 {
-				ip := parts[0]
-				ip = strings.TrimPrefix(ip, "[")
-				if ip == "" {
-					return "unknown"
-				}
-				return ip
-			}
+		// 使用 net.SplitHostPort 正确处理 IPv6 地址
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			// 如果解析失败，可能是没有端口的地址，直接返回
+			return addr
 		}
-		return addr
+		if host == "" {
+			return "unknown"
+		}
+		return host
 	case interface{ LocalAddr() net.Addr }:
 		addr := v.LocalAddr()
 		if addr != nil {
@@ -418,18 +416,16 @@ func getClientIP(w interface{}) string {
 			if addrStr == "" {
 				return "unknown"
 			}
-			if strings.Contains(addrStr, ":") {
-				parts := strings.Split(addrStr, ":")
-				if len(parts) >= 2 {
-					ip := parts[0]
-					ip = strings.TrimPrefix(ip, "[")
-					if ip == "" {
-						return "unknown"
-					}
-					return ip
-				}
+			// 使用 net.SplitHostPort 正确处理 IPv6 地址
+			host, _, err := net.SplitHostPort(addrStr)
+			if err != nil {
+				// 如果解析失败，可能是没有端口的地址，直接返回
+				return addrStr
 			}
-			return addrStr
+			if host == "" {
+				return "unknown"
+			}
+			return host
 		}
 	default:
 		val := reflect.ValueOf(w)
@@ -448,18 +444,16 @@ func getClientIP(w interface{}) string {
 				if addrStr == "" {
 					return "unknown"
 				}
-				if strings.Contains(addrStr, ":") {
-					parts := strings.Split(addrStr, ":")
-					if len(parts) >= 2 {
-						ip := parts[0]
-						ip = strings.TrimPrefix(ip, "[")
-						if ip == "" {
-							return "unknown"
-						}
-						return ip
-					}
+				// 使用 net.SplitHostPort 正确处理 IPv6 地址
+				host, _, err := net.SplitHostPort(addrStr)
+				if err != nil {
+					// 如果解析失败，可能是没有端口的地址，直接返回
+					return addrStr
 				}
-				return addrStr
+				if host == "" {
+					return "unknown"
+				}
+				return host
 			}
 		}
 	}

@@ -376,8 +376,9 @@ func StartDNSServer(logger *common.Logger) error {
 	udpServer := NewCustomDNSServer(listenAddr, "udp", handler, pool, logger)
 	GlobalUDPServer = udpServer
 
-	// 创建自定义TCP DNS服务器
+	// 创建自定义TCP DNS服务器，共享UDP服务器的StatsManager
 	tcpServer := NewCustomDNSServer(listenAddr, "tcp", handler, pool, logger)
+	tcpServer.SetStatsManager(udpServer.GetStatsManager())
 	GlobalTCPServer = tcpServer
 
 	// 尝试创建UDP监听器，确保端口可用

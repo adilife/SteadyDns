@@ -256,22 +256,35 @@ func (sm *StatsManager) calculateQPSAsync() float64 {
 // RecordQuery 记录DNS查询
 func (sm *StatsManager) RecordQuery(domain, clientIP string, responseTime time.Duration) {
 	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
+	{
+		// 记录域名查询次数
+		sm.domainCounters[domain]++
 
-	// 记录域名查询次数
-	sm.domainCounters[domain]++
+		// 记录客户端查询次数
+		sm.clientCounters[clientIP]++
 
-	// 记录客户端查询次数
-	sm.clientCounters[clientIP]++
+		// 记录响应时间
+		latencyMs := int64(responseTime.Milliseconds())
+		sm.latencyData = append(sm.latencyData, latencyMs)
 
-	// 记录响应时间
-	latencyMs := int64(responseTime.Milliseconds())
-	sm.latencyData = append(sm.latencyData, latencyMs)
-
-	// 限制延迟数据点数量
-	if len(sm.latencyData) > 10000 {
-		sm.latencyData = sm.latencyData[len(sm.latencyData)-10000:]
+		// 限制延迟数据点数量
+		if len(sm.latencyData) > 10000 {
+			sm.latencyData = sm.latencyData[len(sm.latencyData)-10000:]
+		}
 	}
+	sm.mutex.Unlock()
+
+	// 清除热门域名和客户端缓存，以便下次查询时重新计算
+	sm.clearTopCache()
+}
+
+// clearTopCache 清除热门域名和客户端缓存
+func (sm *StatsManager) clearTopCache() {
+	sm.cacheMutex.Lock()
+	defer sm.cacheMutex.Unlock()
+
+	sm.topDomainsCache = make(map[int][]DomainStat)
+	sm.topClientsCache = make(map[int][]ClientStat)
 }
 
 // CalculateQPS 计算当前QPS
@@ -481,7 +494,7 @@ func (sm *StatsManager) GetTopDomains(limit int) []DomainStat {
 	for i, stat := range stats {
 		percentage := 0.0
 		if totalQueries > 0 {
-			percentage = float64(stat.count) / float64(totalQueries) * 100
+			percentage = round2(float64(stat.count) / float64(totalQueries) * 100)
 		}
 		result[i] = DomainStat{
 			Rank:       i + 1,
@@ -533,7 +546,7 @@ func (sm *StatsManager) GetTopClients(limit int) []ClientStat {
 	for i, stat := range stats {
 		percentage := 0.0
 		if totalQueries > 0 {
-			percentage = float64(stat.count) / float64(totalQueries) * 100
+			percentage = round2(float64(stat.count) / float64(totalQueries) * 100)
 		}
 		result[i] = ClientStat{
 			Rank:       i + 1,
@@ -561,6 +574,10 @@ func (sm *StatsManager) getCachedTopDomains(limit int) []DomainStat {
 
 	// 检查缓存是否存在
 	if stats, exists := sm.topDomainsCache[limit]; exists {
+		// 如果缓存是空数组，返回nil以触发重新计算
+		if len(stats) == 0 {
+			return nil
+		}
 		return stats
 	}
 
@@ -588,6 +605,10 @@ func (sm *StatsManager) getCachedTopClients(limit int) []ClientStat {
 
 	// 检查缓存是否存在
 	if stats, exists := sm.topClientsCache[limit]; exists {
+		// 如果缓存是空数组，返回nil以触发重新计算
+		if len(stats) == 0 {
+			return nil
+		}
 		return stats
 	}
 
