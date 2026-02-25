@@ -368,13 +368,15 @@ export const getTokenStatus = () => {
  */
 export const logout = async () => {
   const refreshToken = getRefreshToken();
+  const accessToken = getAccessToken();
   
   try {
     if (refreshToken) {
       await fetch('/api/logout', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({ refresh_token: refreshToken })
       });
@@ -382,7 +384,6 @@ export const logout = async () => {
   } catch (error) {
     console.error('Logout request failed:', error);
   } finally {
-    // Always clear tokens regardless of logout request result
     clearTokens();
   }
   
