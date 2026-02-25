@@ -350,7 +350,7 @@ export default {
     rank: '排名',
     domain: '域名',
     queriesColumn: '查询数',
-    percentage: '百分比',
+    percentageColumn: '百分比',
     ip: 'IP地址',
     used: '已使用',
     fetchError: '获取数据失败，请稍后重试',

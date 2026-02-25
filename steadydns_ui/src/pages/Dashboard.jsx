@@ -569,7 +569,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 { title: 'Domain', dataIndex: 'domain', key: 'domain' },
                 { title: t('dashboard.queriesColumn', currentLanguage), dataIndex: 'queries', key: 'queries', width: 100 },
                 { 
-                  title: 'Percentage', 
+                  title: t('dashboard.percentageColumn', currentLanguage), 
                   dataIndex: 'percentage', 
                   key: 'percentage', 
                   render: (value) => `${value}%`
@@ -589,7 +589,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
                 { title: t('dashboard.queriesColumn', currentLanguage), dataIndex: 'queries', key: 'queries', width: 100 },
                 { 
-                  title: 'Percentage', 
+                  title: t('dashboard.percentageColumn', currentLanguage), 
                   dataIndex: 'percentage', 
                   key: 'percentage', 
                   width: 120,

@@ -350,7 +350,7 @@ export default {
     rank: 'Rank',
     domain: 'Domain',
     queriesColumn: 'Queries',
-    percentage: 'Percentage',
+    percentageColumn: 'Percentage',
     ip: 'IP Address',
     used: 'Used',
     fetchError: 'Failed to fetch data, please try again later',
