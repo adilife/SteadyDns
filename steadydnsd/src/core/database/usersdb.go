@@ -13,7 +13,7 @@ import (
 type User struct {
 	ID       uint   `json:"id" gorm:"primaryKey"`
 	Username string `json:"username" gorm:"uniqueIndex;not null"`
-	Email    string `json:"email" gorm:"uniqueIndex;not null"`
+	Email    string `json:"email" gorm:"uniqueIndex"` // 邮箱改为可选项
 	Password string `json:"-" gorm:"column:password;not null"` // 不在JSON中输出
 }
 
@@ -25,9 +25,11 @@ func CreateUser(user *User) error {
 		return fmt.Errorf("用户名已存在")
 	}
 
-	// 检查邮箱是否已存在
-	if err := DB.Where("email = ?", user.Email).First(&existingUser).Error; err == nil {
-		return fmt.Errorf("邮箱已存在")
+	// 检查邮箱是否已存在（仅当邮箱不为空时检查）
+	if user.Email != "" {
+		if err := DB.Where("email = ?", user.Email).First(&existingUser).Error; err == nil {
+			return fmt.Errorf("邮箱已存在")
+		}
 	}
 
 	// 加密密码
@@ -93,7 +95,26 @@ func UpdateUser(user *User) error {
 }
 
 // DeleteUser 删除用户
+// 参数:
+//   - id: 用户ID
+// 返回:
+//   - error: 错误信息，如果用户是admin则返回"不能删除默认管理员用户"
 func DeleteUser(id uint) error {
+	// 先根据ID查询用户
+	var user User
+	if err := DB.First(&user, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("用户不存在")
+		}
+		return fmt.Errorf("查询用户失败: %v", err)
+	}
+
+	// 检查用户名是否为"admin"
+	if user.Username == "admin" {
+		return fmt.Errorf("不能删除默认管理员用户")
+	}
+
+	// 执行删除
 	if err := DB.Delete(&User{}, id).Error; err != nil {
 		return fmt.Errorf("删除用户失败: %v", err)
 	}

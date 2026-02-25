@@ -86,6 +86,13 @@ func SetupRoutes(engine *gin.Engine) {
 	// Dashboard API路由 - 需要认证，应用所有中间件
 	engine.GET("/api/dashboard/*endpoint", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), DashboardAPIHandlerGin)
 
+	// 用户管理API路由 - 需要认证，应用所有中间件
+	engine.GET("/api/users", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), GetUsersHandler)
+	engine.POST("/api/users", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), CreateUserHandler)
+	engine.PUT("/api/users/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), UpdateUserHandler)
+	engine.DELETE("/api/users/:id", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), DeleteUserHandler)
+	engine.PUT("/api/users/:id/password", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), ChangePasswordHandler)
+
 	// BIND相关路由已移至插件系统，由SetupPluginRoutes函数动态注册
 }
 
@@ -132,10 +139,13 @@ func registerPluginRoute(engine *gin.Engine, pluginName string, route plugin.Rou
 	// 添加超时中间件
 	handlers = append(handlers, middleware.TimeoutMiddlewareWithPathGin())
 
-	// 添加实际的请求处理器（将http.HandlerFunc转换为gin.HandlerFunc）
-	handlers = append(handlers, func(c *gin.Context) {
-		route.Handler(c.Writer, c.Request)
-	})
+	// 添加插件自定义中间件
+	if len(route.Middlewares) > 0 {
+		handlers = append(handlers, route.Middlewares...)
+	}
+
+	// 添加实际的请求处理器（直接使用gin.HandlerFunc）
+	handlers = append(handlers, route.Handler)
 
 	// 根据HTTP方法注册路由
 	switch route.Method {
