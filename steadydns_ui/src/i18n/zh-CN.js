@@ -109,6 +109,7 @@ export default {
     // 卡片标题
     apiConfig: 'API配置',
     apiServerConfig: 'API服务器配置',
+    pluginsConfig: '插件配置',
     bindServerConfig: 'BIND服务器配置',
     cacheConfig: '缓存配置',
     dnsConfig: 'DNS配置',
@@ -118,6 +119,9 @@ export default {
     securityConfig: '安全配置',
     
     // 表单标签
+    bindEnabled: 'BIND插件启用',
+    bindEnabledTooltip: '启用或禁用BIND插件。BIND插件提供权威域管理、BIND服务器管理、转发查询和备份功能。修改后需重启服务生效。',
+    pluginsConfigNotice: '插件配置修改后需要重启服务才能生效。配置文件位置：/src/cmd/config/steadydns.conf',
     logEnabled: '日志启用',
     rateLimitEnabled: '速率限制启用',
     logRequestBody: '请求体日志',

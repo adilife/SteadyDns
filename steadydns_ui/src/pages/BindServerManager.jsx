@@ -52,9 +52,35 @@ const BindServerManager = ({ currentLanguage }) => {
   const [backupModalVisible, setBackupModalVisible] = useState(false)
   const [backups, setBackups] = useState([])
   const [backupLoading, setBackupLoading] = useState(false)
+  
+  // Plugin status state
+  const [pluginEnabled, setPluginEnabled] = useState(true)
+  const [checkingPluginStatus, setCheckingPluginStatus] = useState(true)
+
+  // 检查插件状态
+  const checkPluginStatus = useCallback(async () => {
+    setCheckingPluginStatus(true)
+    try {
+      const response = await apiClient.getPluginsStatus()
+      if (response.success) {
+        const bindPlugin = response.data.plugins.find(plugin => plugin.name === 'bind')
+        setPluginEnabled(bindPlugin?.enabled || false)
+      } else {
+        console.error('Failed to check plugin status:', response.error)
+        setPluginEnabled(false)
+      }
+    } catch (error) {
+      console.error('Error checking plugin status:', error)
+      setPluginEnabled(false)
+    } finally {
+      setCheckingPluginStatus(false)
+    }
+  }, [])
 
   // Load BIND server status
   const loadBindServerStatus = useCallback(async () => {
+    if (!pluginEnabled) return
+    
     setLoading(true)
     try {
       // Load status
@@ -82,16 +108,29 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error loading BIND server data:', error)
-      message.error(t('bindServer.fetchError', currentLanguage))
+      // 检查是否是404错误（插件禁用）
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('bindServer.fetchError', currentLanguage))
+      }
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage])
+  }, [currentLanguage, pluginEnabled])
 
-  // Load BIND server status on component mount
+  // 组件挂载时检查插件状态
   useEffect(() => {
-    loadBindServerStatus()
-  }, [loadBindServerStatus])
+    checkPluginStatus()
+  }, [checkPluginStatus])
+
+  // 插件状态变化时加载数据
+  useEffect(() => {
+    if (pluginEnabled) {
+      loadBindServerStatus()
+    }
+  }, [pluginEnabled, loadBindServerStatus])
 
   // Handle confirm action
   const handleConfirmAction = async () => {
@@ -122,6 +161,11 @@ const BindServerManager = ({ currentLanguage }) => {
 
   // Control BIND server - actual implementation
   const handleControlBindServer = async (action) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      return
+    }
+    
     try {
       const response = await apiClient.controlBindServer(action)
       if (response.success) {
@@ -133,12 +177,22 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error(`Error ${action}ing BIND server:`, error)
-      message.error(t('bindServer.controlError', currentLanguage))
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('bindServer.controlError', currentLanguage))
+      }
     }
   }
 
   // Validate BIND configuration - actual implementation
   const handleValidateBindConfig = async () => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      return
+    }
+    
     try {
       const response = await apiClient.validateBindConfig()
       if (response.success) {
@@ -148,7 +202,12 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error validating BIND config:', error)
-      message.error(t('bindServer.validateError', currentLanguage))
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('bindServer.validateError', currentLanguage))
+      }
     }
   }
 
@@ -197,6 +256,12 @@ const BindServerManager = ({ currentLanguage }) => {
 
   // Load backups
   const loadBackups = async () => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setBackupLoading(false)
+      return
+    }
+    
     setBackupLoading(true)
     try {
       const response = await apiClient.getBindNamedConfBackups()
@@ -207,7 +272,12 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error loading backups:', error)
-      message.error('加载备份列表失败')
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error('加载备份列表失败')
+      }
     } finally {
       setBackupLoading(false)
     }
@@ -215,6 +285,12 @@ const BindServerManager = ({ currentLanguage }) => {
 
   // Handle restore backup
   const handleRestoreBackup = async (backupPath) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setBackupLoading(false)
+      return
+    }
+    
     try {
       setBackupLoading(true)
       const response = await apiClient.restoreBindNamedConfBackup(backupPath)
@@ -228,7 +304,12 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error restoring backup:', error)
-      message.error('恢复备份失败')
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error('恢复备份失败')
+      }
     } finally {
       setBackupLoading(false)
     }
@@ -236,6 +317,12 @@ const BindServerManager = ({ currentLanguage }) => {
 
   // Handle delete backup
   const handleDeleteBackup = async (backupId) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setBackupLoading(false)
+      return
+    }
+    
     try {
       setBackupLoading(true)
       const response = await apiClient.deleteBindNamedConfBackup(backupId)
@@ -248,7 +335,12 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error deleting backup:', error)
-      message.error('删除备份失败')
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error('删除备份失败')
+      }
     } finally {
       setBackupLoading(false)
     }
@@ -261,6 +353,40 @@ const BindServerManager = ({ currentLanguage }) => {
     setCurrentAction('deleteBackup')
     setCurrentActionParams(backupId)
     setConfirmModalVisible(true)
+  }
+
+  // 当插件未启用时显示的提示信息
+  if (!pluginEnabled) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <Alert
+            message="BIND插件未启用"
+            description={
+              <div>
+                <p style={{ marginBottom: '16px' }}>BIND服务器管理功能需要BIND插件支持，请先启用插件后再访问。</p>
+                <p style={{ marginBottom: '8px' }}><strong>启用方法：</strong></p>
+                <p>1. 编辑配置文件：<code>/src/cmd/config/steadydns.conf</code></p>
+                <p>2. 将 <code>BIND_ENABLED</code> 设置为 <code>true</code></p>
+                <p>3. 重启SteadyDNS服务使配置生效</p>
+              </div>
+            }
+            type="warning"
+            showIcon
+            style={{ marginBottom: '24px' }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // 当检查插件状态时显示加载状态
+  if (checkingPluginStatus) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px' }}>
+        <Spin size="large" tip="检查插件状态..." />
+      </div>
+    )
   }
 
   return (

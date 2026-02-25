@@ -37,6 +37,7 @@ import Configuration from './pages/Configuration'
 import Login from './pages/Login'
 import { t, getSavedLanguage, switchLanguage } from './i18n'
 import { logout, hasValidToken, startTokenRefreshInterval, resetSessionTimeoutTimer, startSessionTimeoutTimer } from './utils/tokenManager'
+import { apiClient } from './utils/apiClient'
 
 const { Header, Sider, Content } = Layout
 const { Option } = Select
@@ -47,6 +48,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentLanguage, setCurrentLanguage] = useState(getSavedLanguage())
   const [userInfo, setUserInfo] = useState({ username: '' })
+  const [pluginsStatus, setPluginsStatus] = useState({})
   // Check if user is logged in from sessionStorage
   useEffect(() => {
     const checkLoginStatus = () => {
@@ -72,6 +74,9 @@ function App() {
               const expiresInStr = sessionStorage.getItem('steadyDNS_token_expires_in')
               const expiresIn = expiresInStr ? parseInt(expiresInStr) : 1800
               startSessionTimeoutTimer(expiresIn)
+              
+              // Get plugins status when logged in
+              fetchPluginsStatus()
             } else {
               console.error('Invalid user data in sessionStorage:', parsedUser)
               sessionStorage.removeItem('steadyDNS_user')
@@ -93,6 +98,25 @@ function App() {
       } else {
         setIsLoggedIn(false)
         setUserInfo({ username: '' })
+      }
+    }
+    
+    // Fetch plugins status
+    const fetchPluginsStatus = async () => {
+      try {
+        const response = await apiClient.getPluginsStatus()
+        if (response.success) {
+          // Convert plugins array to object for easier access
+          const pluginsMap = {}
+          response.data.plugins.forEach(plugin => {
+            pluginsMap[plugin.name] = plugin
+          })
+          setPluginsStatus(pluginsMap)
+        } else {
+          console.error('Failed to get plugins status:', response.error)
+        }
+      } catch (error) {
+        console.error('Error fetching plugins status:', error)
       }
     }
     
@@ -187,6 +211,17 @@ function App() {
       case '1':
         return <Dashboard currentLanguage={currentLanguage} userInfo={userInfo} />
       case '2':
+        // Check if BIND plugin is enabled before rendering AuthZones
+        if (!pluginsStatus.bind?.enabled) {
+          return (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>BIND插件未启用</h2>
+              <p style={{ marginBottom: '24px' }}>请启用BIND插件后再访问权威域管理功能</p>
+              <p>插件启用/禁用通过配置文件控制，修改后需重启服务生效</p>
+              <p>配置文件位置: /src/cmd/config/steadydns.conf</p>
+            </div>
+          )
+        }
         return <AuthZones currentLanguage={currentLanguage} userInfo={userInfo} />
       case '3':
         return <DnsRules currentLanguage={currentLanguage} userInfo={userInfo} />
@@ -243,11 +278,12 @@ function App() {
               icon: <DashboardOutlined />,
               label: t('nav.dashboard', currentLanguage),
             },
-            {
+            // Only show auth zones menu if BIND plugin is enabled
+            ...(pluginsStatus.bind?.enabled ? [{
               key: '2',
               icon: <DatabaseOutlined />,
               label: t('nav.authZones', currentLanguage),
-            },
+            }] : []),
             {
               key: '3',
               icon: <AppstoreOutlined />,

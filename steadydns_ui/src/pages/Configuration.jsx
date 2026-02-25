@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Tabs,
-  Card
+  Card,
+  Spin
 } from 'antd'
 import {
   SettingOutlined
@@ -11,10 +12,38 @@ import ServerManager from './ServerManager'
 import CacheManager from './CacheManager'
 import BindServerManager from './BindServerManager'
 import Settings from './Settings'
+import { apiClient } from '../utils/apiClient'
 
 const Configuration = ({ currentLanguage, userInfo }) => {
   const [activeTab, setActiveTab] = useState('server')
   const [settingsKey, setSettingsKey] = useState(0)
+  const [pluginEnabled, setPluginEnabled] = useState(true)
+  const [checkingPluginStatus, setCheckingPluginStatus] = useState(true)
+
+  // 检查插件状态
+  const checkPluginStatus = useCallback(async () => {
+    setCheckingPluginStatus(true)
+    try {
+      const response = await apiClient.getPluginsStatus()
+      if (response.success) {
+        const bindPlugin = response.data.plugins.find(plugin => plugin.name === 'bind')
+        setPluginEnabled(bindPlugin?.enabled || false)
+      } else {
+        console.error('Failed to check plugin status:', response.error)
+        setPluginEnabled(false)
+      }
+    } catch (error) {
+      console.error('Error checking plugin status:', error)
+      setPluginEnabled(false)
+    } finally {
+      setCheckingPluginStatus(false)
+    }
+  }, [])
+
+  // 组件挂载时检查插件状态
+  useEffect(() => {
+    checkPluginStatus()
+  }, [checkPluginStatus])
 
   const handleTabChange = (key) => {
     setActiveTab(key)
@@ -24,6 +53,7 @@ const Configuration = ({ currentLanguage, userInfo }) => {
     }
   }
 
+  // 动态生成标签页
   const items = [
     {
       key: 'server',
@@ -35,17 +65,27 @@ const Configuration = ({ currentLanguage, userInfo }) => {
       label: t('configuration.cache', currentLanguage),
       children: <CacheManager currentLanguage={currentLanguage} userInfo={userInfo} />
     },
-    {
+    // 只有当BIND插件启用时才显示BIND Server标签页
+    ...(pluginEnabled ? [{
       key: 'bindServer',
       label: t('configuration.bindServer', currentLanguage),
       children: <BindServerManager currentLanguage={currentLanguage} userInfo={userInfo} />
-    },
+    }] : []),
     {
       key: 'settings',
       label: t('configuration.settings', currentLanguage),
       children: <Settings key={settingsKey} currentLanguage={currentLanguage} userInfo={userInfo} />
     }
   ]
+
+  // 当检查插件状态时显示加载状态
+  if (checkingPluginStatus) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px' }}>
+        <Spin size="large" tip="检查插件状态..." />
+      </div>
+    )
+  }
 
   return (
     <div>

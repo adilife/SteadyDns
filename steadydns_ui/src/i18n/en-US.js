@@ -109,6 +109,7 @@ export default {
     // Card titles
     apiConfig: 'API Configuration',
     apiServerConfig: 'API Server Configuration',
+    pluginsConfig: 'Plugins Configuration',
     bindServerConfig: 'BIND Server Configuration',
     cacheConfig: 'Cache Configuration',
     dnsConfig: 'DNS Configuration',
@@ -118,6 +119,9 @@ export default {
     securityConfig: 'Security Configuration',
     
     // Form labels
+    bindEnabled: 'BIND Plugin Enabled',
+    bindEnabledTooltip: 'Enable or disable BIND plugin. BIND plugin provides authoritative zone management, BIND server management, forwarding queries and backup features. Requires service restart to take effect.',
+    pluginsConfigNotice: 'Plugin configuration changes require service restart to take effect. Config file location: /src/cmd/config/steadydns.conf',
     logEnabled: 'Log Enabled',
     rateLimitEnabled: 'Rate Limit Enabled',
     logRequestBody: 'Request Body Log',

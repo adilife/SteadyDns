@@ -715,6 +715,16 @@ class APIClient {
       method: 'GET'
     })
   }
+
+  /**
+   * Get plugins status
+   * @returns {Promise<any>} Plugins status data
+   */
+  async getPluginsStatus() {
+    return this.request('/plugins/status', {
+      method: 'GET'
+    })
+  }
 }
 
 // Export singleton instance
