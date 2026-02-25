@@ -624,7 +624,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           collapsible="true"
         >
           <Alert
-            message={t('settings.pluginsConfigNotice', currentLanguage)}
+            title={t('settings.pluginsConfigNotice', currentLanguage)}
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
@@ -1266,7 +1266,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             label={t('settings.dnsRateLimitPerIp', currentLanguage)}
             tooltip={t('settings.dnsRateLimitPerIpTooltip', currentLanguage)}
           >
-            <InputNumber min={1} max={10000} style={{ width: '100%' }} />
+            <InputNumber min={1} max={100000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
@@ -1274,7 +1274,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             label={t('settings.dnsRateLimitGlobal', currentLanguage)}
             tooltip={t('settings.dnsRateLimitGlobalTooltip', currentLanguage)}
           >
-            <InputNumber min={1} max={100000} style={{ width: '100%' }} />
+            <InputNumber min={1} max={1000000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item

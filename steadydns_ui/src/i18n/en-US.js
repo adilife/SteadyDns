@@ -121,7 +121,7 @@ export default {
     // Form labels
     bindEnabled: 'BIND Plugin Enabled',
     bindEnabledTooltip: 'Enable or disable BIND plugin. BIND plugin provides authoritative zone management, BIND server management, forwarding queries and backup features. Requires service restart to take effect.',
-    pluginsConfigNotice: 'Plugin configuration changes require service restart to take effect. Config file location: /src/cmd/config/steadydns.conf',
+    pluginsConfigNotice: 'Plugin configuration changes require full service restart to take effect.',
     logEnabled: 'Log Enabled',
     rateLimitEnabled: 'Rate Limit Enabled',
     logRequestBody: 'Request Body Log',
