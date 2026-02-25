@@ -12,7 +12,8 @@ import {
   Modal,
   Row,
   Col,
-  Tooltip
+  Tooltip,
+  Alert
 } from 'antd'
 import {
   SaveOutlined,
@@ -35,9 +36,17 @@ const Settings = ({ currentLanguage, userInfo }) => {
   const [resetModalVisible, setResetModalVisible] = useState(false)
   const [generateKeyModalVisible, setGenerateKeyModalVisible] = useState(false)
   const [generatedKey, setGeneratedKey] = useState('')
+  
+  // Watch BIND_ENABLED value for dynamic display
+  const bindEnabled = Form.useWatch(['Plugins', 'BIND_ENABLED'], form)
 
   // Default settings structure
   const defaultSettings = useMemo(() => ({
+    Plugins: {
+      BIND_ENABLED: true,
+      DNS_RULES_ENABLED: true,
+      LOG_ANALYSIS_ENABLED: true
+    },
     API: {
       LOG_ENABLED: true,
       LOG_LEVEL: 'debug',
@@ -131,6 +140,11 @@ const Settings = ({ currentLanguage, userInfo }) => {
     
     // 构建表单结构，优先使用API返回的数据，否则使用默认值
     return {
+      Plugins: {
+        BIND_ENABLED: data.Plugins?.BIND_ENABLED !== undefined ? data.Plugins.BIND_ENABLED === 'true' : defaultSettings.Plugins.BIND_ENABLED,
+        DNS_RULES_ENABLED: data.Plugins?.DNS_RULES_ENABLED !== undefined ? data.Plugins.DNS_RULES_ENABLED === 'true' : defaultSettings.Plugins.DNS_RULES_ENABLED,
+        LOG_ANALYSIS_ENABLED: data.Plugins?.LOG_ANALYSIS_ENABLED !== undefined ? data.Plugins.LOG_ANALYSIS_ENABLED === 'true' : defaultSettings.Plugins.LOG_ANALYSIS_ENABLED
+      },
       API: {
         LOG_ENABLED: data.API?.LOG_ENABLED !== undefined ? data.API.LOG_ENABLED === 'true' : defaultSettings.API.LOG_ENABLED,
         LOG_LEVEL: data.API?.LOG_LEVEL || defaultSettings.API.LOG_LEVEL,
@@ -272,6 +286,11 @@ const Settings = ({ currentLanguage, userInfo }) => {
      */
     // 构建API所需的配置结构
     return {
+      Plugins: {
+        BIND_ENABLED: formValues.Plugins.BIND_ENABLED.toString(),
+        DNS_RULES_ENABLED: formValues.Plugins.DNS_RULES_ENABLED.toString(),
+        LOG_ANALYSIS_ENABLED: formValues.Plugins.LOG_ANALYSIS_ENABLED.toString()
+      },
       API: {
         LOG_ENABLED: formValues.API.LOG_ENABLED.toString(),
         LOG_LEVEL: formValues.API.LOG_LEVEL || defaultSettings.API.LOG_LEVEL,
@@ -599,6 +618,53 @@ const Settings = ({ currentLanguage, userInfo }) => {
         layout="vertical"
         onFinish={handleSave}
       >
+        {/* 插件配置卡片 */}
+        <Card
+          title={
+            <Space>
+              <SettingOutlined />
+              {t('settings.pluginsConfig', currentLanguage)}
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+          collapsible="true"
+        >
+          <Alert
+            title={t('settings.pluginsConfigNotice', currentLanguage)}
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Form.Item
+            name={['Plugins', 'BIND_ENABLED']}
+            label={t('settings.bindEnabled', currentLanguage)}
+            valuePropName="checked"
+            tooltip={t('settings.bindEnabledTooltip', currentLanguage)}
+          >
+            <Switch />
+          </Form.Item>
+          
+          <Form.Item
+            name={['Plugins', 'DNS_RULES_ENABLED']}
+            label="DNS Rules Plugin"
+            valuePropName="checked"
+            tooltip="DNS query rules management - Restart the service for changes to take effect"
+          >
+            <Switch />
+          </Form.Item>
+          
+          <Form.Item
+            name={['Plugins', 'LOG_ANALYSIS_ENABLED']}
+            label="Log Analysis Plugin"
+            valuePropName="checked"
+            tooltip="DNS query log analysis - Restart the service for changes to take effect"
+          >
+            <Switch />
+          </Form.Item>
+          </Space>
+        </Card>
+
         {/* API配置卡片 */}
         <Card
           title={
@@ -889,7 +955,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           </Form.Item>
         </Card>
 
-        {/* BIND服务器配置卡片 */}
+        {/* BIND服务器配置卡片 - 根据BIND_ENABLED状态动态显示/隐藏 */}
         <Card
           title={
             <Space>
@@ -897,7 +963,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
               {t('settings.bindServerConfig', currentLanguage)}
             </Space>
           }
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 16, display: bindEnabled ? 'block' : 'none' }}
           collapsible="true"
         >
           <Form.Item
@@ -1226,7 +1292,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             label={t('settings.dnsRateLimitPerIp', currentLanguage)}
             tooltip={t('settings.dnsRateLimitPerIpTooltip', currentLanguage)}
           >
-            <InputNumber min={1} max={10000} style={{ width: '100%' }} />
+            <InputNumber min={1} max={100000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
@@ -1234,7 +1300,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             label={t('settings.dnsRateLimitGlobal', currentLanguage)}
             tooltip={t('settings.dnsRateLimitGlobalTooltip', currentLanguage)}
           >
-            <InputNumber min={1} max={100000} style={{ width: '100%' }} />
+            <InputNumber min={1} max={1000000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item

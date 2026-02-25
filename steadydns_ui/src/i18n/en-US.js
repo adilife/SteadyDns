@@ -15,11 +15,11 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
-    authZones: 'Authority Zone Forwarding',
+    authZones: 'Authority Zone Management',
     dnsRules: 'DNS Rules Configuration',
     logs: 'Resolution Logs',
     settings: 'Server Settings',
-    forwardGroups: 'DNS Forward Servers'
+    forwardGroups: 'DNS Forwarder Management'
   },
   
   // Header
@@ -29,6 +29,7 @@ export default {
     language: 'Language',
     chinese: '中文',
     english: 'English',
+    arabic: 'Arabic',
     welcome: 'Welcome, {{username}}'
   },
   
@@ -109,6 +110,7 @@ export default {
     // Card titles
     apiConfig: 'API Configuration',
     apiServerConfig: 'API Server Configuration',
+    pluginsConfig: 'Plugins Configuration',
     bindServerConfig: 'BIND Server Configuration',
     cacheConfig: 'Cache Configuration',
     dnsConfig: 'DNS Configuration',
@@ -118,6 +120,9 @@ export default {
     securityConfig: 'Security Configuration',
     
     // Form labels
+    bindEnabled: 'BIND Plugin Enabled',
+    bindEnabledTooltip: 'Enable or disable BIND plugin. BIND plugin provides authoritative zone management, BIND server management, forwarding queries and backup features. Requires service restart to take effect.',
+    pluginsConfigNotice: 'Plugin configuration changes require full service restart to take effect.',
     logEnabled: 'Log Enabled',
     rateLimitEnabled: 'Rate Limit Enabled',
     logRequestBody: 'Request Body Log',
@@ -264,7 +269,7 @@ export default {
   
   // Forward Groups page
   forwardGroups: {
-    title: 'DNS Forward Servers',
+    title: 'DNS Forwarder Management',
     addGroup: 'Add Forward Group',
     editGroup: 'Edit Forward Group',
     addNewGroup: 'Add Forward Group',
@@ -275,6 +280,8 @@ export default {
     actions: 'Actions',
     edit: 'Edit forward group',
     delete: 'Delete forward group',
+    batchDelete: 'Batch Delete',
+    selectedCount: 'Selected {{count}} forward groups',
     confirmDelete: 'Are you sure to delete this forward group?',
     yes: 'Yes',
     no: 'No',
@@ -311,9 +318,15 @@ export default {
     queries: 'queries',
     qps: 'QPS',
     queriesPerSecond: 'queries/sec',
+    successfulQueries: 'Successful Queries',
+    failedQueries: 'Failed Queries',
+    currentQps: 'Current QPS',
+    peakQps: 'Peak QPS',
+    avgQps: 'Average QPS',
     cacheHitRate: 'Cache Hit Rate',
     cacheMissRate: 'Cache Miss Rate',
     cacheSize: 'Cache Size',
+    cacheItems: 'Cache Items',
     systemHealth: 'System Health',
     healthy: 'Healthy',
     unhealthy: 'Unhealthy',
@@ -322,6 +335,8 @@ export default {
     forwardServers: 'Forward Servers Status',
     latency: 'Latency',
     latencyDistribution: 'Latency Distribution',
+    latencyRange: 'Latency Range',
+    percentage: 'Percentage',
     qpsTrend: 'QPS Trend',
     systemResources: 'System Resources',
     cpuUsage: 'CPU Usage',
@@ -340,7 +355,7 @@ export default {
     rank: 'Rank',
     domain: 'Domain',
     queriesColumn: 'Queries',
-    percentage: 'Percentage',
+    percentageColumn: 'Percentage',
     ip: 'IP Address',
     used: 'Used',
     fetchError: 'Failed to fetch data, please try again later',
@@ -350,7 +365,7 @@ export default {
   
   // Auth Zones page
   authZones: {
-    title: 'Authority Zone Forwarding',
+    title: 'Authority Zone Management',
     addZone: 'Add Authority Zone',
     editZone: 'Edit Authority Zone',
     addNewZone: 'Add Authority Zone',
@@ -444,7 +459,25 @@ export default {
     valueRequired: 'Please enter record value',
     priorityRequired: 'Please enter priority',
     ttlRequired: 'Please enter TTL value',
-    customTypeRequired: 'Please enter custom record type'
+    customTypeRequired: 'Please enter custom record type',
+    
+    // Operation history
+    operationHistory: 'Operation History',
+    operationHistoryTitle: 'Authority Zone Operation History',
+    operationHistoryRecords: 'Operation History Records',
+    operationType: 'Operation Type',
+    operationTime: 'Operation Time',
+    create: 'Create',
+    update: 'Update',
+    deleteOperation: 'Delete',
+    rollback: 'Rollback Operation',
+    restore: 'Restore',
+    close: 'Close',
+    cancel: 'Cancel',
+    noOperationHistory: 'No Operation History Records',
+    noOperationHistoryDescription: 'There are no authority zone operation history records currently',
+    restoreFromHistory: 'Restore from History',
+    confirmRestoreMessage: 'Are you sure to restore from history? This will overwrite the current configuration.'
   },
   
   // Configuration page
@@ -551,7 +584,28 @@ export default {
     restartWarning: 'Restarting BIND server will temporarily stop and then start the service, causing a brief interruption in DNS resolution.',
     reloadWarning: 'Reloading BIND server will reload the configuration without restarting the service, but may still cause brief disruptions.',
     validateWarning: 'Validating configuration will check for syntax errors in the BIND configuration files.',
-    updateWarning: 'Updating configuration will modify the BIND server settings. Incorrect settings may cause BIND server to fail to start or function properly.'
+    updateWarning: 'Updating configuration will modify the BIND server settings. Incorrect settings may cause BIND server to fail to start or function properly.',
+    
+    // Backup management
+    backupManagement: 'Backup Management',
+    backupManagementTitle: 'BIND Configuration Backup Management',
+    backupList: 'Backup Files List',
+    time: 'Time',
+    size: 'Size',
+    restore: 'Restore',
+    delete: 'Delete',
+    close: 'Close',
+    noBackups: 'No Backup Files',
+    noBackupsDescription: 'There are no available BIND configuration backup files currently',
+    
+    // Plugin status
+    pluginNotEnabled: 'BIND Plugin Not Enabled',
+    pluginNotEnabledDescription: 'BIND server management features require BIND plugin support. Please enable the plugin before accessing.',
+    enableMethod: 'Enable Method',
+    editConfigFile: 'Edit configuration file',
+    setBindEnabled: 'Set BIND_ENABLED to',
+    restartService: 'Restart SteadyDNS service for the configuration to take effect',
+    checkingPluginStatus: 'Checking plugin status...'
   },
   
   // ServerManager page
@@ -742,5 +796,49 @@ export default {
     context: 'Context：',
     configConsistent: 'Config Consistent',
     configConsistentDescription: 'Current configuration is completely consistent with the original configuration, no differences found.'
+  },
+  
+  // User Management
+  userManagement: {
+    title: 'User Management',
+    addUser: 'Add User',
+    editUser: 'Edit User',
+    id: 'ID',
+    username: 'Username',
+    email: 'Email',
+    password: 'Password',
+    oldPassword: 'Old Password',
+    newPassword: 'New Password',
+    confirmPassword: 'Confirm Password',
+    actions: 'Actions',
+    edit: 'Edit',
+    delete: 'Delete',
+    changePassword: 'Change Password',
+    confirmDelete: 'Are you sure to delete this user?',
+    confirmDeleteAdmin: 'Cannot delete default admin user',
+    usernameExists: 'Username already exists',
+    emailExists: 'Email already exists',
+    oldPasswordError: 'Old password is incorrect',
+    userCreated: 'User created successfully',
+    userUpdated: 'User updated successfully',
+    userDeleted: 'User deleted successfully',
+    passwordChanged: 'Password changed successfully',
+    fetchError: 'Failed to fetch user list',
+    createError: 'Failed to create user',
+    updateError: 'Failed to update user',
+    deleteError: 'Failed to delete user',
+    passwordError: 'Failed to change password',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    pleaseInputUsername: 'Please input username',
+    pleaseInputEmail: 'Please input email',
+    pleaseInputPassword: 'Please input password',
+    pleaseInputOldPassword: 'Please input old password',
+    pleaseInputNewPassword: 'Please input new password',
+    pleaseConfirmPassword: 'Please confirm password',
+    passwordNotMatch: 'Passwords do not match',
+    invalidEmail: 'Invalid email format',
+    usernameMinLength: 'Username must be at least 3 characters',
+    passwordMinLength: 'Password must be at least 6 characters'
   }
 }

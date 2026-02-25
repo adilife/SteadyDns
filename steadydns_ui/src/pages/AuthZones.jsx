@@ -55,6 +55,10 @@ const AuthZones = ({ currentLanguage }) => {
   const [confirmModalContent, setConfirmModalContent] = useState('')
   const [currentAction, setCurrentAction] = useState('')
   const [currentActionParams, setCurrentActionParams] = useState(null)
+  
+  // Plugin status state
+  const [pluginEnabled, setPluginEnabled] = useState(true)
+  const [checkingPluginStatus, setCheckingPluginStatus] = useState(true)
 
   // 记录类型与默认TTL的映射表
   const recordTypeTTLMap = {
@@ -82,8 +86,30 @@ const AuthZones = ({ currentLanguage }) => {
   // 标准DNS记录类型列表
   const standardRecordTypes = Object.keys(recordTypeTTLMap)
 
+  // 检查插件状态
+  const checkPluginStatus = useCallback(async () => {
+    setCheckingPluginStatus(true)
+    try {
+      const response = await apiClient.getPluginsStatus()
+      if (response.success) {
+        const bindPlugin = response.data.plugins.find(plugin => plugin.name === 'bind')
+        setPluginEnabled(bindPlugin?.enabled || false)
+      } else {
+        console.error('Failed to check plugin status:', response.error)
+        setPluginEnabled(false)
+      }
+    } catch (error) {
+      console.error('Error checking plugin status:', error)
+      setPluginEnabled(false)
+    } finally {
+      setCheckingPluginStatus(false)
+    }
+  }, [])
+
   // 加载权威域列表
   const loadAuthZones = useCallback(async () => {
+    if (!pluginEnabled) return
+    
     setLoading(true)
     try {
       const response = await apiClient.get('/bind-zones')
@@ -94,19 +120,35 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error loading auth zones:', error)
-      message.error(t('authZones.fetchError', currentLanguage))
+      // 检查是否是404错误（插件禁用）
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('authZones.fetchError', currentLanguage))
+      }
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage])
+  }, [currentLanguage, pluginEnabled])
 
   // 组件挂载时加载数据
   useEffect(() => {
-    loadAuthZones()
-  }, [loadAuthZones])
+    // 先检查插件状态
+    checkPluginStatus()
+  }, [checkPluginStatus])
+
+  // 插件状态变化时加载数据
+  useEffect(() => {
+    if (pluginEnabled) {
+      loadAuthZones()
+    }
+  }, [pluginEnabled, loadAuthZones])
 
   // 实现30秒自动刷新数据
   useEffect(() => {
+    if (!pluginEnabled) return
+    
     // 设置30秒定时器
     const timer = setInterval(() => {
       loadAuthZones()
@@ -118,7 +160,7 @@ const AuthZones = ({ currentLanguage }) => {
         clearInterval(timer)
       }
     }
-  }, [loadAuthZones])
+  }, [loadAuthZones, pluginEnabled])
 
   // 显示添加/编辑模态框
   const showModal = (zone = null) => {
@@ -237,7 +279,13 @@ const AuthZones = ({ currentLanguage }) => {
   }
 
   // Load operation history records
-  const loadHistoryRecords = async () => {
+  const loadHistoryRecords = useCallback(async () => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setHistoryLoading(false)
+      return
+    }
+    
     setHistoryLoading(true)
     try {
       const response = await apiClient.getBindZonesHistory()
@@ -250,37 +298,21 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error loading history records:', error)
-      message.error('加载操作历史失败')
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
-
-  // Handle restore from history
-  const handleRestoreFromHistory = async (historyId) => {
-    try {
-      setHistoryLoading(true)
-      const response = await apiClient.restoreBindZoneFromHistory(historyId)
-      if (response.success) {
-        message.success(response.data.message || '从历史记录恢复成功')
-        // Reload auth zones after restore
-        setTimeout(loadAuthZones, 1000)
-        setHistoryModalVisible(false)
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
       } else {
-        message.error(response.error || '从历史记录恢复失败')
+        message.error('加载操作历史失败')
       }
-    } catch (error) {
-      console.error('Error restoring from history:', error)
-      message.error('从历史记录恢复失败')
     } finally {
       setHistoryLoading(false)
     }
-  }
+  }, [pluginEnabled])
 
   // Handle restore from history with confirmation
   const confirmRestoreFromHistory = (historyId) => {
-    setConfirmModalTitle('从历史记录恢复')
-    setConfirmModalContent('确定要从历史记录恢复吗？这将覆盖当前的配置。')
+    setConfirmModalTitle(t('authZones.restoreFromHistory', currentLanguage))
+    setConfirmModalContent(t('authZones.confirmRestoreMessage', currentLanguage))
     setCurrentAction('restoreFromHistory')
     setCurrentActionParams(historyId)
     setConfirmModalVisible(true)
@@ -319,7 +351,7 @@ const AuthZones = ({ currentLanguage }) => {
     if (historyModalVisible) {
       loadHistoryRecords()
     }
-  }, [historyModalVisible])
+  }, [historyModalVisible, loadHistoryRecords])
 
   /**
    * 准备提交数据，移除后端自动维护的字段
@@ -368,6 +400,12 @@ const AuthZones = ({ currentLanguage }) => {
 
   // 创建权威域
   const createAuthZone = async (values) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setLoading(false)
+      return
+    }
+    
     try {
       const response = await apiClient.post('/bind-zones', values)
       if (response.success) {
@@ -381,7 +419,12 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error creating auth zone:', error)
-      message.error(t('authZones.createError', currentLanguage))
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('authZones.createError', currentLanguage))
+      }
     } finally {
       setLoading(false)
     }
@@ -389,6 +432,12 @@ const AuthZones = ({ currentLanguage }) => {
 
   // 更新权威域
   const updateAuthZone = async (domain, values) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setLoading(false)
+      return
+    }
+    
     try {
       const response = await apiClient.put(`/bind-zones/${domain}`, values)
       if (response.success) {
@@ -402,7 +451,12 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error updating auth zone:', error)
-      message.error(t('authZones.updateError', currentLanguage))
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('authZones.updateError', currentLanguage))
+      }
     } finally {
       setLoading(false)
     }
@@ -410,6 +464,11 @@ const AuthZones = ({ currentLanguage }) => {
 
   // 删除权威域
   const deleteAuthZone = async (domain) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      return
+    }
+    
     try {
       const response = await apiClient.delete(`/bind-zones/${domain}`)
       if (response.success) {
@@ -420,12 +479,22 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error deleting auth zone:', error)
-      message.error(t('authZones.deleteError', currentLanguage))
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('authZones.deleteError', currentLanguage))
+      }
     }
   }
 
   // 刷新权威域配置
   const reloadAuthZone = async (domain) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      return
+    }
+    
     try {
       const response = await apiClient.post(`/bind-zones/${domain}/reload`)
       if (response.success) {
@@ -435,7 +504,44 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error reloading auth zone:', error)
-      message.error(t('authZones.reloadError', currentLanguage))
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error(t('authZones.reloadError', currentLanguage))
+      }
+    }
+  }
+
+  // Handle restore from history
+  const handleRestoreFromHistory = async (historyId) => {
+    if (!pluginEnabled) {
+      message.error('BIND插件未启用，请启用后再操作')
+      setHistoryLoading(false)
+      return
+    }
+    
+    try {
+      setHistoryLoading(true)
+      const response = await apiClient.restoreBindZoneFromHistory(historyId)
+      if (response.success) {
+        message.success(response.data.message || '从历史记录恢复成功')
+        // Reload auth zones after restore
+        setTimeout(loadAuthZones, 1000)
+        setHistoryModalVisible(false)
+      } else {
+        message.error(response.error || '从历史记录恢复失败')
+      }
+    } catch (error) {
+      console.error('Error restoring from history:', error)
+      if (error.message.includes('404')) {
+        setPluginEnabled(false)
+        message.error('BIND插件未启用，请启用后再操作')
+      } else {
+        message.error('从历史记录恢复失败')
+      }
+    } finally {
+      setHistoryLoading(false)
     }
   }
 
@@ -461,6 +567,18 @@ const AuthZones = ({ currentLanguage }) => {
       dataIndex: 'allow_query',
       key: 'allow_query',
       width: 150
+    },
+    {
+      title: t('authZones.comment', currentLanguage),
+      dataIndex: 'comment',
+      key: 'comment',
+      width: 300,
+      ellipsis: true,
+      render: (text) => (
+        <Tooltip title={text}>
+          <span>{text}</span>
+        </Tooltip>
+      )
     },
     {
       title: t('authZones.records', currentLanguage),
@@ -515,6 +633,40 @@ const AuthZones = ({ currentLanguage }) => {
     }
   ]
 
+  // 当插件未启用时显示的提示信息
+  if (!pluginEnabled) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <Alert
+            message="BIND插件未启用"
+            description={
+              <div>
+                <p style={{ marginBottom: '16px' }}>权威域管理功能需要BIND插件支持，请先启用插件后再访问。</p>
+                <p style={{ marginBottom: '8px' }}><strong>启用方法：</strong></p>
+                <p>1. 编辑配置文件：<code>/src/cmd/config/steadydns.conf</code></p>
+                <p>2. 将 <code>BIND_ENABLED</code> 设置为 <code>true</code></p>
+                <p>3. 重启SteadyDNS服务使配置生效</p>
+              </div>
+            }
+            type="warning"
+            showIcon
+            style={{ marginBottom: '24px' }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // 当检查插件状态时显示加载状态
+  if (checkingPluginStatus) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px' }}>
+        <Spin size="large" tip="检查插件状态..." />
+      </div>
+    )
+  }
+
   return (
     <div>
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -529,7 +681,7 @@ const AuthZones = ({ currentLanguage }) => {
             icon={<ReloadOutlined />}
             onClick={() => setHistoryModalVisible(true)}
           >
-            操作历史
+            {t('authZones.operationHistory', currentLanguage)}
           </Button>
           <Button
             type="primary"
@@ -572,6 +724,7 @@ const AuthZones = ({ currentLanguage }) => {
           type: 'master',
           file: '',
           allow_query: 'any',
+          comment: '',
           soa: {
             primary_ns: '',
             admin_email: '',
@@ -618,6 +771,15 @@ const AuthZones = ({ currentLanguage }) => {
                       <Input placeholder={t('authZones.allowQueryPlaceholder', currentLanguage)} />
                     </Form.Item>
 
+                    <Form.Item
+                      name="comment"
+                      label={t('authZones.comment', currentLanguage)}
+                    >
+                      <Input.TextArea 
+                        rows={4} 
+                        placeholder={t('authZones.commentPlaceholder', currentLanguage)} 
+                      />
+                    </Form.Item>
 
                   </>
                 )
@@ -892,17 +1054,17 @@ const AuthZones = ({ currentLanguage }) => {
       
       {/* Operation History Modal */}
       <Modal
-        title="权威域操作历史"
+        title={t('authZones.operationHistoryTitle', currentLanguage)}
         open={historyModalVisible}
         onOk={() => setHistoryModalVisible(false)}
         onCancel={() => setHistoryModalVisible(false)}
-        okText="关闭"
-        cancelText="取消"
+        okText={t('authZones.close', currentLanguage)}
+        cancelText={t('authZones.cancel', currentLanguage)}
         width={1000}
         styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
       >
         <div>
-          <h3 style={{ marginBottom: 16 }}>操作历史记录</h3>
+          <h3 style={{ marginBottom: 16 }}>{t('authZones.operationHistoryRecords', currentLanguage)}</h3>
           <Spin spinning={historyLoading}>
             {historyRecords.length > 0 ? (
               <Table
@@ -916,34 +1078,34 @@ const AuthZones = ({ currentLanguage }) => {
                 scroll={{ x: 'max-content' }}
                 columns={[
                   {
-                    title: 'ID',
+                    title: t('authZones.id', currentLanguage),
                     dataIndex: 'id',
                     key: 'id',
                     width: 80
                   },
                   {
-                    title: '操作类型',
+                    title: t('authZones.operationType', currentLanguage),
                     dataIndex: 'operation',
                     key: 'operation',
                     width: 120,
                     render: (operation) => {
                       const operationMap = {
-                        create: '创建',
-                        update: '更新',
-                        delete: '删除',
-                        rollback: '回滚操作'
+                        create: t('authZones.create', currentLanguage),
+                        update: t('authZones.update', currentLanguage),
+                        delete: t('authZones.deleteOperation', currentLanguage),
+                        rollback: t('authZones.rollback', currentLanguage)
                       }
                       return operationMap[operation] || operation
                     }
                   },
                   {
-                    title: '域名',
+                    title: t('authZones.domain', currentLanguage),
                     dataIndex: 'domain',
                     key: 'domain',
                     width: 200
                   },
                   {
-                    title: '操作时间',
+                    title: t('authZones.operationTime', currentLanguage),
                     dataIndex: 'timestamp',
                     key: 'timestamp',
                     width: 200,
@@ -952,7 +1114,7 @@ const AuthZones = ({ currentLanguage }) => {
                     }
                   },
                   {
-                    title: '操作',
+                    title: t('authZones.actions', currentLanguage),
                     key: 'actions',
                     width: 100,
                     render: (_, record) => (
@@ -961,7 +1123,7 @@ const AuthZones = ({ currentLanguage }) => {
                         size="small"
                         onClick={() => confirmRestoreFromHistory(record.id)}
                       >
-                        恢复
+                        {t('authZones.restore', currentLanguage)}
                       </Button>
                     )
                   }
@@ -969,8 +1131,8 @@ const AuthZones = ({ currentLanguage }) => {
               />
             ) : (
               <Alert
-                title="没有操作历史记录"
-                description="当前没有权威域的操作历史记录"
+                title={t('authZones.noOperationHistory', currentLanguage)}
+                description={t('authZones.noOperationHistoryDescription', currentLanguage)}
                 type="info"
                 showIcon
               />

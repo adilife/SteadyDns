@@ -669,7 +669,7 @@ const ForwardGroups = ({ currentLanguage }) => {
           </Button>
           <span style={{ marginLeft: 16 }}>
             {selectedGroupKeys.length > 0 ? 
-              (currentLanguage === 'zh-CN' ? `已选择 ${selectedGroupKeys.length} 个转发组` : `Selected ${selectedGroupKeys.length} forward groups`) : 
+              t('forwardGroups.selectedCount', currentLanguage, { count: selectedGroupKeys.length }) : 
               ''
             }
           </span>

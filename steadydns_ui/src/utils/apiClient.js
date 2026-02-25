@@ -681,6 +681,100 @@ class APIClient {
       method: 'GET'
     })
   }
+
+  /**
+   * Get Dashboard summary data
+   * @returns {Promise<any>} Dashboard summary data
+   */
+  async getDashboardSummary() {
+    return this.request('/dashboard/summary', {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Get Dashboard trends data
+   * @param {string} type - Data type (all, qps, resource)
+   * @param {string} timeRange - Time range (1h, 6h, 24h, 7d)
+   * @param {number} points - Number of data points
+   * @returns {Promise<any>} Dashboard trends data
+   */
+  async getDashboardTrends(type = 'all', timeRange = '1h', points = 12) {
+    return this.request(`/dashboard/trends?type=${type}&timeRange=${timeRange}&points=${points}`, {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Get Dashboard top data
+   * @param {number} limit - Limit number of records
+   * @returns {Promise<any>} Dashboard top data
+   */
+  async getDashboardTop(limit = 10) {
+    return this.request(`/dashboard/top?limit=${limit}`, {
+      method: 'GET'
+    })
+  }
+
+  /**
+   * Get plugins status
+   * @returns {Promise<any>} Plugins status data
+   */
+  async getPluginsStatus() {
+    return this.request('/plugins/status', {
+      method: 'GET'
+    })
+  }
+
+  // ==================== 用户管理相关API ====================
+
+  /**
+   * 获取用户列表
+   * @param {number} page - 页码，默认为1
+   * @param {number} pageSize - 每页数量，默认为10
+   * @returns {Promise<any>} 用户列表数据，包含users、total、page、pageSize
+   */
+  async getUsers(page = 1, pageSize = 10) {
+    return this.get(`/users?page=${page}&pageSize=${pageSize}`)
+  }
+
+  /**
+   * 创建用户
+   * @param {object} userData - 用户数据，包含username、email、password
+   * @returns {Promise<any>} 创建结果，包含id、username、email和message
+   */
+  async createUser(userData) {
+    return this.post('/users', userData)
+  }
+
+  /**
+   * 更新用户信息
+   * @param {number} id - 用户ID
+   * @param {object} userData - 用户数据，包含username、email
+   * @returns {Promise<any>} 更新结果，包含id、username、email和message
+   */
+  async updateUser(id, userData) {
+    return this.put(`/users/${id}`, userData)
+  }
+
+  /**
+   * 删除用户
+   * @param {number} id - 用户ID
+   * @returns {Promise<any>} 删除结果，包含message
+   */
+  async deleteUser(id) {
+    return this.delete(`/users/${id}`)
+  }
+
+  /**
+   * 修改用户密码
+   * @param {number} id - 用户ID
+   * @param {object} passwordData - 密码数据，包含old_password和new_password
+   * @returns {Promise<any>} 修改结果，包含message
+   */
+  async changePassword(id, passwordData) {
+    return this.put(`/users/${id}/password`, passwordData)
+  }
 }
 
 // Export singleton instance
