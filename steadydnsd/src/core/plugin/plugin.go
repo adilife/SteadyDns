@@ -119,6 +119,39 @@ const (
 	PluginStatusDisabled
 )
 
+// 插件名称常量定义
+const (
+	// PluginNameBind BIND插件名称
+	PluginNameBind = "bind"
+
+	// PluginNameDNSRules DNS规则插件名称（预留）
+	PluginNameDNSRules = "dns-rules"
+
+	// PluginNameLogAnalysis 日志分析插件名称（预留）
+	PluginNameLogAnalysis = "log-analysis"
+)
+
+// 预留插件信息定义
+var (
+	// ReservedPluginDNSRules DNS规则插件信息（预留）
+	ReservedPluginDNSRules = PluginInfo{
+		Name:        PluginNameDNSRules,
+		Description: "DNS Rules Plugin - DNS query rules management",
+		Version:     "0.1.0",
+		Enabled:     false,
+		Features:    []string{"rules", "filtering", "blocking"},
+	}
+
+	// ReservedPluginLogAnalysis 日志分析插件信息（预留）
+	ReservedPluginLogAnalysis = PluginInfo{
+		Name:        PluginNameLogAnalysis,
+		Description: "Log Analysis Plugin - DNS query log analysis",
+		Version:     "0.1.0",
+		Enabled:     false,
+		Features:    []string{"logs", "analytics", "reports", "statistics"},
+	}
+)
+
 // String 返回插件状态的字符串表示
 func (s PluginStatus) String() string {
 	switch s {

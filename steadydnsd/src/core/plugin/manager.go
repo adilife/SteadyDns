@@ -129,13 +129,16 @@ func (pm *PluginManager) GetPluginInfo(name string) *PluginInfo {
 }
 
 // GetAllPluginInfo 获取所有插件的信息列表
+// 包括已注册插件和预留插件
 // 返回值：
 //   - []PluginInfo: 所有插件信息的切片
 func (pm *PluginManager) GetAllPluginInfo() []PluginInfo {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
-	infos := make([]PluginInfo, 0, len(pm.plugins))
+	infos := make([]PluginInfo, 0, len(pm.plugins)+2) // +2 for reserved plugins
+
+	// 添加已注册插件信息
 	for name, plugin := range pm.plugins {
 		enabled := pm.statuses[name]
 		infos = append(infos, PluginInfo{
@@ -146,10 +149,27 @@ func (pm *PluginManager) GetAllPluginInfo() []PluginInfo {
 			Features:    pm.getPluginFeatures(plugin),
 		})
 	}
+
+	// 添加预留插件信息（如果未注册）
+	if _, exists := pm.plugins[PluginNameDNSRules]; !exists {
+		dnsRulesEnabled := pm.statuses[PluginNameDNSRules]
+		dnsRulesInfo := ReservedPluginDNSRules
+		dnsRulesInfo.Enabled = dnsRulesEnabled
+		infos = append(infos, dnsRulesInfo)
+	}
+
+	if _, exists := pm.plugins[PluginNameLogAnalysis]; !exists {
+		logAnalysisEnabled := pm.statuses[PluginNameLogAnalysis]
+		logAnalysisInfo := ReservedPluginLogAnalysis
+		logAnalysisInfo.Enabled = logAnalysisEnabled
+		infos = append(infos, logAnalysisInfo)
+	}
+
 	return infos
 }
 
 // IsPluginEnabled 检查指定插件是否启用
+// 支持已注册插件和预留插件
 // 参数：
 //   - name: 插件名称
 //
@@ -158,6 +178,11 @@ func (pm *PluginManager) GetAllPluginInfo() []PluginInfo {
 func (pm *PluginManager) IsPluginEnabled(name string) bool {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
+
+	// 检查是否是预留插件
+	if name == PluginNameDNSRules || name == PluginNameLogAnalysis {
+		return pm.statuses[name]
+	}
 
 	// 如果插件不存在，返回false
 	if _, exists := pm.plugins[name]; !exists {
@@ -168,6 +193,7 @@ func (pm *PluginManager) IsPluginEnabled(name string) bool {
 }
 
 // SetPluginEnabled 设置插件的启用状态
+// 支持已注册插件和预留插件
 // 参数：
 //   - name: 插件名称
 //   - enabled: 是否启用
@@ -177,6 +203,13 @@ func (pm *PluginManager) IsPluginEnabled(name string) bool {
 func (pm *PluginManager) SetPluginEnabled(name string, enabled bool) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
+
+	// 检查是否是预留插件
+	if name == PluginNameDNSRules || name == PluginNameLogAnalysis {
+		pm.statuses[name] = enabled
+		pm.logger.Info("预留插件 %s 状态已设置为: %v", name, enabled)
+		return nil
+	}
 
 	if _, exists := pm.plugins[name]; !exists {
 		return fmt.Errorf("插件 %s 不存在", name)

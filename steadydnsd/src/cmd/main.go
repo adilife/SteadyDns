@@ -326,6 +326,15 @@ func runService(daemonManager *common.DaemonManager) error {
 		logger.Info("BIND插件已禁用")
 	}
 
+	// 设置预留插件状态（功能暂未实现）
+	dnsRulesEnabled := common.GetConfigBool("Plugins", "DNS_RULES_ENABLED", false)
+	pm.SetPluginEnabled(plugin.PluginNameDNSRules, dnsRulesEnabled)
+	logger.Info("DNS规则插件状态: %v (预留功能)", dnsRulesEnabled)
+
+	logAnalysisEnabled := common.GetConfigBool("Plugins", "LOG_ANALYSIS_ENABLED", false)
+	pm.SetPluginEnabled(plugin.PluginNameLogAnalysis, logAnalysisEnabled)
+	logger.Info("日志分析插件状态: %v (预留功能)", logAnalysisEnabled)
+
 	// 初始化所有启用的插件
 	if err := pm.InitializeEnabledPlugins(); err != nil {
 		logger.Warn("初始化插件失败: %v", err)
