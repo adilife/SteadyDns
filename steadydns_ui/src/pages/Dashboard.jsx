@@ -54,7 +54,8 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
     topClients: [],
     qpsTrend: [],
     latencyData: [],
-    resourceUsage: []
+    resourceUsage: [],
+    networkUsage: []
   })
 
   // Get summary data from API
@@ -89,6 +90,17 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
     }
   }, [currentLanguage])
 
+  // 网络流量单位转换函数
+  const formatNetworkSpeed = (bytesPerSecond) => {
+    if (bytesPerSecond < 1024) {
+      return `${bytesPerSecond} B/s`
+    } else if (bytesPerSecond < 1024 * 1024) {
+      return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`
+    } else {
+      return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
+    }
+  }
+
   // Get trends data from API
   const fetchTrendsData = useCallback(async () => {
     try {
@@ -98,6 +110,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
         // 处理数据格式转换
         let qpsTrend = []
         let resourceUsage = []
+        let networkUsage = []
         
         // 检查返回的数据格式
         if (response.data.qpsTrend && response.data.qpsTrend.timeLabels) {
@@ -115,10 +128,19 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
               disk: response.data.resourceUsage.diskValues[index]
             }))
           }
+          
+          if (response.data.networkUsage && response.data.networkUsage.timeLabels) {
+            networkUsage = response.data.networkUsage.timeLabels.map((time, index) => ({
+              time,
+              inbound: response.data.networkUsage.inboundValues[index],
+              outbound: response.data.networkUsage.outboundValues[index]
+            }))
+          }
         } else {
           // 处理原始数据格式
           qpsTrend = response.data.qpsTrend || []
           resourceUsage = response.data.resourceUsage || []
+          networkUsage = response.data.networkUsage || []
         }
         
         // 固定延迟区间顺序
@@ -143,7 +165,8 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
           ...prev,
           qpsTrend,
           latencyData: orderedLatencyData,
-          resourceUsage
+          resourceUsage,
+          networkUsage
         }))
       }
     } catch (error) {
@@ -444,7 +467,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(value, name) => [`${value}%`, name]} />
                 <Legend />
                 <Line type="monotone" dataKey="cpu" stroke="#ff7300" name="CPU" />
                 <Line type="monotone" dataKey="memory" stroke="#3f8600" name="Memory" />
@@ -453,65 +476,17 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             </ResponsiveContainer>
           </Col>
           <Col xs={24} lg={12}>
-            <Row gutter={[16, 16]}>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.cpuUsage', currentLanguage)}>
-                  <Progress 
-                    percent={dashboardData.systemResources.cpu} 
-                    status="active" 
-                    strokeColor={{
-                      from: '#108ee9',
-                      to: '#87d068',
-                    }}
-                  />
-                  <Text style={{ marginTop: 8, display: 'block' }}>
-                    {dashboardData.systemResources.cpu}% {t('dashboard.used', currentLanguage)}
-                  </Text>
-                </Card>
-              </Col>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.memoryUsage', currentLanguage)}>
-                  <Progress 
-                    percent={dashboardData.systemResources.memory} 
-                    status="active" 
-                    strokeColor={{
-                      from: '#108ee9',
-                      to: '#87d068',
-                    }}
-                  />
-                  <Text style={{ marginTop: 8, display: 'block' }}>
-                    {dashboardData.systemResources.memory}% {t('dashboard.used', currentLanguage)}
-                  </Text>
-                </Card>
-              </Col>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.diskUsage', currentLanguage)}>
-                  <Progress 
-                    percent={dashboardData.systemResources.disk} 
-                    status="active" 
-                    strokeColor={{
-                      from: '#108ee9',
-                      to: '#87d068',
-                    }}
-                  />
-                  <Text style={{ marginTop: 8, display: 'block' }}>
-                    {dashboardData.systemResources.disk}% {t('dashboard.used', currentLanguage)}
-                  </Text>
-                </Card>
-              </Col>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.networkUsage', currentLanguage)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text>{t('dashboard.inbound', currentLanguage)}:</Text>
-                    <Text strong>{dashboardData.systemResources.network.inbound}</Text>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Text>{t('dashboard.outbound', currentLanguage)}:</Text>
-                    <Text strong>{dashboardData.systemResources.network.outbound}</Text>
-                  </div>
-                </Card>
-              </Col>
-            </Row>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={dashboardData.networkUsage}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis />
+                <Tooltip formatter={(value, name) => [formatNetworkSpeed(value), name === 'inbound' ? t('dashboard.inbound', currentLanguage) : t('dashboard.outbound', currentLanguage)]} />
+                <Legend />
+                <Line type="monotone" dataKey="inbound" stroke="#1890ff" name={t('dashboard.inbound', currentLanguage)} />
+                <Line type="monotone" dataKey="outbound" stroke="#52c41a" name={t('dashboard.outbound', currentLanguage)} />
+              </LineChart>
+            </ResponsiveContainer>
           </Col>
         </Row>
       </Card>
