@@ -54,23 +54,6 @@ func NewBindPlugin() *BindPlugin {
 	}
 }
 
-// ginToHTTPHandler 将gin.HandlerFunc转换为http.HandlerFunc
-// 参数:
-//   - handler: gin处理函数
-//
-// 返回值: http处理函数
-func ginToHTTPHandler(handler gin.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// 创建一个临时的gin.Context
-		// 注意：这里需要确保gin引擎已经初始化
-		// 在实际使用中，应该通过gin引擎的ServeHTTP方法来处理
-		// 这里使用一个简化的适配方式
-		c, _ := gin.CreateTestContext(w)
-		c.Request = r
-		handler(c)
-	}
-}
-
 // Name 返回插件的唯一标识名称
 // 返回值: 插件名称字符串 "bind"
 func (p *BindPlugin) Name() string {
@@ -126,65 +109,65 @@ func (p *BindPlugin) Routes() []plugin.RouteDefinition {
 	return []plugin.RouteDefinition{
 		// ==================== 权威域管理路由 ====================
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-zones",
-			Handler:      ginToHTTPHandler(p.handleGetBindZones),
+			Handler:      p.handleGetBindZones,
 			Description:  "获取所有权威域列表",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-zones/history",
-			Handler:      ginToHTTPHandler(p.handleGetBindHistory),
+			Handler:      p.handleGetBindHistory,
 			Description:  "获取操作历史记录",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-zones/:domain",
-			Handler:      ginToHTTPHandler(p.handleGetBindZone),
+			Handler:      p.handleGetBindZone,
 			Description:  "获取单个权威域详情",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-zones",
-			Handler:      ginToHTTPHandler(p.handleCreateBindZone),
+			Handler:      p.handleCreateBindZone,
 			Description:  "创建权威域",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-zones/:domain/reload",
-			Handler:      ginToHTTPHandler(p.handleReloadBindZone),
+			Handler:      p.handleReloadBindZone,
 			Description:  "刷新权威域配置",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-zones/history/:id/restore",
-			Handler:      ginToHTTPHandler(p.handleRestoreBindHistory),
+			Handler:      p.handleRestoreBindHistory,
 			Description:  "恢复历史记录",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPut,
+			Method:       "PUT",
 			Path:         "/api/bind-zones/:domain",
-			Handler:      ginToHTTPHandler(p.handleUpdateBindZone),
+			Handler:      p.handleUpdateBindZone,
 			Description:  "更新权威域",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodDelete,
+			Method:       "DELETE",
 			Path:         "/api/bind-zones/:domain",
-			Handler:      ginToHTTPHandler(p.handleDeleteBindZone),
+			Handler:      p.handleDeleteBindZone,
 			Description:  "删除权威域",
 			AuthRequired: true,
 			Middlewares:  nil,
@@ -192,73 +175,73 @@ func (p *BindPlugin) Routes() []plugin.RouteDefinition {
 
 		// ==================== BIND服务器管理路由 ====================
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/status",
-			Handler:      ginToHTTPHandler(p.handleBindServerStatus),
+			Handler:      p.handleBindServerStatus,
 			Description:  "获取BIND服务器状态",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/start",
-			Handler:      ginToHTTPHandler(p.handleBindServerStart),
+			Handler:      p.handleBindServerStart,
 			Description:  "启动BIND服务器",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/stop",
-			Handler:      ginToHTTPHandler(p.handleBindServerStop),
+			Handler:      p.handleBindServerStop,
 			Description:  "停止BIND服务器",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/restart",
-			Handler:      ginToHTTPHandler(p.handleBindServerRestart),
+			Handler:      p.handleBindServerRestart,
 			Description:  "重启BIND服务器",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/reload",
-			Handler:      ginToHTTPHandler(p.handleBindServerReload),
+			Handler:      p.handleBindServerReload,
 			Description:  "重载BIND服务器配置",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/stats",
-			Handler:      ginToHTTPHandler(p.handleBindServerStats),
+			Handler:      p.handleBindServerStats,
 			Description:  "获取BIND服务器统计信息",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/health",
-			Handler:      ginToHTTPHandler(p.handleBindServerHealth),
+			Handler:      p.handleBindServerHealth,
 			Description:  "检查BIND服务健康状态",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/validate",
-			Handler:      ginToHTTPHandler(p.handleBindServerValidate),
+			Handler:      p.handleBindServerValidate,
 			Description:  "验证BIND配置",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/config",
-			Handler:      ginToHTTPHandler(p.handleBindServerConfig),
+			Handler:      p.handleBindServerConfig,
 			Description:  "获取BIND配置信息",
 			AuthRequired: true,
 			Middlewares:  nil,
@@ -266,41 +249,41 @@ func (p *BindPlugin) Routes() []plugin.RouteDefinition {
 
 		// ==================== named.conf 配置管理路由 ====================
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/named-conf/content",
-			Handler:      ginToHTTPHandler(p.handleGetNamedConfContent),
+			Handler:      p.handleGetNamedConfContent,
 			Description:  "获取named.conf文件内容",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPut,
+			Method:       "PUT",
 			Path:         "/api/bind-server/named-conf",
-			Handler:      ginToHTTPHandler(p.handleUpdateNamedConfContent),
+			Handler:      p.handleUpdateNamedConfContent,
 			Description:  "更新named.conf文件内容",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/named-conf/validate",
-			Handler:      ginToHTTPHandler(p.handleValidateNamedConfContent),
+			Handler:      p.handleValidateNamedConfContent,
 			Description:  "验证named.conf配置内容",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/named-conf/diff",
-			Handler:      ginToHTTPHandler(p.handleDiffNamedConf),
+			Handler:      p.handleDiffNamedConf,
 			Description:  "获取配置差异",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/named-conf/parse",
-			Handler:      ginToHTTPHandler(p.handleParseNamedConf),
+			Handler:      p.handleParseNamedConf,
 			Description:  "解析named.conf配置结构",
 			AuthRequired: true,
 			Middlewares:  nil,
@@ -308,25 +291,25 @@ func (p *BindPlugin) Routes() []plugin.RouteDefinition {
 
 		// ==================== named.conf 备份管理路由 ====================
 		{
-			Method:       http.MethodGet,
+			Method:       "GET",
 			Path:         "/api/bind-server/named-conf/backups",
-			Handler:      ginToHTTPHandler(p.handleListNamedConfBackups),
+			Handler:      p.handleListNamedConfBackups,
 			Description:  "列出所有named.conf备份",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodPost,
+			Method:       "POST",
 			Path:         "/api/bind-server/named-conf/restore",
-			Handler:      ginToHTTPHandler(p.handleRestoreNamedConfBackup),
+			Handler:      p.handleRestoreNamedConfBackup,
 			Description:  "从备份恢复named.conf配置",
 			AuthRequired: true,
 			Middlewares:  nil,
 		},
 		{
-			Method:       http.MethodDelete,
+			Method:       "DELETE",
 			Path:         "/api/bind-server/named-conf/backups/:id",
-			Handler:      ginToHTTPHandler(p.handleDeleteNamedConfBackup),
+			Handler:      p.handleDeleteNamedConfBackup,
 			Description:  "删除指定备份文件",
 			AuthRequired: true,
 			Middlewares:  nil,

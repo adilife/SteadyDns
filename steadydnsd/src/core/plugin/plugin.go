@@ -19,7 +19,7 @@
 package plugin
 
 import (
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 // Plugin 插件接口定义
@@ -67,8 +67,8 @@ type RouteDefinition struct {
 	// Path 路由路径 (如: /api/plugin/example)
 	Path string
 
-	// Handler HTTP请求处理函数
-	Handler http.HandlerFunc
+	// Handler GIN请求处理函数
+	Handler gin.HandlerFunc
 
 	// Description 路由功能描述
 	Description string
@@ -80,7 +80,7 @@ type RouteDefinition struct {
 
 	// Middlewares 中间件列表
 	// 按顺序执行的中间件函数
-	Middlewares []func(http.Handler) http.Handler
+	Middlewares []gin.HandlerFunc
 }
 
 // PluginInfo 插件信息结构体
