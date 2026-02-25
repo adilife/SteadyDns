@@ -361,14 +361,14 @@ const BindServerManager = ({ currentLanguage }) => {
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           <Alert
-            message="BIND插件未启用"
+            title={t('bindServer.pluginNotEnabled', currentLanguage)}
             description={
               <div>
-                <p style={{ marginBottom: '16px' }}>BIND服务器管理功能需要BIND插件支持，请先启用插件后再访问。</p>
-                <p style={{ marginBottom: '8px' }}><strong>启用方法：</strong></p>
-                <p>1. 编辑配置文件：<code>/src/cmd/config/steadydns.conf</code></p>
-                <p>2. 将 <code>BIND_ENABLED</code> 设置为 <code>true</code></p>
-                <p>3. 重启SteadyDNS服务使配置生效</p>
+                <p style={{ marginBottom: '16px' }}>{t('bindServer.pluginNotEnabledDescription', currentLanguage)}</p>
+                <p style={{ marginBottom: '8px' }}><strong>{t('bindServer.enableMethod', currentLanguage)}：</strong></p>
+                <p>1. {t('bindServer.editConfigFile', currentLanguage)}：<code>/src/cmd/config/steadydns.conf</code></p>
+                <p>2. {t('bindServer.setBindEnabled', currentLanguage)} <code>true</code></p>
+                <p>3. {t('bindServer.restartService', currentLanguage)}</p>
               </div>
             }
             type="warning"
@@ -384,7 +384,7 @@ const BindServerManager = ({ currentLanguage }) => {
   if (checkingPluginStatus) {
     return (
       <div style={{ textAlign: 'center', padding: '60px' }}>
-        <Spin size="large" tip="检查插件状态..." />
+        <Spin size="large" tip={t('bindServer.checkingPluginStatus', currentLanguage)} />
       </div>
     )
   }
@@ -406,7 +406,7 @@ const BindServerManager = ({ currentLanguage }) => {
               loadBackups()
             }}
           >
-            备份管理
+            {t('bindServer.backupManagement', currentLanguage)}
           </Button>
           <Button
             icon={<ReloadOutlined />}
@@ -714,17 +714,17 @@ const BindServerManager = ({ currentLanguage }) => {
       
       {/* Backup Management Modal */}
       <Modal
-        title="BIND 配置备份管理"
+        title={t('bindServer.backupManagementTitle', currentLanguage)}
         open={backupModalVisible}
         onOk={() => setBackupModalVisible(false)}
         onCancel={() => setBackupModalVisible(false)}
-        okText="关闭"
-        cancelText="取消"
+        okText={t('bindServer.close', currentLanguage)}
+        cancelText={t('bindServer.cancel', currentLanguage)}
         width={800}
         styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
       >
         <div>
-          <h3 style={{ marginBottom: 16 }}>备份文件列表</h3>
+          <h3 style={{ marginBottom: 16 }}>{t('bindServer.backupList', currentLanguage)}</h3>
           <Spin spinning={backupLoading}>
             {backups.length > 0 ? (
               <div className="backup-list">
@@ -745,8 +745,8 @@ const BindServerManager = ({ currentLanguage }) => {
                       <div>
                         <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{filename}</div>
                         <div style={{ fontSize: '12px', color: '#666' }}>
-                          <span>时间: {new Date(backup.timestamp).toLocaleString()}</span>
-                          <span style={{ marginLeft: '16px' }}>大小: {backup.size} bytes</span>
+                          <span>{t('bindServer.time', currentLanguage)}: {new Date(backup.timestamp).toLocaleString()}</span>
+                          <span style={{ marginLeft: '16px' }}>{t('bindServer.size', currentLanguage)}: {backup.size} bytes</span>
                         </div>
                       </div>
                       <Space>
@@ -755,14 +755,14 @@ const BindServerManager = ({ currentLanguage }) => {
                           size="small"
                           onClick={() => handleRestoreBackup(backup.filePath)}
                         >
-                          恢复
+                          {t('bindServer.restore', currentLanguage)}
                         </Button>
                         <Button 
                           danger 
                           size="small"
                           onClick={() => confirmDeleteBackup(filename)}
                         >
-                          删除
+                          {t('bindServer.delete', currentLanguage)}
                         </Button>
                       </Space>
                     </div>
@@ -771,8 +771,8 @@ const BindServerManager = ({ currentLanguage }) => {
               </div>
             ) : (
               <Alert
-                title="没有备份文件"
-                description="当前没有可用的 BIND 配置备份文件"
+                title={t('bindServer.noBackups', currentLanguage)}
+                description={t('bindServer.noBackupsDescription', currentLanguage)}
                 type="info"
                 showIcon
               />

@@ -43,7 +43,9 @@ const Settings = ({ currentLanguage, userInfo }) => {
   // Default settings structure
   const defaultSettings = useMemo(() => ({
     Plugins: {
-      BIND_ENABLED: true
+      BIND_ENABLED: true,
+      DNS_RULES_ENABLED: true,
+      LOG_ANALYSIS_ENABLED: true
     },
     API: {
       LOG_ENABLED: true,
@@ -139,7 +141,9 @@ const Settings = ({ currentLanguage, userInfo }) => {
     // 构建表单结构，优先使用API返回的数据，否则使用默认值
     return {
       Plugins: {
-        BIND_ENABLED: data.Plugins?.BIND_ENABLED !== undefined ? data.Plugins.BIND_ENABLED === 'true' : defaultSettings.Plugins.BIND_ENABLED
+        BIND_ENABLED: data.Plugins?.BIND_ENABLED !== undefined ? data.Plugins.BIND_ENABLED === 'true' : defaultSettings.Plugins.BIND_ENABLED,
+        DNS_RULES_ENABLED: data.Plugins?.DNS_RULES_ENABLED !== undefined ? data.Plugins.DNS_RULES_ENABLED === 'true' : defaultSettings.Plugins.DNS_RULES_ENABLED,
+        LOG_ANALYSIS_ENABLED: data.Plugins?.LOG_ANALYSIS_ENABLED !== undefined ? data.Plugins.LOG_ANALYSIS_ENABLED === 'true' : defaultSettings.Plugins.LOG_ANALYSIS_ENABLED
       },
       API: {
         LOG_ENABLED: data.API?.LOG_ENABLED !== undefined ? data.API.LOG_ENABLED === 'true' : defaultSettings.API.LOG_ENABLED,
@@ -283,7 +287,9 @@ const Settings = ({ currentLanguage, userInfo }) => {
     // 构建API所需的配置结构
     return {
       Plugins: {
-        BIND_ENABLED: formValues.Plugins.BIND_ENABLED.toString()
+        BIND_ENABLED: formValues.Plugins.BIND_ENABLED.toString(),
+        DNS_RULES_ENABLED: formValues.Plugins.DNS_RULES_ENABLED.toString(),
+        LOG_ANALYSIS_ENABLED: formValues.Plugins.LOG_ANALYSIS_ENABLED.toString()
       },
       API: {
         LOG_ENABLED: formValues.API.LOG_ENABLED.toString(),
@@ -629,6 +635,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             showIcon
             style={{ marginBottom: 16 }}
           />
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Form.Item
             name={['Plugins', 'BIND_ENABLED']}
             label={t('settings.bindEnabled', currentLanguage)}
@@ -637,6 +644,25 @@ const Settings = ({ currentLanguage, userInfo }) => {
           >
             <Switch />
           </Form.Item>
+          
+          <Form.Item
+            name={['Plugins', 'DNS_RULES_ENABLED']}
+            label="DNS Rules Plugin"
+            valuePropName="checked"
+            tooltip="DNS query rules management - Restart the service for changes to take effect"
+          >
+            <Switch />
+          </Form.Item>
+          
+          <Form.Item
+            name={['Plugins', 'LOG_ANALYSIS_ENABLED']}
+            label="Log Analysis Plugin"
+            valuePropName="checked"
+            tooltip="DNS query log analysis - Restart the service for changes to take effect"
+          >
+            <Switch />
+          </Form.Item>
+          </Space>
         </Card>
 
         {/* API配置卡片 */}

@@ -311,8 +311,8 @@ const AuthZones = ({ currentLanguage }) => {
 
   // Handle restore from history with confirmation
   const confirmRestoreFromHistory = (historyId) => {
-    setConfirmModalTitle('从历史记录恢复')
-    setConfirmModalContent('确定要从历史记录恢复吗？这将覆盖当前的配置。')
+    setConfirmModalTitle(t('authZones.restoreFromHistory', currentLanguage))
+    setConfirmModalContent(t('authZones.confirmRestoreMessage', currentLanguage))
     setCurrentAction('restoreFromHistory')
     setCurrentActionParams(historyId)
     setConfirmModalVisible(true)
@@ -681,7 +681,7 @@ const AuthZones = ({ currentLanguage }) => {
             icon={<ReloadOutlined />}
             onClick={() => setHistoryModalVisible(true)}
           >
-            操作历史
+            {t('authZones.operationHistory', currentLanguage)}
           </Button>
           <Button
             type="primary"
@@ -1054,17 +1054,17 @@ const AuthZones = ({ currentLanguage }) => {
       
       {/* Operation History Modal */}
       <Modal
-        title="权威域操作历史"
+        title={t('authZones.operationHistoryTitle', currentLanguage)}
         open={historyModalVisible}
         onOk={() => setHistoryModalVisible(false)}
         onCancel={() => setHistoryModalVisible(false)}
-        okText="关闭"
-        cancelText="取消"
+        okText={t('authZones.close', currentLanguage)}
+        cancelText={t('authZones.cancel', currentLanguage)}
         width={1000}
         styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
       >
         <div>
-          <h3 style={{ marginBottom: 16 }}>操作历史记录</h3>
+          <h3 style={{ marginBottom: 16 }}>{t('authZones.operationHistoryRecords', currentLanguage)}</h3>
           <Spin spinning={historyLoading}>
             {historyRecords.length > 0 ? (
               <Table
@@ -1078,34 +1078,34 @@ const AuthZones = ({ currentLanguage }) => {
                 scroll={{ x: 'max-content' }}
                 columns={[
                   {
-                    title: 'ID',
+                    title: t('authZones.id', currentLanguage),
                     dataIndex: 'id',
                     key: 'id',
                     width: 80
                   },
                   {
-                    title: '操作类型',
+                    title: t('authZones.operationType', currentLanguage),
                     dataIndex: 'operation',
                     key: 'operation',
                     width: 120,
                     render: (operation) => {
                       const operationMap = {
-                        create: '创建',
-                        update: '更新',
-                        delete: '删除',
-                        rollback: '回滚操作'
+                        create: t('authZones.create', currentLanguage),
+                        update: t('authZones.update', currentLanguage),
+                        delete: t('authZones.deleteOperation', currentLanguage),
+                        rollback: t('authZones.rollback', currentLanguage)
                       }
                       return operationMap[operation] || operation
                     }
                   },
                   {
-                    title: '域名',
+                    title: t('authZones.domain', currentLanguage),
                     dataIndex: 'domain',
                     key: 'domain',
                     width: 200
                   },
                   {
-                    title: '操作时间',
+                    title: t('authZones.operationTime', currentLanguage),
                     dataIndex: 'timestamp',
                     key: 'timestamp',
                     width: 200,
@@ -1114,7 +1114,7 @@ const AuthZones = ({ currentLanguage }) => {
                     }
                   },
                   {
-                    title: '操作',
+                    title: t('authZones.actions', currentLanguage),
                     key: 'actions',
                     width: 100,
                     render: (_, record) => (
@@ -1123,7 +1123,7 @@ const AuthZones = ({ currentLanguage }) => {
                         size="small"
                         onClick={() => confirmRestoreFromHistory(record.id)}
                       >
-                        恢复
+                        {t('authZones.restore', currentLanguage)}
                       </Button>
                     )
                   }
@@ -1131,8 +1131,8 @@ const AuthZones = ({ currentLanguage }) => {
               />
             ) : (
               <Alert
-                title="没有操作历史记录"
-                description="当前没有权威域的操作历史记录"
+                title={t('authZones.noOperationHistory', currentLanguage)}
+                description={t('authZones.noOperationHistoryDescription', currentLanguage)}
                 type="info"
                 showIcon
               />
