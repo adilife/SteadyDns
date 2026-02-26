@@ -30,6 +30,11 @@ type DNSServer struct {
 	Priority    int    `json:"priority"`    // 优先级 (1-3)
 }
 
+// GetAddress 获取服务器完整地址（IP:Port）
+func (s *DNSServer) GetAddress() string {
+	return net.JoinHostPort(s.Address, strconv.Itoa(s.Port))
+}
+
 // DNSForwarder 主转发器结构
 type DNSForwarder struct {
 	groups             map[string]*ForwardGroup

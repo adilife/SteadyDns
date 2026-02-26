@@ -4,8 +4,7 @@ package sdns
 
 import (
 	"fmt"
-	"net"
-	"strconv"
+	"sort"
 	"time"
 
 	"github.com/miekg/dns"
@@ -126,44 +125,27 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 
 	// 按优先级顺序（1 -> 2 -> 3）启动查询
 	for priority := 1; priority <= 3; priority++ {
-		servers, exists := group.PriorityQueues[priority]
-		if !exists || len(servers) == 0 {
-			// 当某个优先级队列中无服务器时，跳过该队列
-			f.logger.Debug("转发查询 - 优先级队列 %d 为空，跳过", priority)
-			continue
-		}
-
-		// 过滤出健康的服务器
-		var healthyServers []*DNSServer
-		var unhealthyCount int
-		for _, server := range servers {
-			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
-			if f.IsServerHealthy(addr) {
-				healthyServers = append(healthyServers, server)
-				allHealthyServers = append(allHealthyServers, server)
-				totalHealthyServers++
-			} else {
-				unhealthyCount++
-				f.logger.Debug("转发查询 - 服务器 %s 不健康，跳过", addr)
-			}
-		}
-
-		// 如果当前优先级队列中没有健康服务器，跳过该队列
-		if len(healthyServers) == 0 {
+		// 使用新的健康检查机制获取健康服务器
+		healthyStatsList := f.GetHealthyServersByPriority(group, priority)
+		if len(healthyStatsList) == 0 {
 			f.logger.Debug("转发查询 - 优先级队列 %d 中没有健康服务器，跳过", priority)
 			continue
 		}
 
-		f.logger.Debug("转发查询 - 启动优先级队列 %d, 健康服务器数量: %d, 跳过不健康服务器: %d",
-			priority, len(healthyServers), unhealthyCount)
+		f.logger.Debug("转发查询 - 启动优先级队列 %d, 健康服务器数量: %d", priority, len(healthyStatsList))
 
-		// 为当前优先级队列中的所有健康服务器创建任务
-		for i, server := range healthyServers {
+		// 按EWMA评分排序（高到低）
+		sort.Slice(healthyStatsList, func(i, j int) bool {
+			return healthyStatsList[i].EWMAScore > healthyStatsList[j].EWMAScore
+		})
 
-			server = servers[0]
+		// 为每台服务器创建任务，根据评分分层延迟启动
+		for _, stats := range healthyStatsList {
+			addr := stats.Address
+			score := stats.EWMAScore
+			delay := calculateTieredDelay(score)
 
-			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
-			f.logger.Debug("转发查询 - 尝试服务器 %d: %s (优先级 %d)", i+1, addr, priority)
+			f.logger.Debug("转发查询 - 服务器 %s (评分: %.3f, 延迟: %v)", addr, score, delay)
 
 			// 创建转发任务
 			task := &DNSForwardTask{
@@ -172,11 +154,19 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 				resultChan: resultChan,
 				errorChan:  errorChan,
 				forwarder:  f,
-				cancelChan: cancelChan, // 传递取消通道
+				cancelChan: cancelChan,
 			}
 
-			// 使用专用的DNS转发协程池处理任务
-			f.forwardPool.SubmitTask(task)
+			// 根据评分延迟启动
+			go func(t *DNSForwardTask, d time.Duration) {
+				if d > 0 {
+					time.Sleep(d)
+				}
+				f.forwardPool.SubmitTask(t)
+			}(task, delay)
+
+			totalHealthyServers++
+			allHealthyServers = append(allHealthyServers, &DNSServer{Address: addr})
 		}
 
 		// 如果不是最后一个优先级队列，等待指定间隔后再启动下一个队列
@@ -342,16 +332,25 @@ func (f *DNSForwarder) forwardToServer(addr string, query *dns.Msg, cancelChan c
 		duration := time.Since(startTime)
 		f.logger.Debug("转发查询 - 服务器 %s 响应成功, 耗时: %v", addr, duration)
 
+		now := time.Now()
+		latency := float64(duration.Milliseconds())
+
 		// 更新服务器统计信息
 		stats.Mu.Lock()
 		stats.Queries++
 		stats.SuccessfulQueries++
 		stats.TotalResponseTime += duration
-		stats.LastQueryTime = time.Now()
-		stats.LastSuccessfulQueryTime = time.Now()
+		stats.LastQueryTime = now
+		stats.LastSuccessfulQueryTime = now
 		stats.WindowQueries++
 		stats.Status = "healthy"
 		stats.Mu.Unlock()
+
+		// 更新EWMA评分和滑动窗口
+		// rcode=0表示NOERROR
+		UpdateTimeDecayEWMA(stats, 0, latency, now)
+		UpdateSlidingWindow(stats, true)
+		RecordQueryResult(stats, true)
 
 		return result, nil
 	case err := <-errorChan:
@@ -359,16 +358,25 @@ func (f *DNSForwarder) forwardToServer(addr string, query *dns.Msg, cancelChan c
 		duration := time.Since(startTime)
 		f.logger.Debug("转发查询 - 服务器 %s 响应失败, 耗时: %v, 错误: %v", addr, duration, err)
 
+		now := time.Now()
+
 		// 更新服务器统计信息
 		stats.Mu.Lock()
 		stats.Queries++
 		stats.FailedQueries++
-		stats.LastQueryTime = time.Now()
-		// 检查失败率，超过50%标记为不健康
-		if stats.Queries > 10 && float64(stats.FailedQueries)/float64(stats.Queries) > 0.5 {
-			stats.Status = "unhealthy"
-		}
+		stats.LastQueryTime = now
 		stats.Mu.Unlock()
+
+		// 更新EWMA评分和滑动窗口
+		// rcode=-1表示网络错误
+		UpdateTimeDecayEWMA(stats, -1, -1, now)
+		UpdateSlidingWindow(stats, false)
+		RecordQueryResult(stats, false)
+
+		// 检查是否触发熔断
+		if CheckCircuitBreaker(stats) {
+			f.logger.Warn("服务器 %s 触发熔断，连续失败次数达到阈值", addr)
+		}
 
 		return nil, err
 	}
