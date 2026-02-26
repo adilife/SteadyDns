@@ -120,7 +120,7 @@ export default {
     securityConfig: 'Security Configuration',
     
     // Form labels
-    bindEnabled: 'BIND Plugin Enabled',
+    bindEnabled: 'BIND Plugin',
     bindEnabledTooltip: 'Enable or disable BIND plugin. BIND plugin provides authoritative zone management, BIND server management, forwarding queries and backup features. Requires service restart to take effect.',
     pluginsConfigNotice: 'Plugin configuration changes require full service restart to take effect.',
     logEnabled: 'Log Enabled',

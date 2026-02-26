@@ -120,7 +120,7 @@ export default {
     securityConfig: 'تكوين الأمان',
     
     // Form labels
-    bindEnabled: 'الإضافة BIND مفعلة',
+    bindEnabled: 'إضافة BIND',
     bindEnabledTooltip: 'تمكين أو تعطيل إضافة BIND. توفر إضافة BIND إدارة مناطق الأuthority، إدارة خادم BIND، استعلامات التوجيه والوظائف النسخ الاحتياطي. يتطلب إعادة تشغيل الخدمة للتطبيق.',
     pluginsConfigNotice: 'تغييرات تكوين الإضافات تتطلب إعادة تشغيل كامل للخدمة للتطبيق.',
     logEnabled: 'التسجيل مفعلة',

@@ -120,7 +120,7 @@ export default {
     securityConfig: '安全配置',
     
     // 表单标签
-    bindEnabled: 'BIND插件启用',
+    bindEnabled: 'BIND插件',
     bindEnabledTooltip: '启用或禁用BIND插件。BIND插件提供权威域管理、BIND服务器管理、转发查询和备份功能。修改后需重启服务生效。',
     pluginsConfigNotice: '插件配置修改后需要完全重启后台服务才能生效。',
     logEnabled: '日志启用',
