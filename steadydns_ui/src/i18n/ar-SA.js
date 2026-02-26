@@ -329,6 +329,7 @@ export default {
     cacheItems: 'عناصر التخزين المؤقت',
     systemHealth: 'صحة النظام',
     healthy: 'صحيح',
+    degraded: 'متدهور',
     unhealthy: 'غير صحيح',
     activeServers: 'الخوادم النشطة',
     timeRange: 'نطاق الوقت',

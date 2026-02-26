@@ -447,10 +447,10 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                   style={{ 
                     marginTop: 8, 
                     display: 'block',
-                    color: server.status === 'healthy' ? '#52c41a' : '#ff4d4f'
+                    color: server.status === 'healthy' ? '#52c41a' : server.status === 'degraded' ? '#faad14' : '#ff4d4f'
                   }}
                 >
-                  {server.status === 'healthy' ? t('dashboard.healthy', currentLanguage) : t('dashboard.unhealthy', currentLanguage)}
+                  {server.status === 'healthy' ? t('dashboard.healthy', currentLanguage) : server.status === 'degraded' ? t('dashboard.degraded', currentLanguage) : t('dashboard.unhealthy', currentLanguage)}
                 </Text>
               </Card>
             </Col>

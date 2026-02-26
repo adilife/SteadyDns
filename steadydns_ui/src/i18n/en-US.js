@@ -329,6 +329,7 @@ export default {
     cacheItems: 'Cache Items',
     systemHealth: 'System Health',
     healthy: 'Healthy',
+    degraded: 'Degraded',
     unhealthy: 'Unhealthy',
     activeServers: 'Active Servers',
     timeRange: 'Time Range',

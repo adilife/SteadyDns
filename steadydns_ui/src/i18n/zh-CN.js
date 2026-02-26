@@ -329,6 +329,7 @@ export default {
     cacheItems: '缓存项目数',
     systemHealth: '系统健康度',
     healthy: '健康',
+    degraded: '降级',
     unhealthy: '不健康',
     activeServers: '活跃服务器',
     timeRange: '时间范围',
