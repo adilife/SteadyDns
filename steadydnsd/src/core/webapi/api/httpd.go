@@ -144,7 +144,14 @@ func (hs *HTTPServer) Start() error {
 	gin.SetMode(ginMode)
 
 	// 创建一个新的Gin引擎并设置路由
-	engine := gin.Default()
+	// 使用gin.New()而不是gin.Default()，以便根据模式决定是否添加Gin日志中间件
+	engine := gin.New()
+	// 添加恢复中间件（处理panic）
+	engine.Use(gin.Recovery())
+	// 仅在debug模式下添加Gin的日志中间件
+	if ginMode == "debug" {
+		engine.Use(gin.Logger())
+	}
 	SetupRoutes(engine)
 	// 注册插件路由
 	SetupPluginRoutes(engine)
