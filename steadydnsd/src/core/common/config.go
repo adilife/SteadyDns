@@ -566,8 +566,10 @@ type ConfigSection struct {
 }
 
 // parseConfigTemplate 解析配置模板，提取节、注释和默认值
-func parseConfigTemplate(template string) map[string]*ConfigSection {
+// 返回按顺序排列的节名切片和节映射
+func parseConfigTemplate(template string) ([]string, map[string]*ConfigSection) {
 	sections := make(map[string]*ConfigSection)
+	var sectionOrder []string
 	var currentSection *ConfigSection
 	var currentComments []string
 
@@ -601,6 +603,7 @@ func parseConfigTemplate(template string) map[string]*ConfigSection {
 				Items:    make([]ConfigItem, 0),
 				Comments: currentComments,
 			}
+			sectionOrder = append(sectionOrder, sectionName)
 			currentComments = make([]string, 0)
 			continue
 		}
@@ -630,25 +633,22 @@ func parseConfigTemplate(template string) map[string]*ConfigSection {
 		sections[currentSection.Name] = currentSection
 	}
 
-	return sections
+	return sectionOrder, sections
 }
 
 // SaveConfig 保存配置到文件
 func SaveConfig() error {
 	configPath := getConfigFilePath()
 
-	// 解析默认配置模板
-	templateSections := parseConfigTemplate(DefaultConfigTemplate)
+	// 解析默认配置模板，获取按顺序排列的节名和节映射
+	sectionOrder, templateSections := parseConfigTemplate(DefaultConfigTemplate)
 
 	// 生成配置文件内容
 	var configContent strings.Builder
 
-	// 写入文件头注释
-	configContent.WriteString("# SteadyDNS Configuration File\n")
-	configContent.WriteString("# Format: INI/Conf\n\n")
-
-	// 写入各个节的配置
-	for sectionName, section := range templateSections {
+	// 写入各个节的配置（按照模板中的顺序）
+	for _, sectionName := range sectionOrder {
+		section := templateSections[sectionName]
 		// 写入节的注释
 		for _, comment := range section.Comments {
 			configContent.WriteString(comment + "\n")
