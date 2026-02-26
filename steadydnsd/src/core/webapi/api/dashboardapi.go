@@ -4,6 +4,7 @@ package api
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -456,8 +457,9 @@ func getSystemStats() SystemStats {
 }
 
 // getForwardServerStatus 获取转发服务器状态
+// 返回所有转发组的服务器，按组ID升序、优先级降序、地址升序排序
 func getForwardServerStatus() []ForwardServerStatus {
-	// 尝试从数据库获取转发服务器，添加超时保护
+	// 尝试从数据库获取所有转发服务器，添加超时保护
 	var servers []database.DNSServer
 	var err error
 
@@ -465,7 +467,7 @@ func getForwardServerStatus() []ForwardServerStatus {
 	resultChan := make(chan struct{})
 
 	go func() {
-		servers, err = database.GetDNSServersByGroupID(1)
+		servers, err = database.GetAllDNSServers()
 		close(resultChan)
 	}()
 
@@ -530,11 +532,12 @@ func getForwardServerStatus() []ForwardServerStatus {
 			}
 		}
 
+		// 对QPS和Latency进行四舍五入，保留2位小数
 		serverStatuses[i] = ForwardServerStatus{
 			ID:      int(server.ID),
 			Address: server.Address,
-			QPS:     qps,
-			Latency: latency,
+			QPS:     math.Round(qps*100) / 100,
+			Latency: math.Round(latency*100) / 100,
 			Status:  status,
 		}
 	}
