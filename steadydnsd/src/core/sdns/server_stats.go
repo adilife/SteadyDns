@@ -79,8 +79,13 @@ func (f *DNSForwarder) UpdateServerStats() {
 			stats.Latency = float64(stats.TotalResponseTime.Milliseconds()) / float64(stats.SuccessfulQueries)
 		}
 
-		// 检查服务器健康状态
-		if now.Sub(stats.LastSuccessfulQueryTime) > 30*time.Second {
+		// 根据EWMA评分更新健康状态
+		// 使用与分层延迟一致的阈值
+		if stats.EWMAScore >= 0.8 {
+			stats.Status = "healthy"
+		} else if stats.EWMAScore >= 0.6 {
+			stats.Status = "degraded"
+		} else {
 			stats.Status = "unhealthy"
 		}
 
