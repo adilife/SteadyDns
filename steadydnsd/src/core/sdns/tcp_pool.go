@@ -726,22 +726,37 @@ func (pc *PooledConnection) readResponses() {
 			}
 
 			// 检查是否是连接被对端关闭的错误
-			// 这种情况下，不立即标记为不健康，而是让保活循环来重建连接
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				// 连接被对端关闭，标记为不健康，让保活循环重建
 				pc.SetHealth(ConnectionHealthUnhealthy)
-				continue
+				pc.cleanupInflightQueries(fmt.Errorf("connection closed by peer"))
+				return
 			}
 
-			// 其他错误，标记连接为不健康
+			// 其他错误，标记连接为不健康并退出
 			pc.SetHealth(ConnectionHealthUnhealthy)
-			continue
+			pc.cleanupInflightQueries(fmt.Errorf("connection error: %w", err))
+			return
 		}
 
 		// 处理响应
 		if resp != nil {
 			pc.handleResponse(resp)
 		}
+	}
+}
+
+// cleanupInflightQueries 清理所有inflight查询
+// 在连接异常时调用，确保所有等待的查询都能收到错误响应
+func (pc *PooledConnection) cleanupInflightQueries(err error) {
+	pc.inflightMu.Lock()
+	defer pc.inflightMu.Unlock()
+
+	for msgID, query := range pc.inflight {
+		select {
+		case query.Error <- err:
+		default:
+		}
+		delete(pc.inflight, msgID)
 	}
 }
 

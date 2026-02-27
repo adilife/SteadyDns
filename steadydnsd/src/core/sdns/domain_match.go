@@ -9,6 +9,8 @@ import (
 
 // initDomainIndex 初始化域名索引，按域名长度降序排序
 func (f *DNSForwarder) initDomainIndex() {
+	// 清空并重新初始化 Trie 树
+	f.domainTrie.Clear()
 
 	// 提取所有非默认转发组的域名
 	domains := make([]string, 0, len(f.groups))
@@ -16,10 +18,14 @@ func (f *DNSForwarder) initDomainIndex() {
 		// 跳过默认转发组（使用"Default"作为key）
 		if domain != "Default" {
 			domains = append(domains, domain)
+			// 插入到 Trie 树中
+			if err := f.domainTrie.Insert(domain, f.groups[domain]); err != nil {
+				f.logger.Warn("插入域名到Trie树失败: %s, 错误: %v", domain, err)
+			}
 		}
 	}
 
-	// 按域名长度降序排序，用于最长匹配
+	// 按域名长度降序排序，用于最长匹配（保留旧的索引以保持向后兼容）
 	for i := 0; i < len(domains); i++ {
 		for j := i + 1; j < len(domains); j++ {
 			if len(domains[i]) < len(domains[j]) {
@@ -38,38 +44,27 @@ func (f *DNSForwarder) matchDomain(queryDomain string) *ForwardGroup {
 	// 移除末尾的点
 	queryDomain = strings.TrimSuffix(queryDomain, ".")
 
+	now := time.Now()
+
 	// 检查缓存
 	f.matchCacheMu.RLock()
 	entry, found := f.matchCache[queryDomain]
 	f.matchCacheMu.RUnlock()
 
-	if found && time.Now().Before(entry.expiresAt) {
+	if found && now.Before(entry.expiresAt) {
+		// 更新最后访问时间
+		f.matchCacheMu.Lock()
+		if e, ok := f.matchCache[queryDomain]; ok {
+			e.lastAccess = now
+		}
+		f.matchCacheMu.Unlock()
 		return entry.group
 	}
 
-	// 尝试最长匹配
+	// 使用 Trie 树进行最长匹配
 	var matchedGroup *ForwardGroup
 	var matchedZone string
-
-	// 先尝试匹配转发域
-	for _, domain := range f.domainIndex {
-		// 完全匹配（如jcgov.gov.cn）
-		if queryDomain == domain {
-			f.mu.RLock()
-			matchedGroup = f.groups[domain]
-			matchedZone = domain
-			f.mu.RUnlock()
-			break
-		}
-		// 前缀+当前域名（如www.jcgov.gov.cn）
-		if strings.HasSuffix(queryDomain, "."+domain) {
-			f.mu.RLock()
-			matchedGroup = f.groups[domain]
-			matchedZone = domain
-			f.mu.RUnlock()
-			break
-		}
-	}
+	matchedGroup, matchedZone = f.domainTrie.SearchWithZone(queryDomain)
 
 	// 检查是否与权威域冲突
 	if matchedGroup != nil {
@@ -98,13 +93,42 @@ func (f *DNSForwarder) matchDomain(queryDomain string) *ForwardGroup {
 
 	// 更新缓存
 	f.matchCacheMu.Lock()
+	defer f.matchCacheMu.Unlock()
+
+	// 检查缓存是否超过上限，如果超过则使用LRU淘汰最旧的条目
+	if len(f.matchCache) >= f.maxMatchCacheSize {
+		f.evictLRUMatchCache()
+	}
+
 	f.matchCache[queryDomain] = &cacheEntry{
 		group:     matchedGroup,
-		expiresAt: time.Now().Add(f.cacheTTL),
+		expiresAt: now.Add(f.cacheTTL),
+		lastAccess: now,
 	}
-	f.matchCacheMu.Unlock()
 
 	return matchedGroup
+}
+
+// evictLRUMatchCache 淘汰最久未使用的域名匹配缓存条目
+// 调用前必须持有 matchCacheMu 锁
+func (f *DNSForwarder) evictLRUMatchCache() {
+	if len(f.matchCache) == 0 {
+		return
+	}
+
+	var oldestKey string
+	var oldestTime time.Time
+
+	for key, entry := range f.matchCache {
+		if oldestKey == "" || entry.lastAccess.Before(oldestTime) {
+			oldestKey = key
+			oldestTime = entry.lastAccess
+		}
+	}
+
+	if oldestKey != "" {
+		delete(f.matchCache, oldestKey)
+	}
 }
 
 // TestDomainMatch 测试域名匹配，返回匹配到的转发组名称
