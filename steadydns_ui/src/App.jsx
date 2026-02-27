@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Layout, Menu, theme, Select, Space, Avatar, Dropdown, message, Tooltip } from 'antd'
 import {
   SettingOutlined,
@@ -125,6 +125,42 @@ function App() {
     const maxTextWidth = Math.max(...menuTexts.map(calculateTextWidth))
     return Math.min(Math.max(180, maxTextWidth + 80), 320) // 限制在180-320px之间
   }, [currentLanguage, pluginsStatus])
+
+  // Fetch plugins status with cache support (defined at component level)
+  const fetchPluginsStatus = useCallback(async (useCache = true) => {
+    // Try to load from cache first
+    if (useCache) {
+      const cachedPlugins = localStorage.getItem('steadyDNS_plugins_status')
+      if (cachedPlugins) {
+        try {
+          const parsedPlugins = JSON.parse(cachedPlugins)
+          setPluginsStatus(parsedPlugins)
+        } catch (e) {
+          console.error('Error parsing cached plugins status:', e)
+        }
+      }
+    }
+    
+    // Fetch latest from API
+    try {
+      const response = await apiClient.getPluginsStatus()
+      if (response.success) {
+        // Convert plugins array to object for easier access
+        const pluginsMap = {}
+        response.data.plugins.forEach(plugin => {
+          pluginsMap[plugin.name] = plugin
+        })
+        setPluginsStatus(pluginsMap)
+        // Cache the plugins status
+        localStorage.setItem('steadyDNS_plugins_status', JSON.stringify(pluginsMap))
+      } else {
+        console.error('Failed to get plugins status:', response.error)
+      }
+    } catch (error) {
+      console.error('Error fetching plugins status:', error)
+    }
+  }, [])
+
   // Check if user is logged in from sessionStorage
   useEffect(() => {
     const checkLoginStatus = () => {
@@ -177,25 +213,6 @@ function App() {
       }
     }
     
-    // Fetch plugins status
-    const fetchPluginsStatus = async () => {
-      try {
-        const response = await apiClient.getPluginsStatus()
-        if (response.success) {
-          // Convert plugins array to object for easier access
-          const pluginsMap = {}
-          response.data.plugins.forEach(plugin => {
-            pluginsMap[plugin.name] = plugin
-          })
-          setPluginsStatus(pluginsMap)
-        } else {
-          console.error('Failed to get plugins status:', response.error)
-        }
-      } catch (error) {
-        console.error('Error fetching plugins status:', error)
-      }
-    }
-    
     checkLoginStatus()
     // Check login status periodically
     const interval = setInterval(checkLoginStatus, 30000)
@@ -230,7 +247,7 @@ function App() {
       window.removeEventListener('keydown', handleUserActivity)
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [])
+  }, [fetchPluginsStatus])
   // Update language when changed
   useEffect(() => {
     switchLanguage(currentLanguage)
@@ -258,6 +275,9 @@ function App() {
     // Use expires_in from login data, default to 1800 seconds (30 minutes)
     const expiresIn = loginData.expires_in || loginData.ExpiresIn || 1800
     startSessionTimeoutTimer(expiresIn)
+    
+    // Fetch plugins status after login (use cache if available)
+    fetchPluginsStatus(true)
   }
 
   const handleLogout = async () => {
@@ -265,7 +285,9 @@ function App() {
       await logout()
       setIsLoggedIn(false)
       setUserInfo({ username: '' })
+      setPluginsStatus({})
       sessionStorage.removeItem('steadyDNS_user')
+      localStorage.removeItem('steadyDNS_plugins_status')
       // Clear the token refresh started flag so it can be started again on next login
       sessionStorage.removeItem('steadyDNS_token_refresh_started')
       message.success(t('login.logoutSuccess'))
