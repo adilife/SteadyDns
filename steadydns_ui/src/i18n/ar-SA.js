@@ -841,5 +841,18 @@ export default {
     invalidEmail: 'تنسيق البريد الإلكتروني غير صالح',
     usernameMinLength: 'يجب أن يكون اسم المستخدم 3 أحرف على الأقل',
     passwordMinLength: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل'
+  },
+  
+  // About
+  about: {
+    title: 'حول SteadyDNS',
+    version: 'الإصدار',
+    betaWarning: 'نسخة تجريبية، لا يُنصح بها للإنتاج',
+    description: 'SteadyDNS هي نظام خادم DNS مؤسسية مع استراتيجيات إعادة توجيه DNS وتكامل خادم BIND.',
+    license: 'الترخيص',
+    copyright: '© 2026 SteadyDNS Team',
+    reportBug: 'الإبلاغ عن خطأ',
+    changelog: 'عرض سجل التغييرات',
+    ok: 'موافق'
   }
 }

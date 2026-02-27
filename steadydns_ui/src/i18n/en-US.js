@@ -841,5 +841,18 @@ export default {
     invalidEmail: 'Invalid email format',
     usernameMinLength: 'Username must be at least 3 characters',
     passwordMinLength: 'Password must be at least 6 characters'
+  },
+  
+  // About
+  about: {
+    title: 'About SteadyDNS',
+    version: 'Version',
+    betaWarning: 'Beta version, not recommended for production',
+    description: 'SteadyDNS is an enterprise DNS server system with DNS forwarding strategies and BIND server integration.',
+    license: 'License',
+    copyright: '© 2026 SteadyDNS Team',
+    reportBug: 'Report Bug',
+    changelog: 'View Changelog',
+    ok: 'OK'
   }
 }

@@ -26,7 +26,9 @@ import {
   DownOutlined,
   DashboardOutlined,
   DatabaseOutlined,
-  TeamOutlined
+  TeamOutlined,
+  InfoCircleOutlined,
+  ForwardOutlined
 } from '@ant-design/icons'
 import './App.css'
 import DnsRules from './pages/DnsRules'
@@ -37,9 +39,11 @@ import AuthZones from './pages/AuthZones'
 import Configuration from './pages/Configuration'
 import UserManagement from './pages/UserManagement'
 import Login from './pages/Login'
+import AboutModal from './components/AboutModal'
 import { t, getSavedLanguage, switchLanguage } from './i18n'
 import { logout, hasValidToken, startTokenRefreshInterval, resetSessionTimeoutTimer, startSessionTimeoutTimer } from './utils/tokenManager'
 import { apiClient } from './utils/apiClient'
+import { VERSION } from './config/version'
 
 const { Header, Sider, Content } = Layout
 const { Option } = Select
@@ -80,6 +84,7 @@ function App() {
   const [userInfo, setUserInfo] = useState({ username: '' })
   const [pluginsStatus, setPluginsStatus] = useState({})
   const [isMobile, setIsMobile] = useState(false)
+  const [aboutModalOpen, setAboutModalOpen] = useState(false)
 
   // 检测是否为 RTL 语言
   const isRTL = currentLanguage === 'ar-SA' // 阿拉伯语等 RTL 语言
@@ -334,6 +339,15 @@ function App() {
   // User dropdown menu
   const userMenu = [
     {
+      key: 'about',
+      label: (
+        <a onClick={() => setAboutModalOpen(true)}>
+          <InfoCircleOutlined style={{ marginRight: '8px' }} />
+          {t('about.title', currentLanguage)}
+        </a>
+      ),
+    },
+    {
       key: 'logout',
       label: (
         <a onClick={handleLogout}>
@@ -415,7 +429,7 @@ function App() {
               }] : []),
               {
                 key: '5',
-                icon: <SettingOutlined />,
+                icon: <ForwardOutlined />,
                 label: t('nav.forwardGroups', currentLanguage),
               },
               {
@@ -444,6 +458,13 @@ function App() {
         >
           {renderContent()}
         </Content>
+        
+        {/* 关于弹窗 */}
+        <AboutModal
+          open={aboutModalOpen}
+          onCancel={() => setAboutModalOpen(false)}
+          currentLanguage={currentLanguage}
+        />
       </Layout>
     )
   }
@@ -456,6 +477,7 @@ function App() {
         collapsed={collapsed}
         onCollapse={(value) => setCollapsed(value)}
         style={{
+          position: 'relative',
           overflow: 'auto',
           width: siderWidth,
           minWidth: 180,
@@ -497,7 +519,7 @@ function App() {
             }] : []),
             {
               key: '5',
-              icon: <SettingOutlined />,
+              icon: <ForwardOutlined />,
               label: <MenuLabel text={t('nav.forwardGroups', currentLanguage)} />,
             },
             {
@@ -512,6 +534,22 @@ function App() {
             },
           ]}
         />
+        {/* 侧边栏底部版本号 */}
+        <div style={{
+          position: 'absolute',
+          bottom: '48px',
+          left: 0,
+          right: 0,
+          padding: collapsed ? '8px' : '8px 24px',
+          textAlign: 'center',
+          color: 'rgba(255, 255, 255, 0.45)',
+          fontSize: '12px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          direction: isRTL ? 'rtl' : 'ltr',
+          backgroundColor: 'rgba(0, 21, 41, 1)'
+        }}>
+          {collapsed ? VERSION.substring(0, 4) : VERSION}
+        </div>
       </Sider>
       <Layout style={{ display: 'flex', flexDirection: 'column', height: '100%', direction: isRTL ? 'rtl' : 'ltr' }}>
         <Header style={{ display: 'flex', alignItems: 'center', justifyContent: isRTL ? 'space-between' : 'space-between', padding: '0 24px', background: colorBgContainer, direction: isRTL ? 'rtl' : 'ltr' }}>
@@ -559,6 +597,13 @@ function App() {
           {renderContent()}
         </Content>
       </Layout>
+      
+      {/* 关于弹窗 */}
+      <AboutModal
+        open={aboutModalOpen}
+        onCancel={() => setAboutModalOpen(false)}
+        currentLanguage={currentLanguage}
+      />
     </Layout>
   )
 }
