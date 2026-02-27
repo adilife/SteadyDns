@@ -57,7 +57,7 @@ GIN_MODE=release
 JWT_SECRET_KEY=your-default-jwt-secret-key-change-this-in-production
 # Access token expiration (minutes)
 # Default: 30, Recommended: 15-60
-ACCESS_TOKEN_EXPIRATION=300
+ACCESS_TOKEN_EXPIRATION=30
 # Refresh token expiration (days)
 # Default: 7, Recommended: 1-30
 REFRESH_TOKEN_EXPIRATION=7
