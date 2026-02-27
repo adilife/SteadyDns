@@ -14,21 +14,12 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+// core/webapi/static/embed.go
+// 静态文件 Embed 支持
 
-package api
+package static
 
-import (
-	"net/http"
+import "embed"
 
-	"github.com/gin-gonic/gin"
-)
-
-// HealthCheckHandler 健康检查处理函数
-// 检查系统、数据库和DNS服务的健康状态
-func HealthCheckHandler(c *gin.Context) {
-	// 执行健康检查
-	healthStatus := PerformHealthCheck()
-
-	// 发送响应
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": healthStatus, "message": "健康检查完成"})
-}
+//go:embed all:dist
+var StaticFS embed.FS
