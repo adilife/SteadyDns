@@ -109,118 +109,44 @@ make build    # 编译
 └── steadydns.db           # SQLite 数据库（自动创建）
 ```
 
-### 配置文件示例
+### 配置文件
 
-创建配置文件 `config/steadydns.conf`：
+> **提示**: 配置文件 `config/steadydns.conf` 会在首次启动时自动创建。如需自定义配置，可在启动前手动创建。
+
+首次启动服务时，系统会自动检测配置文件是否存在：
+
+- **配置文件不存在**：自动创建默认配置文件 `config/steadydns.conf`
+- **配置文件已存在**：直接加载现有配置
+
+#### 主要配置项说明
+
+| 配置节 | 主要配置项 | 说明 |
+|--------|-----------|------|
+| `[Database]` | `DB_PATH` | 数据库文件路径 |
+| `[APIServer]` | `API_SERVER_PORT` | API 服务端口（默认 8080） |
+| `[JWT]` | `JWT_SECRET_KEY` | JWT 密钥（**生产环境必须修改**） |
+| `[BIND]` | `BIND_ADDRESS` | BIND 服务器地址 |
+| `[DNS]` | `DNS_CLIENT_WORKERS` | DNS 客户端工作池大小 |
+| `[Security]` | `DNS_RATE_LIMIT_PER_IP` | 单 IP 请求限制 |
+
+#### 生产环境重要配置
 
 ```ini
-# SteadyDNS Configuration File
-# Format: INI/Conf
-
-[Database]
-# Database file path (relative to working directory)
-DB_PATH=steadydns.db
+[JWT]
+# 生产环境必须修改为强密钥
+JWT_SECRET_KEY=your-strong-secret-key-change-this
 
 [APIServer]
-# API Server port
-API_SERVER_PORT=8080
-# API Server IPv4 address
-API_SERVER_IP_ADDR=0.0.0.0
-# API Server IPv6 address
-API_SERVER_IPV6_ADDR=::
-# GIN running mode (debug/release)
+# 生产环境建议设置为 release
 GIN_MODE=release
 
-[JWT]
-# JWT secret key for authentication
-JWT_SECRET_KEY=your-strong-secret-key-change-this
-# Access token expiration (minutes)
-ACCESS_TOKEN_EXPIRATION=300
-# Refresh token expiration (days)
-REFRESH_TOKEN_EXPIRATION=7
-# JWT algorithm
-JWT_ALGORITHM=HS256
-
-[API]
-# API rate limit enabled
-RATE_LIMIT_ENABLED=true
-# General API limit (requests per minute)
-RATE_LIMIT_API=300
-# Login API limit (requests per minute)
-RATE_LIMIT_LOGIN=60
-# API log enabled
-LOG_ENABLED=true
-# API log level
-LOG_LEVEL=INFO
-
-[BIND]
-# BIND server address
-BIND_ADDRESS=127.0.0.1:5300
-# RNDC key file path
-RNDC_KEY=/etc/named/rndc.key
-# Zone file storage path
-ZONE_FILE_PATH=/usr/local/bind9/var/named
-# Named configuration path
-NAMED_CONF_PATH=/etc/named
-# RNDC port
-RNDC_PORT=9530
-# BIND user
-BIND_USER=named
-# BIND group
-BIND_GROUP=named
-# BIND start command
-BIND_EXEC_START=/usr/local/bind9/sbin/named -u named
-# named-checkconf executable path
-BIND_CHECKCONF_PATH=/usr/local/bind9/bin/named-checkconf
-# named-checkzone executable path
-BIND_CHECKZONE_PATH=/usr/local/bind9/bin/named-checkzone
-
-[DNS]
-# Client processing worker pool size
-DNS_CLIENT_WORKERS=10000
-# Task queue multiplier
-DNS_QUEUE_MULTIPLIER=2
-# DNS server priority timeout (milliseconds)
-DNS_PRIORITY_TIMEOUT_MS=50
-
-[Cache]
-# Cache size limit (MB)
-DNS_CACHE_SIZE_MB=100
-# Cache cleanup interval (seconds)
-DNS_CACHE_CLEANUP_INTERVAL=60
-# Error cache TTL (seconds)
-DNS_CACHE_ERROR_TTL=3600
-
-[Logging]
-# Query log storage path (relative to working directory)
-QUERY_LOG_PATH=log/
-# Query log file size limit (MB)
-QUERY_LOG_MAX_SIZE=10
-# Query log file count limit
-QUERY_LOG_MAX_FILES=10
-# Log level
-DNS_LOG_LEVEL=INFO
-
 [Security]
-# DNS query rate limit per IP (queries per minute)
-DNS_RATE_LIMIT_PER_IP=50000
-# Global DNS query rate limit (queries per minute)
-DNS_RATE_LIMIT_GLOBAL=1000000
-# DNS query ban duration (minutes)
-DNS_BAN_DURATION=5
-# DNS message size limit (bytes)
-DNS_MESSAGE_SIZE_LIMIT=4096
-# DNS query validation enabled
-DNS_VALIDATION_ENABLED=true
-
-[Plugins]
-# BIND Plugin - Authoritative Domain Management
-BIND_ENABLED=true
-# DNS Rules Plugin (Reserved)
-DNS_RULES_ENABLED=false
-# Log Analysis Plugin (Reserved)
-LOG_ANALYSIS_ENABLED=false
+# 根据实际需求调整限流参数
+DNS_RATE_LIMIT_PER_IP=300
+DNS_RATE_LIMIT_GLOBAL=10000
 ```
+
+完整配置项说明请参考自动生成的配置文件中的注释。
 
 ### 环境变量
 
