@@ -383,3 +383,16 @@ func GetDNSServersByGroupID(groupID uint) ([]DNSServer, error) {
 	}
 	return servers, nil
 }
+
+// GetAllDNSServers 获取所有DNS服务器列表，按组ID、优先级、地址排序
+// 返回结果按以下顺序排序：
+//  1. 组ID升序
+//  2. 优先级降序（高优先级在前）
+//  3. 地址升序
+func GetAllDNSServers() ([]DNSServer, error) {
+	var servers []DNSServer
+	if err := DB.Order("group_id ASC, priority DESC, address ASC").Find(&servers).Error; err != nil {
+		return nil, fmt.Errorf("获取所有服务器列表失败: %v", err)
+	}
+	return servers, nil
+}

@@ -1,4 +1,22 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/webapi/forwardserverapi.go
+// 转发服务器API - 提供DNS转发服务器的CRUD和健康检查接口
+
 package api
 
 import (
@@ -17,12 +35,20 @@ import (
 )
 
 // ForwardServerAPIHandlerGin 处理服务器API请求
+// 这是Gin路由的入口函数，认证中间件已在路由中统一应用
+//
+// 参数:
+//   - c: Gin上下文
 func ForwardServerAPIHandlerGin(c *gin.Context) {
 	// 认证中间件已在路由中统一应用
 	forwardServerHandlerGin(c)
 }
 
 // forwardServerHandlerGin 实际处理服务器请求的函数
+// 根据请求路径和方法分发到相应的处理函数
+//
+// 参数:
+//   - c: Gin上下文
 func forwardServerHandlerGin(c *gin.Context) {
 	// 获取路径参数
 	path := c.Request.URL.Path
@@ -80,6 +106,10 @@ func forwardServerHandlerGin(c *gin.Context) {
 }
 
 // getForwardServerByIDGin 根据ID获取服务器
+//
+// 参数:
+//   - c: Gin上下文
+//   - serverID: 服务器ID
 func getForwardServerByIDGin(c *gin.Context, serverID uint) {
 	server, err := database.GetDNSServerByID(serverID)
 	if err != nil {
@@ -98,6 +128,10 @@ func getForwardServerByIDGin(c *gin.Context, serverID uint) {
 }
 
 // updateForwardServerGin 更新服务器
+//
+// 参数:
+//   - c: Gin上下文
+//   - serverID: 服务器ID
 func updateForwardServerGin(c *gin.Context, serverID uint) {
 	var server database.DNSServer
 	if err := c.ShouldBindJSON(&server); err != nil {
@@ -143,6 +177,10 @@ func updateForwardServerGin(c *gin.Context, serverID uint) {
 }
 
 // deleteForwardServerGin 删除服务器
+//
+// 参数:
+//   - c: Gin上下文
+//   - serverID: 服务器ID
 func deleteForwardServerGin(c *gin.Context, serverID uint) {
 	// 检查服务器是否存在
 	_, err := database.GetDNSServerByID(serverID)
@@ -171,6 +209,9 @@ func deleteForwardServerGin(c *gin.Context, serverID uint) {
 }
 
 // batchAddForwardServersGin 批量添加服务器
+//
+// 参数:
+//   - c: Gin上下文
 func batchAddForwardServersGin(c *gin.Context) {
 	var servers []database.DNSServer
 	if err := c.ShouldBindJSON(&servers); err != nil {
@@ -226,6 +267,9 @@ func batchAddForwardServersGin(c *gin.Context) {
 }
 
 // batchDeleteForwardServersGin 批量删除服务器
+//
+// 参数:
+//   - c: Gin上下文
 func batchDeleteForwardServersGin(c *gin.Context) {
 	var ids []uint
 	if err := c.ShouldBindJSON(&ids); err != nil {
@@ -274,6 +318,11 @@ func batchDeleteForwardServersGin(c *gin.Context) {
 }
 
 // checkForwardServerHealthGin 检查服务器健康状态
+// 使用ExchangeWithCookie方法进行DNS查询，支持Cookie、TCP管道化和动态协议升级
+//
+// 参数:
+//   - c: Gin上下文
+//   - serverID: 服务器ID
 func checkForwardServerHealthGin(c *gin.Context, serverID uint) {
 	// 获取服务器信息
 	server, err := database.GetDNSServerByID(serverID)
@@ -285,7 +334,6 @@ func checkForwardServerHealthGin(c *gin.Context, serverID uint) {
 	}
 
 	// 构建服务器地址
-
 	serverAddr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
 
 	// 创建DNS查询消息
@@ -295,17 +343,27 @@ func checkForwardServerHealthGin(c *gin.Context, serverID uint) {
 
 	// 发送DNS查询
 	startTime := time.Now()
-	client := new(dns.Client)
-	client.Timeout = 5 * time.Second
 
-	result, _, err := client.Exchange(query, serverAddr)
+	var result *dns.Msg
+	var queryErr error
+
+	// 使用ExchangeWithCookie进行查询，支持Cookie、TCP管道化和动态协议升级
+	if sdns.GlobalDNSForwarder != nil {
+		result, queryErr = sdns.GlobalDNSForwarder.ExchangeWithCookie(serverAddr, query)
+	} else {
+		// DNS转发器未初始化，回退到标准DNS客户端
+		client := new(dns.Client)
+		client.Timeout = 5 * time.Second
+		result, _, queryErr = client.Exchange(query, serverAddr)
+	}
+
 	duration := time.Since(startTime)
 	responseTime := float64(duration.Milliseconds())
 
 	// 分析响应
 	isHealthy := false
 
-	if err == nil && result != nil && (result.Rcode == dns.RcodeSuccess || result.Rcode == dns.RcodeNameError || result.Rcode == dns.RcodeRefused) {
+	if queryErr == nil && result != nil && (result.Rcode == dns.RcodeSuccess || result.Rcode == dns.RcodeNameError || result.Rcode == dns.RcodeRefused) {
 		isHealthy = true
 	}
 

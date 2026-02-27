@@ -1,11 +1,28 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/sdns/dns_forward.go
+// DNS转发模块 - 实现支持Cookie、TCP管道化和动态协议升级的DNS查询
 
 package sdns
 
 import (
+	"context"
 	"fmt"
-	"net"
-	"strconv"
+	"sort"
 	"time"
 
 	"github.com/miekg/dns"
@@ -126,44 +143,34 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 
 	// 按优先级顺序（1 -> 2 -> 3）启动查询
 	for priority := 1; priority <= 3; priority++ {
-		servers, exists := group.PriorityQueues[priority]
-		if !exists || len(servers) == 0 {
-			// 当某个优先级队列中无服务器时，跳过该队列
-			f.logger.Debug("转发查询 - 优先级队列 %d 为空，跳过", priority)
-			continue
-		}
-
-		// 过滤出健康的服务器
-		var healthyServers []*DNSServer
-		var unhealthyCount int
-		for _, server := range servers {
-			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
-			if f.IsServerHealthy(addr) {
-				healthyServers = append(healthyServers, server)
-				allHealthyServers = append(allHealthyServers, server)
-				totalHealthyServers++
-			} else {
-				unhealthyCount++
-				f.logger.Debug("转发查询 - 服务器 %s 不健康，跳过", addr)
-			}
-		}
-
-		// 如果当前优先级队列中没有健康服务器，跳过该队列
-		if len(healthyServers) == 0 {
+		// 使用新的健康检查机制获取健康服务器
+		healthyStatsList := f.GetHealthyServersByPriority(group, priority)
+		if len(healthyStatsList) == 0 {
 			f.logger.Debug("转发查询 - 优先级队列 %d 中没有健康服务器，跳过", priority)
 			continue
 		}
 
-		f.logger.Debug("转发查询 - 启动优先级队列 %d, 健康服务器数量: %d, 跳过不健康服务器: %d",
-			priority, len(healthyServers), unhealthyCount)
+		f.logger.Debug("转发查询 - 启动优先级队列 %d, 健康服务器数量: %d", priority, len(healthyStatsList))
 
-		// 为当前优先级队列中的所有健康服务器创建任务
-		for i, server := range healthyServers {
+		// 按EWMA评分排序（高到低）
+		sort.Slice(healthyStatsList, func(i, j int) bool {
+			return healthyStatsList[i].EWMAScore > healthyStatsList[j].EWMAScore
+		})
 
-			server = servers[0]
+		// 为每台服务器创建任务，根据评分分层延迟启动
+		// 同一优先级内的服务器按评分延迟启动
+		// 不同优先级之间由priorityInterval控制
+		for _, stats := range healthyStatsList {
+			addr := stats.Address
+			score := stats.EWMAScore
+			// 计算评分延迟（同一优先级内的相对延迟）
+			scoreDelay := calculateTieredDelay(score)
+			// 计算优先级延迟（不同优先级之间的基础延迟）
+			priorityDelay := time.Duration(priority-1) * priorityInterval
+			// 总延迟 = 优先级延迟 + 评分延迟
+			totalDelay := priorityDelay + scoreDelay
 
-			addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
-			f.logger.Debug("转发查询 - 尝试服务器 %d: %s (优先级 %d)", i+1, addr, priority)
+			f.logger.Debug("转发查询 - 服务器 %s (评分: %.3f, 优先级: %d, 总延迟: %v)", addr, score, priority, totalDelay)
 
 			// 创建转发任务
 			task := &DNSForwardTask{
@@ -172,11 +179,19 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 				resultChan: resultChan,
 				errorChan:  errorChan,
 				forwarder:  f,
-				cancelChan: cancelChan, // 传递取消通道
+				cancelChan: cancelChan,
 			}
 
-			// 使用专用的DNS转发协程池处理任务
-			f.forwardPool.SubmitTask(task)
+			// 根据总延迟启动
+			go func(t *DNSForwardTask, d time.Duration) {
+				if d > 0 {
+					time.Sleep(d)
+				}
+				f.forwardPool.SubmitTask(t)
+			}(task, totalDelay)
+
+			totalHealthyServers++
+			allHealthyServers = append(allHealthyServers, &DNSServer{Address: addr})
 		}
 
 		// 如果不是最后一个优先级队列，等待指定间隔后再启动下一个队列
@@ -288,88 +303,555 @@ func (f *DNSForwarder) tryForwardWithPriority(group *ForwardGroup, query *dns.Ms
 }
 
 // forwardToServer 向单个DNS服务器转发查询
+// 使用ExchangeWithCookie替代直接Exchange，支持Cookie、TCP管道化和动态协议升级
 func (f *DNSForwarder) forwardToServer(addr string, query *dns.Msg, cancelChan chan struct{}) (*dns.Msg, error) {
 	startTime := time.Now()
+
+	// 首先检查是否已被取消
+	if cancelChan != nil {
+		select {
+		case <-cancelChan:
+			f.logger.Debug("转发查询 - 查询已被取消，跳过服务器: %s", addr)
+			return nil, fmt.Errorf("查询被取消")
+		default:
+		}
+	}
 
 	// 获取或创建服务器统计信息
 	stats := f.getOrCreateServerStats(addr)
 
-	// 创建结果通道
-	resultChan := make(chan *dns.Msg, 1)
-	errorChan := make(chan error, 1)
+	// 使用ExchangeWithCookie进行查询，支持Cookie、TCP管道化和动态协议升级
+	result, err := f.ExchangeWithCookie(addr, query)
 
-	// 在goroutine中执行DNS查询
-	func() {
-		f.logger.Debug("转发查询 - 开始执行DNS查询，服务器: %s", addr)
-		c := new(dns.Client)
-		c.Timeout = 5 * time.Second
-
-		result, rtt, err := c.Exchange(query, addr)
-		f.logger.Debug("转发查询 - DNS查询完成，服务器: %s, 耗时: %v, 错误: %v", addr, rtt, err)
-
-		if err != nil {
-			f.logger.Debug("转发查询 - DNS查询失败，服务器: %s, 错误: %v", addr, err)
-			errorChan <- err
-			return
+	// 再次检查是否被取消（查询完成后）
+	if cancelChan != nil {
+		select {
+		case <-cancelChan:
+			f.logger.Debug("转发查询 - 查询被取消，服务器: %s", addr)
+			return nil, fmt.Errorf("查询被取消")
+		default:
 		}
+	}
 
-		if result == nil {
-			f.logger.Debug("转发查询 - DNS查询返回空结果，服务器: %s", addr)
-			errorChan <- fmt.Errorf("DNS查询返回空结果")
-			return
-		}
-
-		// 所有DNS响应码都视为成功（服务器健康）
-		if result.Rcode == dns.RcodeSuccess {
-			// 成功响应
-			f.logger.Debug("转发查询 - DNS查询成功，服务器: %s, 耗时: %v", addr, rtt)
-			resultChan <- result
-		} else {
-			// 其他响应码也视为成功（服务器健康，返回结果）
-			f.logger.Debug("转发查询 - DNS查询返回结果码，服务器: %s, 返回码: %d", addr, result.Rcode)
-			resultChan <- result
-		}
-	}()
-
-	// 等待取消信号或查询结果
-	select {
-	case <-cancelChan:
-		// 收到取消信号，立即返回
-		f.logger.Debug("转发查询 - 查询被取消，服务器: %s", addr)
-		return nil, fmt.Errorf("查询被取消")
-	case result := <-resultChan:
-		// 收到查询结果
-		duration := time.Since(startTime)
-		f.logger.Debug("转发查询 - 服务器 %s 响应成功, 耗时: %v", addr, duration)
-
-		// 更新服务器统计信息
-		stats.Mu.Lock()
-		stats.Queries++
-		stats.SuccessfulQueries++
-		stats.TotalResponseTime += duration
-		stats.LastQueryTime = time.Now()
-		stats.LastSuccessfulQueryTime = time.Now()
-		stats.WindowQueries++
-		stats.Status = "healthy"
-		stats.Mu.Unlock()
-
-		return result, nil
-	case err := <-errorChan:
-		// 收到错误
+	if err != nil {
 		duration := time.Since(startTime)
 		f.logger.Debug("转发查询 - 服务器 %s 响应失败, 耗时: %v, 错误: %v", addr, duration, err)
+
+		now := time.Now()
 
 		// 更新服务器统计信息
 		stats.Mu.Lock()
 		stats.Queries++
 		stats.FailedQueries++
-		stats.LastQueryTime = time.Now()
-		// 检查失败率，超过50%标记为不健康
-		if stats.Queries > 10 && float64(stats.FailedQueries)/float64(stats.Queries) > 0.5 {
-			stats.Status = "unhealthy"
-		}
+		stats.LastQueryTime = now
 		stats.Mu.Unlock()
+
+		// 更新EWMA评分和滑动窗口
+		// rcode=-1表示网络错误，使用默认半衰期10秒
+		UpdateTimeDecayEWMA(stats, -1, -1, now, 0)
+		UpdateSlidingWindow(stats, false)
+		RecordQueryResult(stats, false)
+
+		// 检查是否触发熔断
+		if CheckCircuitBreaker(stats) {
+			f.logger.Warn("服务器 %s 触发熔断，连续失败次数达到阈值", addr)
+		}
 
 		return nil, err
 	}
+
+	duration := time.Since(startTime)
+	f.logger.Debug("转发查询 - 服务器 %s 响应成功, 耗时: %v", addr, duration)
+
+	now := time.Now()
+	latency := float64(duration.Milliseconds())
+
+	// 更新服务器统计信息
+	stats.Mu.Lock()
+	stats.Queries++
+	stats.SuccessfulQueries++
+	stats.TotalResponseTime += duration
+	stats.LastQueryTime = now
+	stats.LastSuccessfulQueryTime = now
+	stats.WindowQueries++
+	stats.Status = "healthy"
+	stats.Mu.Unlock()
+
+	// 更新EWMA评分和滑动窗口
+	// rcode=0表示NOERROR，使用默认半衰期10秒
+	UpdateTimeDecayEWMA(stats, result.Rcode, latency, now, 0)
+	UpdateSlidingWindow(stats, true)
+	RecordQueryResult(stats, true)
+
+	return result, nil
+}
+
+// ExchangeWithCookie 统一的DNS查询接口，支持Cookie、TCP管道化和动态协议升级
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - query: DNS查询消息
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) ExchangeWithCookie(serverAddr string, query *dns.Msg) (*dns.Msg, error) {
+	// 复制查询消息，避免修改原始查询
+	msg := query.Copy()
+
+	// 检查查询大小，>512字节优先走TCP
+	querySize := msg.Len()
+	if querySize > 512 {
+		f.logger.Debug("查询大小 %d 字节超过512字节，优先使用TCP", querySize)
+		return f.handleLargeQuery(serverAddr, msg)
+	}
+
+	// 查询服务器状态表，选择最优协议
+	protocol := f.selectProtocol(serverAddr)
+	f.logger.Debug("选择协议: %s, 服务器: %s", protocol, serverAddr)
+
+	switch protocol {
+	case "tcp":
+		// 使用TCP管道化
+		result, err := f.exchangeWithTCP(serverAddr, msg)
+		if err != nil {
+			f.logger.Debug("TCP查询失败，尝试降级: %v", err)
+			return f.handleProtocolDowngrade(serverAddr, msg, "tcp", err)
+		}
+		return result, nil
+
+	case "cookie":
+		// 使用UDP+Cookie
+		result, err := f.exchangeWithCookie(serverAddr, msg)
+		if err != nil {
+			f.logger.Debug("Cookie查询失败，尝试降级到UDP Plain: %v", err)
+			return f.handleProtocolDowngrade(serverAddr, msg, "cookie", err)
+		}
+		return result, nil
+
+	default:
+		// 使用UDP Plain
+		return f.exchangeWithUDP(serverAddr, msg)
+	}
+}
+
+// selectProtocol 根据服务器状态选择协议
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//
+// 返回:
+//   - string: 选择的协议 ("tcp", "cookie", "udp")
+func (f *DNSForwarder) selectProtocol(serverAddr string) string {
+	// 获取服务器状态
+	state, exists := f.ServerCapabilityProber.GetServerState(serverAddr)
+	if !exists {
+		// 服务器未探测，提交探测任务
+		f.ServerCapabilityProber.SubmitProbe(serverAddr)
+		// 默认使用UDP Plain
+		return "udp"
+	}
+
+	caps := state.GetCapabilities()
+
+	// 检查TCP支持
+	if caps.HasCapability(CapabilityTCP) && caps.HasCapability(CapabilityPipeline) {
+		// 检查TCP连接池是否已有已建立的健康连接
+		if f.TCPConnectionPool != nil && f.TCPConnectionPool.HasHealthyConnection(serverAddr) {
+			return "tcp"
+		}
+
+		// 没有健康连接，触发异步创建
+		// EnsureConnections 是非阻塞的，直接调用即可
+		f.TCPConnectionPool.EnsureConnections(serverAddr)
+	}
+
+	// 检查Cookie支持
+	if caps.HasCapability(CapabilityEDNS0) {
+		// 检查是否有有效的Server Cookie
+		_, serverCookie, exists, _ := f.AdaptiveCookieManager.GetServerCookie(serverAddr)
+		if exists && serverCookie != nil {
+			return "cookie"
+		}
+	}
+
+	// 默认使用UDP Plain
+	return "udp"
+}
+
+// shouldUseTCP 判断是否应该使用TCP
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//
+// 返回:
+//   - bool: 是否应该使用TCP
+func (f *DNSForwarder) shouldUseTCP(serverAddr string) bool {
+	state, exists := f.ServerCapabilityProber.GetServerState(serverAddr)
+	if !exists {
+		return false
+	}
+
+	caps := state.GetCapabilities()
+	return caps.HasCapability(CapabilityTCP) && caps.HasCapability(CapabilityPipeline)
+}
+
+// handleLargeQuery 处理大数据包查询，TCP不可用时两层降级
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: DNS查询消息
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) handleLargeQuery(serverAddr string, msg *dns.Msg) (*dns.Msg, error) {
+	f.logger.Debug("处理大数据包查询，服务器: %s", serverAddr)
+
+	// 第一层：尝试TCP
+	if f.shouldUseTCP(serverAddr) {
+		result, err := f.exchangeWithTCP(serverAddr, msg)
+		if err == nil {
+			return result, nil
+		}
+		f.logger.Debug("TCP查询失败，尝试降级到UDP+Cookie: %v", err)
+	}
+
+	// 第二层：尝试UDP+Cookie
+	state, exists := f.ServerCapabilityProber.GetServerState(serverAddr)
+	if exists {
+		caps := state.GetCapabilities()
+		if caps.HasCapability(CapabilityEDNS0) {
+			result, err := f.exchangeWithCookie(serverAddr, msg)
+			if err == nil {
+				return result, nil
+			}
+			f.logger.Debug("UDP+Cookie查询失败，尝试降级到UDP Plain: %v", err)
+		}
+	}
+
+	// 第三层：UDP Plain（可能失败，因为数据包太大）
+	f.logger.Warn("大数据包查询降级到UDP Plain，可能因数据包过大而失败")
+	return f.exchangeWithUDP(serverAddr, msg)
+}
+
+// tryReconnectTCP 尝试重建TCP连接
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//
+// 返回:
+//   - bool: 是否成功重建
+func (f *DNSForwarder) tryReconnectTCP(serverAddr string) bool {
+	if f.TCPConnectionPool == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 尝试获取连接，这会触发新连接的创建
+	conn, err := f.TCPConnectionPool.GetConnection(serverAddr, ctx)
+	if err != nil {
+		f.logger.Debug("重建TCP连接失败: %v", err)
+		return false
+	}
+
+	// 连接健康，可以使用
+	if conn.IsHealthy() {
+		return true
+	}
+
+	return false
+}
+
+// shouldRetryWithNewCookie 判断是否需要重试
+//
+// 参数:
+//   - resp: DNS响应消息
+//
+// 返回:
+//   - bool: 是否需要重试
+func (f *DNSForwarder) shouldRetryWithNewCookie(resp *dns.Msg) bool {
+	if resp == nil {
+		return false
+	}
+
+	// 检查是否为BADCOOKIE响应
+	if resp.Rcode == dns.RcodeBadCookie {
+		return true
+	}
+
+	// 检查是否为REFUSED且包含echoed Cookie
+	if f.isRefusedWithEchoedCookie(resp) {
+		return true
+	}
+
+	return false
+}
+
+// handleBadCookie 处理BADCOOKIE响应
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: 原始查询消息
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) handleBadCookie(serverAddr string, msg *dns.Msg) (*dns.Msg, error) {
+	f.logger.Debug("处理BADCOOKIE响应，刷新Cookie后重试，服务器: %s", serverAddr)
+
+	// 记录Cookie失效
+	f.AdaptiveCookieManager.RecordFailure(serverAddr)
+
+	// 刷新Server Cookie
+	newClientCookie, err := f.AdaptiveCookieManager.RefreshServerCookie(serverAddr)
+	if err != nil {
+		return nil, fmt.Errorf("刷新Cookie失败: %w", err)
+	}
+
+	// 复制消息并注入新的Client Cookie
+	retryMsg := msg.Copy()
+	RemoveCookie(retryMsg)
+	if err := InjectCookie(retryMsg, newClientCookie, nil); err != nil {
+		return nil, fmt.Errorf("注入新Cookie失败: %w", err)
+	}
+
+	// 使用UDP Plain发送（只有Client Cookie，等待服务器返回Server Cookie）
+	return f.exchangeWithUDP(serverAddr, retryMsg)
+}
+
+// isRefusedWithEchoedCookie 判断是否为REFUSED + echoed Cookie
+//
+// 参数:
+//   - resp: DNS响应消息
+//
+// 返回:
+//   - bool: 是否为REFUSED + echoed Cookie
+func (f *DNSForwarder) isRefusedWithEchoedCookie(resp *dns.Msg) bool {
+	if resp == nil {
+		return false
+	}
+
+	// 检查是否为REFUSED
+	if resp.Rcode != dns.RcodeRefused {
+		return false
+	}
+
+	// 检查是否包含echoed Cookie（只有Client Cookie，没有Server Cookie）
+	isEchoed, err := IsEchoedCookie(resp)
+	if err != nil {
+		return false
+	}
+
+	return isEchoed
+}
+
+// handleRefusedWithCookie 处理REFUSED + echoed Cookie场景
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: 原始查询消息
+//   - resp: 包含echoed Cookie的响应
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) handleRefusedWithCookie(serverAddr string, msg *dns.Msg, resp *dns.Msg) (*dns.Msg, error) {
+	f.logger.Debug("处理REFUSED + echoed Cookie，获取Server Cookie后重试，服务器: %s", serverAddr)
+
+	// 从响应中提取Client Cookie
+	clientCookie, err := ExtractClientCookie(resp)
+	if err != nil {
+		return nil, fmt.Errorf("提取Client Cookie失败: %w", err)
+	}
+
+	// 从响应中提取Server Cookie（如果有的话）
+	serverCookie, err := ExtractServerCookie(resp)
+	if err == nil && serverCookie != nil {
+		// 缓存Server Cookie
+		f.AdaptiveCookieManager.SetServerCookie(serverAddr, clientCookie, serverCookie)
+		f.logger.Debug("从REFUSED响应中提取并缓存Server Cookie")
+	}
+
+	// 使用获取到的Cookie重试
+	retryMsg := msg.Copy()
+	RemoveCookie(retryMsg)
+	if err := InjectCookie(retryMsg, clientCookie, serverCookie); err != nil {
+		return nil, fmt.Errorf("注入Cookie失败: %w", err)
+	}
+
+	return f.exchangeWithUDP(serverAddr, retryMsg)
+}
+
+// handleProtocolDowngrade 处理协议降级
+//
+// 降级路径:
+// - TCP失败 → UDP+Cookie → UDP Plain
+// - Cookie失败 → UDP Plain
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: DNS查询消息
+//   - currentProtocol: 当前失败的协议
+//   - originalErr: 原始错误
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) handleProtocolDowngrade(serverAddr string, msg *dns.Msg, currentProtocol string, originalErr error) (*dns.Msg, error) {
+	f.logger.Debug("协议降级: %s -> 更低级别协议, 服务器: %s", currentProtocol, serverAddr)
+
+	switch currentProtocol {
+	case "tcp":
+		// TCP失败，尝试UDP+Cookie
+		state, exists := f.ServerCapabilityProber.GetServerState(serverAddr)
+		if exists {
+			caps := state.GetCapabilities()
+			if caps.HasCapability(CapabilityEDNS0) {
+				result, err := f.exchangeWithCookie(serverAddr, msg)
+				if err == nil {
+					return result, nil
+				}
+				// Cookie也失败，继续降级到UDP Plain
+				return f.exchangeWithUDP(serverAddr, msg)
+			}
+		}
+		// 服务器不支持EDNS0，直接降级到UDP Plain
+		return f.exchangeWithUDP(serverAddr, msg)
+
+	case "cookie":
+		// Cookie失败，降级到UDP Plain
+		return f.exchangeWithUDP(serverAddr, msg)
+
+	default:
+		// 已经是UDP Plain，无法降级
+		return nil, originalErr
+	}
+}
+
+// exchangeWithTCP 使用TCP管道化进行DNS查询
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: DNS查询消息
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) exchangeWithTCP(serverAddr string, msg *dns.Msg) (*dns.Msg, error) {
+	if f.TCPConnectionPool == nil {
+		return nil, fmt.Errorf("TCP连接池未初始化")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	f.logger.Debug("使用TCP管道化查询，服务器: %s", serverAddr)
+	return f.TCPConnectionPool.Exchange(msg, serverAddr, ctx)
+}
+
+// exchangeWithCookie 使用UDP+Cookie进行DNS查询
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: DNS查询消息
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) exchangeWithCookie(serverAddr string, msg *dns.Msg) (*dns.Msg, error) {
+	f.logger.Debug("使用UDP+Cookie查询，服务器: %s", serverAddr)
+
+	// 复制消息
+	cookieMsg := msg.Copy()
+
+	// 获取Client Cookie和Server Cookie
+	var clientCookie []byte
+	var serverCookie []byte
+	var exists bool
+
+	// 检查原始消息中是否有Client Cookie
+	origClientCookie, err := ExtractClientCookie(msg)
+	if err == nil && origClientCookie != nil {
+		// 透传客户端Client Cookie
+		clientCookie = origClientCookie
+		// 尝试获取对应的Server Cookie
+		_, serverCookie, exists, _ = f.AdaptiveCookieManager.GetServerCookie(serverAddr)
+		if !exists {
+			serverCookie = nil
+		}
+	} else {
+		// 生成系统Client Cookie
+		clientCookie, serverCookie, exists, err = f.AdaptiveCookieManager.GetServerCookie(serverAddr)
+		if err != nil {
+			return nil, fmt.Errorf("获取Cookie失败: %w", err)
+		}
+		if !exists {
+			serverCookie = nil
+		}
+	}
+
+	// 注入Cookie到消息
+	RemoveCookie(cookieMsg)
+	if err := InjectCookie(cookieMsg, clientCookie, serverCookie); err != nil {
+		return nil, fmt.Errorf("注入Cookie失败: %w", err)
+	}
+
+	// 执行UDP查询
+	result, err := f.exchangeWithUDP(serverAddr, cookieMsg)
+	if err != nil {
+		return nil, err
+	}
+
+	// 从响应中提取Server Cookie并缓存
+	respServerCookie, err := ExtractServerCookie(result)
+	if err == nil && respServerCookie != nil {
+		f.AdaptiveCookieManager.SetServerCookie(serverAddr, clientCookie, respServerCookie)
+		f.logger.Debug("从响应中提取并缓存Server Cookie")
+	}
+
+	// 检查是否需要重试（BADCOOKIE或REFUSED + echoed Cookie）
+	if f.shouldRetryWithNewCookie(result) {
+		if result.Rcode == dns.RcodeBadCookie {
+			return f.handleBadCookie(serverAddr, msg)
+		}
+		if f.isRefusedWithEchoedCookie(result) {
+			return f.handleRefusedWithCookie(serverAddr, msg, result)
+		}
+	}
+
+	return result, nil
+}
+
+// exchangeWithUDP 使用UDP Plain进行DNS查询
+//
+// 参数:
+//   - serverAddr: 服务器地址
+//   - msg: DNS查询消息
+//
+// 返回:
+//   - *dns.Msg: DNS响应消息
+//   - error: 错误信息
+func (f *DNSForwarder) exchangeWithUDP(serverAddr string, msg *dns.Msg) (*dns.Msg, error) {
+	f.logger.Debug("使用UDP Plain查询，服务器: %s", serverAddr)
+
+	// 移除Cookie选项（UDP Plain不使用Cookie）
+	udpMsg := msg.Copy()
+	RemoveCookie(udpMsg)
+
+	// 创建UDP客户端
+	c := new(dns.Client)
+	c.Net = "udp"
+	c.Timeout = 5 * time.Second
+
+	// 执行查询
+	result, rtt, err := c.Exchange(udpMsg, serverAddr)
+	if err != nil {
+		return nil, fmt.Errorf("UDP查询失败: %w", err)
+	}
+
+	f.logger.Debug("UDP查询成功，服务器: %s, 耗时: %v", serverAddr, rtt)
+	return result, nil
 }

@@ -27,6 +27,22 @@ type ServerStats struct {
 	Latency                 float64
 	WindowStartTime         time.Time
 	WindowQueries           int64
+
+	// 时间衰减EWMA相关字段
+	EWMAScore      float64   // EWMA健康评分 (0.0-1.0)
+	EWMALatency    float64   // EWMA延迟评分
+	EWMAHalfLife   float64   // EWMA半衰期（秒）
+	EWMALastUpdate time.Time // EWMA上次更新时间
+
+	// 滑动窗口相关字段
+	RecentResults []bool // 最近N次查询结果，true=成功, false=失败
+	WindowIndex   int    // 滑动窗口当前索引
+	WindowSize    int    // 滑动窗口大小
+
+	// 熔断状态相关字段
+	CircuitBroken    bool // 是否处于熔断状态
+	ProbeMode        bool // 是否处于主动探测模式
+	ConsecutiveFails int  // 连续失败次数
 }
 
 // UpdateServerStats 更新服务器统计信息
@@ -63,8 +79,13 @@ func (f *DNSForwarder) UpdateServerStats() {
 			stats.Latency = float64(stats.TotalResponseTime.Milliseconds()) / float64(stats.SuccessfulQueries)
 		}
 
-		// 检查服务器健康状态
-		if now.Sub(stats.LastSuccessfulQueryTime) > 30*time.Second {
+		// 根据EWMA评分更新健康状态
+		// 使用与分层延迟一致的阈值
+		if stats.EWMAScore >= 0.8 {
+			stats.Status = "healthy"
+		} else if stats.EWMAScore >= 0.6 {
+			stats.Status = "degraded"
+		} else {
 			stats.Status = "unhealthy"
 		}
 
@@ -126,11 +147,25 @@ func (f *DNSForwarder) getOrCreateServerStats(addr string) *ServerStats {
 		return stats
 	}
 
+	now := time.Now()
 	stats := &ServerStats{
 		Address:         addr,
 		Status:          "healthy",
-		WindowStartTime: time.Now(),
-		LastQueryTime:   time.Now(),
+		WindowStartTime: now,
+		LastQueryTime:   now,
+		// 初始化EWMA相关字段
+		EWMAScore:      1.0,  // 初始评分为1.0（健康）
+		EWMALatency:    0.0,  // 初始延迟为0
+		EWMAHalfLife:   10.0, // 默认半衰期10秒
+		EWMALastUpdate: now,
+		// 初始化滑动窗口相关字段
+		RecentResults: make([]bool, 0, 5),
+		WindowIndex:   0,
+		WindowSize:    5,
+		// 初始化熔断状态相关字段
+		CircuitBroken:    false,
+		ProbeMode:        false,
+		ConsecutiveFails: 0,
 	}
 	f.serverStats[addr] = stats
 	return stats
