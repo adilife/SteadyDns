@@ -5,6 +5,11 @@
 ## 目录
 
 - [环境要求](#环境要求)
+  - [操作系统](#操作系统)
+  - [必须组件](#必须组件)
+  - [BIND 插件说明](#bind-插件说明)
+  - [端口要求](#端口要求)
+  - [硬件要求](#硬件要求)
 - [安装方式](#安装方式)
 - [配置说明](#配置说明)
 - [启动与管理](#启动与管理)
@@ -25,8 +30,121 @@
 
 | 组件 | 版本要求 | 说明 |
 |------|----------|------|
-| BIND | 9.18+ | DNS 权威服务器 |
+| BIND | 9.18+ | DNS 权威服务器（BIND 插件启用时需要） |
 | SQLite | 3.x | 数据库（内嵌，无需单独安装） |
+
+### BIND 插件说明
+
+SteadyDNS 支持以两种模式运行，取决于是否启用 BIND 插件：
+
+| 模式 | BIND 插件 | 功能说明 |
+|------|----------|----------|
+| **权威服务器模式** | 启用 | 支持权威域管理，可作为主/从 DNS 服务器 |
+| **转发服务器模式** | 禁用 | 仅提供 DNS 转发功能，无权威域管理 |
+
+#### 启用 BIND 插件
+
+如需启用权威域管理功能，请确保：
+
+> ⚠️ **重要提示**：如果在本机部署 BIND，必须修改 BIND 的默认监听端口（53），因为 SteadyDNS 需要监听 53 端口对外提供 DNS 服务。BIND 将作为后端权威服务器运行在其他端口（如 5300），由 SteadyDNS 转发权威域查询请求。
+
+**步骤 1：在配置文件中启用 BIND 插件**
+
+编辑 `config/steadydns.conf` 文件，在 `[Plugins]` 节中设置：
+
+```ini
+[Plugins]
+# BIND Plugin - Authoritative Domain Management
+# 启用 BIND 插件以支持权威域管理功能
+# 修改后需要重启服务才能生效
+BIND_ENABLED=true
+```
+
+> **注意**：修改插件配置后需要重启 SteadyDNS 服务才能生效。
+
+**步骤 2：安装 BIND 9.18+**
+```bash
+# CentOS/RHEL
+yum install bind bind-utils
+
+# Ubuntu/Debian
+apt install bind9 bind9utils
+```
+
+**步骤 3：验证 BIND 版本**
+```bash
+named -v
+# 输出应类似：BIND 9.18.x
+```
+
+**步骤 4：配置 BIND 相关参数**
+
+在 `config/steadydns.conf` 中配置 BIND 相关选项：
+```ini
+[BIND]
+# BIND 服务地址（注意：不是默认的 53 端口）
+BIND_ADDRESS=127.0.0.1:5300
+# RNDC 密钥文件路径
+RNDC_KEY=/etc/named/rndc.key
+# 区域文件存储路径
+ZONE_FILE_PATH=/usr/local/bind9/var/named
+# named 配置文件路径
+NAMED_CONF_PATH=/etc/named
+# RNDC 端口
+RNDC_PORT=9530
+```
+
+**步骤 5：修改 BIND 监听端口**
+
+编辑 BIND 配置文件 `/etc/named.conf`，修改监听端口：
+```bash
+# 修改 options 部分
+options {
+    listen-on port 5300 { 127.0.0.1; };
+    // 其他配置...
+};
+```
+
+重启 BIND 服务：
+```bash
+systemctl restart named
+```
+
+**步骤 6：配置 RNDC**
+```bash
+# 生成 RNDC 密钥（如果尚未配置）
+rndc-confgen -a
+
+# 确保 SteadyDNS 有权限访问 BIND 配置目录
+chmod -R 755 /var/named
+```
+
+**步骤 7：重启 SteadyDNS 服务**
+```bash
+./steadydns restart
+# 或使用 systemd
+systemctl restart steadydns
+```
+
+#### 不启用 BIND 插件
+
+如果不需要权威域管理功能，可以在配置文件中禁用 BIND 插件：
+
+```ini
+[Plugins]
+# 禁用 BIND 插件
+BIND_ENABLED=false
+```
+
+禁用 BIND 插件后，SteadyDNS 将作为纯转发服务器运行：
+
+- 仅提供 DNS 递归转发功能
+- 支持上游 DNS 服务器配置
+- 支持域名过滤和黑白名单
+- 不支持权威域管理
+- 无需安装 BIND 服务
+
+> **注意**：修改插件配置后需要重启 SteadyDNS 服务才能生效。
 
 ### 端口要求
 
