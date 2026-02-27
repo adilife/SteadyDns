@@ -1,3 +1,19 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 // core/sdns/health_check.go
 // 健康检查模块 - 实现多层次健康检查策略
 
@@ -6,27 +22,68 @@ package sdns
 import (
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
 )
 
+// getServerGroupDomain 根据服务器地址查找所属的转发组域名
+// 参数:
+//   - addr: 服务器地址（格式为"host:port"）
+//
+// 返回:
+//   - string: 转发组域名（Default或其他域名）
+func (f *DNSForwarder) getServerGroupDomain(addr string) string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	// 遍历所有转发组，查找服务器所属的组
+	for domain, group := range f.groups {
+		for _, priorityServers := range group.PriorityQueues {
+			for _, server := range priorityServers {
+				serverAddr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
+				if serverAddr == addr {
+					return domain
+				}
+			}
+		}
+	}
+
+	// 如果未找到，返回Default
+	return "Default"
+}
+
 // CheckServerHealth 检查服务器健康状态
 // 发送探测请求并更新EWMA评分
-func (f *DNSForwarder) CheckServerHealth(addr string) bool {
-	// 创建一个简单的DNS查询
+// 使用ExchangeWithCookie方法，支持Cookie、TCP管道化和动态协议升级
+//
+// 参数:
+//   - addr: 服务器地址（格式为"host:port"）
+//   - groupDomain: 所属转发组的域名（Default或其他域名）
+//
+// 返回:
+//   - bool: 服务器是否健康（返回码为NOERROR）
+func (f *DNSForwarder) CheckServerHealth(addr string, groupDomain string) bool {
+	// 根据转发组域名确定健康检查查询目标
+	// Default组查询根域名的SOA记录，其他组查询该组域名的SOA记录
+	checkDomain := groupDomain
+	if groupDomain == "Default" {
+		checkDomain = "."
+	} else {
+		// 确保域名以点结尾（fully qualified domain name）
+		if !strings.HasSuffix(checkDomain, ".") {
+			checkDomain = checkDomain + "."
+		}
+	}
+
+	// 构造健康检查查询消息（查询SOA记录）
 	query := new(dns.Msg)
-	query.SetQuestion("example.com.", dns.TypeA)
+	query.SetQuestion(checkDomain, dns.TypeSOA)
 	query.RecursionDesired = true
 
-	// 设置超时
-	c := new(dns.Client)
-	c.Timeout = 2 * time.Second
-
-	// 执行查询
-	start := time.Now()
-	result, _, err := c.Exchange(query, addr)
-	duration := time.Since(start)
+	// 执行查询，使用ExchangeWithCookie支持Cookie和动态协议选择
+	result, err := f.ExchangeWithCookie(addr, query)
 
 	// 获取或创建统计信息
 	stats := f.getOrCreateServerStats(addr)
@@ -35,7 +92,7 @@ func (f *DNSForwarder) CheckServerHealth(addr string) bool {
 	if err != nil {
 		f.logger.Debug("健康检查 - 服务器 %s 失败: %v", addr, err)
 		// 更新EWMA评分为失败（rcode=-1表示网络错误）
-		UpdateTimeDecayEWMA(stats, -1, -1, now)
+		UpdateTimeDecayEWMAForHealthCheck(stats, -1, now)
 		UpdateSlidingWindow(stats, false)
 		RecordQueryResult(stats, false)
 		return false
@@ -44,7 +101,7 @@ func (f *DNSForwarder) CheckServerHealth(addr string) bool {
 	if result == nil {
 		f.logger.Debug("健康检查 - 服务器 %s 失败，返回空结果", addr)
 		// 更新EWMA评分为失败（rcode=-1表示网络错误）
-		UpdateTimeDecayEWMA(stats, -1, -1, now)
+		UpdateTimeDecayEWMAForHealthCheck(stats, -1, now)
 		UpdateSlidingWindow(stats, false)
 		RecordQueryResult(stats, false)
 		return false
@@ -53,17 +110,28 @@ func (f *DNSForwarder) CheckServerHealth(addr string) bool {
 	// 服务器有返回，根据响应码更新评分
 	f.logger.Debug("健康检查 - 服务器 %s 成功，返回码: %d", addr, result.Rcode)
 
-	// 更新EWMA评分（使用实际响应码）
-	latency := float64(duration.Milliseconds())
-	UpdateTimeDecayEWMA(stats, result.Rcode, latency, now)
-	UpdateSlidingWindow(stats, result.Rcode == 0)
-	RecordQueryResult(stats, result.Rcode == 0)
+	// 判断服务器是否健康
+	// 对于权威服务器，返回REFUSED(5)是正常的（表示不处理该域名）
+	// 返回NXDOMAIN(3)也是正常的（表示域名不存在）
+	// 只有SERVFAIL(2)或网络错误才认为不健康
+	isHealthy := result.Rcode != dns.RcodeServerFailure
 
-	return result.Rcode == 0
+	// 更新EWMA评分（使用健康检查专用的宽松评分策略）
+	UpdateTimeDecayEWMAForHealthCheck(stats, result.Rcode, now)
+	UpdateSlidingWindow(stats, isHealthy)
+	RecordQueryResult(stats, isHealthy)
+
+	return isHealthy
 }
 
 // IsServerHealthy 检查服务器是否健康（兼容旧接口）
 // 现在使用新的IsServerAvailable函数
+//
+// 参数:
+//   - addr: 服务器地址
+//
+// 返回:
+//   - bool: 服务器是否健康
 func (f *DNSForwarder) IsServerHealthy(addr string) bool {
 	stats := f.GetServerStats(addr)
 	if stats == nil {
@@ -85,7 +153,9 @@ func (f *DNSForwarder) probeCircuitBrokenServers() {
 	for _, stats := range brokenServers {
 		go func(s *ServerStats) {
 			addr := s.Address
-			success := f.CheckServerHealth(addr)
+			// 获取服务器所属的转发组域名
+			groupDomain := f.getServerGroupDomain(addr)
+			success := f.CheckServerHealth(addr, groupDomain)
 
 			if success {
 				f.logger.Info("主动探测 - 服务器 %s 恢复成功，重置熔断状态", addr)
@@ -109,7 +179,9 @@ func (f *DNSForwarder) checkStaleServers() {
 	for _, stats := range staleServers {
 		go func(s *ServerStats) {
 			addr := s.Address
-			f.CheckServerHealth(addr)
+			// 获取服务器所属的转发组域名
+			groupDomain := f.getServerGroupDomain(addr)
+			f.CheckServerHealth(addr, groupDomain)
 		}(stats)
 	}
 }
@@ -119,6 +191,9 @@ func (f *DNSForwarder) checkStaleServers() {
 // 1. 启动时全量检测（初始化EWMA评分）
 // 2. 定时检查僵尸服务器（超过DefaultStaleThreshold无查询）
 // 3. 熔断服务器高频探测（由单独协程处理）
+//
+// 参数:
+//   - isStartup: 是否为启动时的全量检测
 func (f *DNSForwarder) runHealthChecks(isStartup bool) {
 	if isStartup {
 		// 启动时全量检测
@@ -133,14 +208,18 @@ func (f *DNSForwarder) runHealthChecks(isStartup bool) {
 // runFullHealthCheck 对所有服务器进行全量健康检查
 // 用于服务启动时初始化服务器状态
 func (f *DNSForwarder) runFullHealthCheck() {
-	// 从当前活跃的groups中获取服务器地址
+	// 从当前活跃的groups中获取服务器地址和所属组域名
 	f.mu.RLock()
-	var servers []string
-	for _, group := range f.groups {
+	type serverInfo struct {
+		addr        string
+		groupDomain string
+	}
+	var servers []serverInfo
+	for domain, group := range f.groups {
 		for _, priorityServers := range group.PriorityQueues {
 			for _, server := range priorityServers {
 				addr := net.JoinHostPort(server.Address, strconv.Itoa(server.Port))
-				servers = append(servers, addr)
+				servers = append(servers, serverInfo{addr: addr, groupDomain: domain})
 			}
 		}
 	}
@@ -154,10 +233,10 @@ func (f *DNSForwarder) runFullHealthCheck() {
 	f.logger.Debug("健康检查 - 全量检测 %d 个服务器", len(servers))
 
 	// 对每个服务器进行健康检查
-	for _, addr := range servers {
-		go func(address string) {
-			f.CheckServerHealth(address)
-		}(addr)
+	for _, info := range servers {
+		go func(address, groupDomain string) {
+			f.CheckServerHealth(address, groupDomain)
+		}(info.addr, info.groupDomain)
 	}
 }
 
@@ -192,7 +271,9 @@ func (f *DNSForwarder) probeLowScoreServers() {
 	for _, stats := range lowServers {
 		go func(s *ServerStats) {
 			addr := s.Address
-			success := f.CheckServerHealth(addr)
+			// 获取服务器所属的转发组域名
+			groupDomain := f.getServerGroupDomain(addr)
+			success := f.CheckServerHealth(addr, groupDomain)
 			if success {
 				f.logger.Debug("主动探测 - 低评分服务器 %s 探测成功，评分已更新", addr)
 			}

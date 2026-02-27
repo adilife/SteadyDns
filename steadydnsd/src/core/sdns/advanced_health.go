@@ -13,6 +13,9 @@ const (
 	// EWMA参数
 	DefaultEWMHalfLife = 10 * time.Second // 半衰期10秒
 
+	// 健康检查专用EWMA参数
+	HealthCheckEWMHalfLife = 5 * time.Second // 健康检查半衰期5秒，加快评分恢复
+
 	// 熔断参数
 	DefaultFailureThreshold = 5 // 连续5次失败触发熔断
 	DefaultWindowSize       = 5 // 滑动窗口大小5
@@ -71,13 +74,45 @@ func calculateScoreByRcode(rcode int) float64 {
 	}
 }
 
+// calculateHealthCheckScore 根据DNS响应码计算健康检查EWMA评分值
+// 使用宽松的评分策略，只有SERVFAIL和网络错误才降低评分
+// 参数：
+//   - rcode: DNS响应码（-1表示网络错误）
+//
+// 返回：
+//   - EWMA评分值（0.0-1.0）
+func calculateHealthCheckScore(rcode int) float64 {
+	if rcode < 0 {
+		// 网络错误
+		return ScoreNetworkError
+	}
+
+	switch rcode {
+	case 0: // NOERROR
+		return ScoreNoError
+	case 3: // NXDOMAIN
+		return ScoreNoError // 服务器正常，只是无此记录
+	case 1: // FORMERR
+		return ScoreNoError // 格式错误，但服务器响应了
+	case 2: // SERVFAIL
+		return ScoreServerError // 服务器故障，降低评分
+	case 4: // NOTIMP
+		return ScoreNoError // 未实现，但服务器响应了（权威服务器常见）
+	case 5: // REFUSED
+		return ScoreNoError // 拒绝查询，但服务器响应了（权威服务器常见）
+	default:
+		return ScoreNoError // 其他响应，只要服务器响应了就视为正常
+	}
+}
+
 // UpdateTimeDecayEWMA 更新时间衰减EWMA评分
 // 参数：
 //   - stats: 服务器统计信息
 //   - rcode: DNS响应码（-1表示网络错误）
 //   - latency: 查询延迟（毫秒）
 //   - now: 当前时间
-func UpdateTimeDecayEWMA(stats *ServerStats, rcode int, latency float64, now time.Time) {
+//   - halfLife: 半衰期（秒），如果为0则使用默认值10秒
+func UpdateTimeDecayEWMA(stats *ServerStats, rcode int, latency float64, now time.Time, halfLife float64) {
 	stats.Mu.Lock()
 	defer stats.Mu.Unlock()
 
@@ -89,7 +124,6 @@ func UpdateTimeDecayEWMA(stats *ServerStats, rcode int, latency float64, now tim
 
 	// 计算动态Alpha值
 	// Alpha = 1 - exp(-ln(2) * dt / halfLife)
-	halfLife := stats.EWMAHalfLife
 	if halfLife <= 0 {
 		halfLife = 10.0 // 使用默认值
 	}
@@ -115,6 +149,36 @@ func UpdateTimeDecayEWMA(stats *ServerStats, rcode int, latency float64, now tim
 			stats.EWMALatency = alpha*latency + (1-alpha)*stats.EWMALatency
 		}
 	}
+
+	// 更新时间戳
+	stats.EWMALastUpdate = now
+}
+
+// UpdateTimeDecayEWMAForHealthCheck 健康检查专用的EWMA评分更新
+// 使用宽松的评分策略和较短的半衰期，加快评分恢复
+// 参数：
+//   - stats: 服务器统计信息
+//   - rcode: DNS响应码（-1表示网络错误）
+//   - now: 当前时间
+func UpdateTimeDecayEWMAForHealthCheck(stats *ServerStats, rcode int, now time.Time) {
+	stats.Mu.Lock()
+	defer stats.Mu.Unlock()
+
+	// 计算距离上次更新的时间差（秒）
+	dt := now.Sub(stats.EWMALastUpdate).Seconds()
+	if dt < 0 {
+		dt = 0
+	}
+
+	// 健康检查使用较短的半衰期，加快评分恢复
+	halfLife := HealthCheckEWMHalfLife.Seconds()
+	alpha := 1 - math.Exp(-math.Ln2*dt/halfLife)
+
+	// 使用宽松的评分策略
+	value := calculateHealthCheckScore(rcode)
+
+	// 更新EWMA评分
+	stats.EWMAScore = alpha*value + (1-alpha)*stats.EWMAScore
 
 	// 更新时间戳
 	stats.EWMALastUpdate = now

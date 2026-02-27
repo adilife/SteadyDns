@@ -52,6 +52,11 @@ type DNSForwarder struct {
 	// 域名匹配缓存
 	matchCache   map[string]*cacheEntry // 域名匹配结果缓存
 	matchCacheMu sync.RWMutex           // 保护matchCache的锁
+
+	// Cookie和TCP相关组件
+	AdaptiveCookieManager   *AdaptiveCookieManager   // 自适应Cookie管理器
+	TCPConnectionPool       *TCPConnectionPool       // TCP连接池
+	ServerCapabilityProber  *ServerCapabilityProber  // 服务器能力探测器
 }
 
 // cacheEntry 域名匹配缓存项
@@ -294,14 +299,24 @@ func (f *DNSForwarder) LoadConfig() {
 
 // NewDNSForwarder 创建新的DNS转发器
 func NewDNSForwarder(forwardAddr string) *DNSForwarder {
+	logger := common.NewLogger()
+
+	// 先创建TCP连接池
+	tcpPool := NewTCPConnectionPool(nil)
+
 	forwarder := &DNSForwarder{
 		groups:             make(map[string]*ForwardGroup),
 		domainIndex:        make([]string, 0),
 		serverStats:        make(map[string]*ServerStats),
 		cacheTTL:           30 * time.Second,
-		logger:             common.NewLogger(),
+		logger:             logger,
 		matchCache:         make(map[string]*cacheEntry), // 初始化域名匹配缓存
 		authorityForwarder: NewAuthorityForwarder(),      // 初始化权威域转发管理器
+
+		// 初始化Cookie和TCP相关组件
+		AdaptiveCookieManager:  NewAdaptiveCookieManager(),
+		TCPConnectionPool:      tcpPool,
+		ServerCapabilityProber: NewServerCapabilityProber(0, logger, tcpPool),
 	}
 
 	// 加载配置
