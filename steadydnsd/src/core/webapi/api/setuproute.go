@@ -134,17 +134,18 @@ func setupStaticRoutes(engine *gin.Engine) {
 		})
 	} else {
 		// 生产模式：从 Embed 读取前端文件
-		subFS, err := fs.Sub(static.StaticFS, "dist")
+		distFS, err := fs.Sub(static.StaticFS, "dist")
 		if err != nil {
 			return
 		}
 
-		// 静态资源路由
-		engine.GET("/assets/*filepath", func(c *gin.Context) {
-			c.FileFromFS(c.Request.URL.Path, http.FS(subFS))
-		})
+		// 静态资源路由 - /assets 映射到 dist/assets
+		assetsFS, err := fs.Sub(distFS, "assets")
+		if err == nil {
+			engine.StaticFS("/assets", http.FS(assetsFS))
+		}
 
-		// SPA 路由支持：所有非 API 路由返回 index.html
+		// SPA 路由支持：所有非 API、非静态文件路由返回 index.html
 		engine.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 			// API 路由返回 404
@@ -153,18 +154,14 @@ func setupStaticRoutes(engine *gin.Engine) {
 				return
 			}
 
-			// 检查是否为静态文件请求
-			if strings.Contains(path, ".") && !strings.HasSuffix(path, "/") {
-				// 尝试从 Embed 读取文件
-				filePath := strings.TrimPrefix(path, "/")
-				if _, err := fs.Stat(subFS, filePath); err == nil {
-					c.FileFromFS(path, http.FS(subFS))
-					return
-				}
+			// 尝试读取 index.html
+			data, err := fs.ReadFile(distFS, "index.html")
+			if err != nil {
+				c.String(http.StatusInternalServerError, "Failed to load index.html")
+				return
 			}
 
-			// 返回 index.html
-			c.FileFromFS("/index.html", http.FS(subFS))
+			c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 		})
 	}
 }
