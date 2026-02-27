@@ -4,10 +4,9 @@
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.1-blue.svg)](https://github.com/adilife/SteadyDNS)
 [![License](https://img.shields.io/badge/license-AGPLv3-green.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.21+-00ADD8.svg)](https://golang.org/)
+[![Language](https://img.shields.io/badge/Language-Golang%20%7C%20JavaScript-blue)](https://github.com/adilife/SteadyDns)
 
 A lightweight DNS solution tailored for small to medium-sized environments. Built with Golang, it boasts extreme concurrent processing capabilities and minimal resource consumption.
-
-[![Language](https://img.shields.io/badge/Language-Golang%20%7C%20JavaScript-blue)](https://github.com/adilife/SteadyDns)
 
 专为中小型环境设计的轻量级、高性能 DNS 解决方案，兼顾易用性和稳定性。
 
@@ -172,6 +171,7 @@ npm run build      # 构建生产版本
 ## 联系方式
 
 - GitHub: https://github.com/adilife/SteadyDNS
+
 =======
 ### 必须组件
 - BIND9.18+
