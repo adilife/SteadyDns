@@ -50,8 +50,10 @@ type LoginResponse struct {
 	Message string      `json:"message,omitempty"`
 }
 
-// 获取JWT管理器实例
-var jwtManager = middleware.GetJWTManager()
+// getJWTManager 获取JWT管理器实例
+func getJWTManager() *middleware.JWTManager {
+	return middleware.GetJWTManager()
+}
 
 // LoginHandler 处理登录请求
 func LoginHandler(c *gin.Context) {
@@ -81,7 +83,8 @@ func LoginHandler(c *gin.Context) {
 	}
 
 	// 生成JWT token
-	accessToken, refreshToken, err := jwtManager.GenerateToken(user)
+	jwtMgr := getJWTManager()
+	accessToken, refreshToken, err := jwtMgr.GenerateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
 		return
@@ -98,7 +101,7 @@ func LoginHandler(c *gin.Context) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		User:         userInfo,
-		ExpiresIn:    int64(jwtManager.AccessTokenExpiration / time.Second),
+		ExpiresIn:    int64(jwtMgr.AccessTokenExpiration / time.Second),
 	}
 
 	// 返回成功响应
@@ -132,7 +135,7 @@ func LogoutHandler(c *gin.Context) {
 	}
 
 	// 删除刷新令牌
-	delete(jwtManager.RefreshTokens, req.RefreshToken)
+	delete(getJWTManager().RefreshTokens, req.RefreshToken)
 
 	// 返回成功响应
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "登出成功"})

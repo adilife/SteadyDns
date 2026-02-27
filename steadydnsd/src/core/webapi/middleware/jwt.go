@@ -21,6 +21,8 @@ package middleware
 import (
 	"SteadyDNS/core/common"
 	"SteadyDNS/core/database"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
@@ -169,20 +171,69 @@ func getJWTSecret() string {
 
 // validateSecretKey 验证密钥强度
 func validateSecretKey(secret string) bool {
-	// 检查密钥长度
-	return len(secret) >= minSecretKeyLength
+	// 1. 检查密钥长度是否符合要求
+	if len(secret) < minSecretKeyLength {
+		return false
+	}
+
+	// 2. 检查密钥是否包含足够的字符类型多样性
+	hasUpper := false
+	hasLower := false
+	hasDigit := false
+	hasSpecial := false
+
+	for _, char := range secret {
+		switch {
+		case char >= 'A' && char <= 'Z':
+			hasUpper = true
+		case char >= 'a' && char <= 'z':
+			hasLower = true
+		case char >= '0' && char <= '9':
+			hasDigit = true
+		default:
+			hasSpecial = true
+		}
+	}
+
+	// 至少需要包含三种不同类型的字符
+	score := 0
+	if hasUpper {
+		score++
+	}
+	if hasLower {
+		score++
+	}
+	if hasDigit {
+		score++
+	}
+	if hasSpecial {
+		score++
+	}
+
+	return score >= 3
 }
 
 // generateStrongSecret 生成强密钥
 func generateStrongSecret() string {
-	// 生成32字节的随机字符串
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+"
-	secret := make([]byte, minSecretKeyLength)
-	for i := range secret {
-		secret[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-		time.Sleep(1 * time.Nanosecond) // 增加随机性
+	// 生成32字节的安全随机数据
+	randomBytes := make([]byte, minSecretKeyLength)
+	
+	// 使用 crypto/rand.Read() 读取加密安全的随机数
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		// 如果 crypto/rand 失败，回退到使用时间戳的方法（作为后备方案）
+		const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+"
+		secret := make([]byte, minSecretKeyLength)
+		for i := range secret {
+			secret[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+			time.Sleep(1 * time.Nanosecond)
+		}
+		return string(secret)
 	}
-	return string(secret)
+	
+	// 将随机字节编码为 base64 字符串
+	// 使用 URLEncoding 以避免特殊字符问题
+	return base64.URLEncoding.EncodeToString(randomBytes)
 }
 
 // GetUserFromToken 从token中获取用户信息（用于后续的认证中间件）

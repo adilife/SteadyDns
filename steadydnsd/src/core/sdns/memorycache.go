@@ -1,3 +1,20 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 // core/sdns/memorycache.go
 
 package sdns
@@ -5,6 +22,7 @@ package sdns
 import (
 	"SteadyDNS/core/common"
 	"encoding/json"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -575,11 +593,13 @@ func (c *MemoryCache) cleanupByPercentage(percentage float64) {
 		targetCount = 1 // 至少清理一个
 	}
 
-	// 收集所有条目的访问时间和键
+	// 定义用于排序的条目信息结构体
 	type entryInfo struct {
 		key        string
 		lastAccess time.Time
 	}
+
+	// 收集所有条目的访问时间和键
 	var entries []entryInfo
 
 	for key, entry := range c.cache {
@@ -589,14 +609,11 @@ func (c *MemoryCache) cleanupByPercentage(percentage float64) {
 		})
 	}
 
-	// 按最后访问时间排序（最旧的在前）
-	for i := 0; i < len(entries); i++ {
-		for j := i + 1; j < len(entries); j++ {
-			if entries[i].lastAccess.After(entries[j].lastAccess) {
-				entries[i], entries[j] = entries[j], entries[i]
-			}
-		}
-	}
+	// 使用 Go 标准库的 sort.Slice 进行高效排序（O(n log n)）
+	// 按最后访问时间升序排列（最旧的在前）
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].lastAccess.Before(entries[j].lastAccess)
+	})
 
 	// 清理最旧的条目
 	cleanedCount := 0

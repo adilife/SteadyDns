@@ -32,8 +32,8 @@ import (
 func TestDefaultPoolConfig(t *testing.T) {
 	config := DefaultPoolConfig()
 
-	if config.MaxConnectionsPerServer != 3 {
-		t.Errorf("MaxConnectionsPerServer = %d, want 3", config.MaxConnectionsPerServer)
+	if config.MaxConnectionsPerServer != 2 {
+		t.Errorf("MaxConnectionsPerServer = %d, want 2", config.MaxConnectionsPerServer)
 	}
 
 	if config.MaxPipelineDepth != 100 {
@@ -103,7 +103,7 @@ func TestNewTCPConnectionPoolNilConfig(t *testing.T) {
 	}
 
 	// 验证使用了默认配置
-	if pool.config.MaxConnectionsPerServer != 3 {
+	if pool.config.MaxConnectionsPerServer != 2 {
 		t.Error("Pool did not use default config")
 	}
 

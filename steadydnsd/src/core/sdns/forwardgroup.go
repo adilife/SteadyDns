@@ -1,8 +1,26 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 // core/sdns/forwardgroup.go
 
 package sdns
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -39,6 +57,7 @@ func (s *DNSServer) GetAddress() string {
 type DNSForwarder struct {
 	groups             map[string]*ForwardGroup
 	domainIndex        []string      // 域名索引，按长度降序排列，用于最长匹配
+	domainTrie         *DomainTrie   // 域名Trie树，用于高效域名匹配
 	defaultGroup       *ForwardGroup // 默认转发组
 	serverStats        map[string]*ServerStats
 	mu                 sync.RWMutex // 保护 groups 映射的锁
@@ -50,19 +69,26 @@ type DNSForwarder struct {
 	authorityForwarder *AuthorityForwarder // 权威域转发管理器
 
 	// 域名匹配缓存
-	matchCache   map[string]*cacheEntry // 域名匹配结果缓存
-	matchCacheMu sync.RWMutex           // 保护matchCache的锁
+	matchCache        map[string]*cacheEntry // 域名匹配结果缓存
+	matchCacheMu      sync.RWMutex           // 保护matchCache的锁
+	maxMatchCacheSize int                    // 域名匹配缓存最大条目数量
 
 	// Cookie和TCP相关组件
-	AdaptiveCookieManager   *AdaptiveCookieManager   // 自适应Cookie管理器
-	TCPConnectionPool       *TCPConnectionPool       // TCP连接池
-	ServerCapabilityProber  *ServerCapabilityProber  // 服务器能力探测器
+	AdaptiveCookieManager  *AdaptiveCookieManager  // 自适应Cookie管理器
+	TCPConnectionPool      *TCPConnectionPool      // TCP连接池
+	ServerCapabilityProber *ServerCapabilityProber // 服务器能力探测器
+
+	// Goroutine生命周期管理
+	ctx    context.Context    // 上下文，用于控制所有后台协程的生命周期
+	cancel context.CancelFunc // 取消函数，用于停止所有后台协程
+	wg     sync.WaitGroup     // 等待组，用于等待所有后台协程退出
 }
 
 // cacheEntry 域名匹配缓存项
 type cacheEntry struct {
-	group     *ForwardGroup // 匹配到的转发组
-	expiresAt time.Time     // 过期时间
+	group      *ForwardGroup // 匹配到的转发组
+	expiresAt  time.Time     // 过期时间
+	lastAccess time.Time     // 最后访问时间，用于LRU淘汰
 }
 
 // ValidateForwardGroup 验证转发组配置
@@ -301,22 +327,50 @@ func (f *DNSForwarder) LoadConfig() {
 func NewDNSForwarder(forwardAddr string) *DNSForwarder {
 	logger := common.NewLogger()
 
+	// 创建上下文，用于控制所有后台协程的生命周期
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// 先创建TCP连接池
 	tcpPool := NewTCPConnectionPool(nil)
+
+	// 计算域名匹配缓存大小，与DNS响应缓存大小相同
+	// 从配置读取缓存大小（MB）
+	var maxSizeMB int
+	if size := common.GetConfig("Cache", "DNS_CACHE_SIZE_MB"); size != "" {
+		if s, err := strconv.Atoi(size); err == nil && s > 0 {
+			maxSizeMB = s
+		} else {
+			maxSizeMB = 100 // 默认100MB
+		}
+	} else {
+		maxSizeMB = 100 // 默认100MB
+	}
+	// 固定DNS消息最大大小为4096字节，计算最大缓存条目数量
+	const maxDNSMessageSize = 4096
+	maxMatchCacheSize := (maxSizeMB * 1024 * 1024) / maxDNSMessageSize
+	if maxMatchCacheSize < 100 {
+		maxMatchCacheSize = 100 // 最小100个
+	}
 
 	forwarder := &DNSForwarder{
 		groups:             make(map[string]*ForwardGroup),
 		domainIndex:        make([]string, 0),
+		domainTrie:         NewDomainTrie(),
 		serverStats:        make(map[string]*ServerStats),
 		cacheTTL:           30 * time.Second,
 		logger:             logger,
 		matchCache:         make(map[string]*cacheEntry), // 初始化域名匹配缓存
+		maxMatchCacheSize:  maxMatchCacheSize,            // 域名匹配缓存最大条目数量
 		authorityForwarder: NewAuthorityForwarder(),      // 初始化权威域转发管理器
 
 		// 初始化Cookie和TCP相关组件
 		AdaptiveCookieManager:  NewAdaptiveCookieManager(),
 		TCPConnectionPool:      tcpPool,
 		ServerCapabilityProber: NewServerCapabilityProber(0, logger, tcpPool),
+
+		// 初始化上下文和取消函数
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	// 加载配置
@@ -339,35 +393,59 @@ func NewDNSForwarder(forwardAddr string) *DNSForwarder {
 	forwarder.StartHealthChecks()
 
 	// 启动统计更新协程
+	forwarder.wg.Add(1)
 	go func() {
+		defer forwarder.wg.Done()
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			forwarder.UpdateServerStats()
+		for {
+			select {
+			case <-forwarder.ctx.Done():
+				forwarder.logger.Debug("统计更新协程退出")
+				return
+			case <-ticker.C:
+				forwarder.UpdateServerStats()
+			}
 		}
 	}()
 
 	// 启动缓存清理协程，每5分钟清理一次过期缓存
+	forwarder.wg.Add(1)
 	go func() {
+		defer forwarder.wg.Done()
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			forwarder.cleanupMatchCache()
+		for {
+			select {
+			case <-forwarder.ctx.Done():
+				forwarder.logger.Debug("缓存清理协程退出")
+				return
+			case <-ticker.C:
+				forwarder.cleanupMatchCache()
+			}
 		}
 	}()
 
 	// 启动权威域重新加载协程
+	forwarder.wg.Add(1)
 	go func() {
+		defer forwarder.wg.Done()
 		ticker := time.NewTicker(5 * time.Minute) // 每5分钟重新加载一次
 		defer ticker.Stop()
 
-		for range ticker.C {
-			if err := forwarder.authorityForwarder.ReloadAuthorityZones(); err != nil {
-				forwarder.logger.Warn("重新加载权威域失败: %v", err)
-			} else {
-				forwarder.logger.Debug("权威域重新加载成功")
+		for {
+			select {
+			case <-forwarder.ctx.Done():
+				forwarder.logger.Debug("权威域重新加载协程退出")
+				return
+			case <-ticker.C:
+				if err := forwarder.authorityForwarder.ReloadAuthorityZones(); err != nil {
+					forwarder.logger.Warn("重新加载权威域失败: %v", err)
+				} else {
+					forwarder.logger.Debug("权威域重新加载成功")
+				}
 			}
 		}
 	}()
@@ -417,4 +495,37 @@ func (f *DNSForwarder) SetLogLevel(level string) {
 // GetAuthorityForwarder 获取权威域转发管理器
 func (f *DNSForwarder) GetAuthorityForwarder() *AuthorityForwarder {
 	return f.authorityForwarder
+}
+
+// Shutdown 优雅关闭DNS转发器
+// 停止所有后台协程，等待它们完成当前工作后退出
+func (f *DNSForwarder) Shutdown() {
+	f.logger.Info("正在关闭DNS转发器...")
+
+	// 取消所有后台协程
+	if f.cancel != nil {
+		f.cancel()
+	}
+
+	// 等待所有后台协程退出，设置超时防止无限等待
+	done := make(chan struct{})
+	go func() {
+		f.wg.Wait()
+		close(done)
+	}()
+
+	// 等待最多10秒
+	select {
+	case <-done:
+		f.logger.Info("所有后台协程已退出")
+	case <-time.After(10 * time.Second):
+		f.logger.Warn("等待后台协程退出超时，强制退出")
+	}
+
+	// 关闭TCP连接池
+	if f.TCPConnectionPool != nil {
+		f.TCPConnectionPool.Close()
+	}
+
+	f.logger.Info("DNS转发器已关闭")
 }

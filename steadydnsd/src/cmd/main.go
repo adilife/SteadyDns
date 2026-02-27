@@ -39,7 +39,7 @@ import (
 
 const (
 	// Version 应用程序版本
-	Version = "1.0.0"
+	Version = "0.9.0-beta.1"
 	// DefaultConfigPath 默认配置文件路径
 	DefaultConfigPath = "config/steadydns.conf"
 	// DefaultPIDFile 默认PID文件路径

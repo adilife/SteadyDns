@@ -19,11 +19,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package api
 
 import (
+	"io/fs"
+	"net/http"
+	"os"
+	"strings"
+
 	"SteadyDNS/core/plugin"
 	"SteadyDNS/core/webapi/middleware"
+	"SteadyDNS/core/webapi/static"
 
 	"github.com/gin-gonic/gin"
 )
+
+// DevModeEnvKey 开发模式环境变量键名
+const DevModeEnvKey = "STEADYDNS_DEV_MODE"
+
+// DefaultDevStaticDir 开发模式下默认的前端静态文件目录
+const DefaultDevStaticDir = "../steadydns_ui/dist"
+
+// isDevMode 检查是否为开发模式
+func isDevMode() bool {
+	return os.Getenv(DevModeEnvKey) == "true"
+}
 
 // SetupRoutes 设置API路由
 // 配置登录、转发组和转发服务器的API路由
@@ -94,6 +111,62 @@ func SetupRoutes(engine *gin.Engine) {
 	engine.PUT("/api/users/:id/password", middleware.LoggerMiddleware(), middleware.RateLimitMiddleware(), middleware.AuthMiddlewareGin(), middleware.TimeoutMiddlewareWithPathGin(), ChangePasswordHandler)
 
 	// BIND相关路由已移至插件系统，由SetupPluginRoutes函数动态注册
+
+	// 设置静态文件路由（前端 SPA）
+	setupStaticRoutes(engine)
+}
+
+// setupStaticRoutes 设置静态文件路由
+// 支持开发模式（从文件系统读取）和生产模式（从 Embed 读取）
+func setupStaticRoutes(engine *gin.Engine) {
+	if isDevMode() {
+		// 开发模式：从文件系统读取前端文件
+		engine.Static("/assets", DefaultDevStaticDir+"/assets")
+		engine.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			// API 路由返回 404
+			if strings.HasPrefix(path, "/api/") {
+				c.JSON(http.StatusNotFound, gin.H{"error": "API route not found"})
+				return
+			}
+			// 其他路由返回 index.html（SPA 路由支持）
+			c.File(DefaultDevStaticDir + "/index.html")
+		})
+	} else {
+		// 生产模式：从 Embed 读取前端文件
+		subFS, err := fs.Sub(static.StaticFS, "dist")
+		if err != nil {
+			return
+		}
+
+		// 静态资源路由
+		engine.GET("/assets/*filepath", func(c *gin.Context) {
+			c.FileFromFS(c.Request.URL.Path, http.FS(subFS))
+		})
+
+		// SPA 路由支持：所有非 API 路由返回 index.html
+		engine.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			// API 路由返回 404
+			if strings.HasPrefix(path, "/api/") {
+				c.JSON(http.StatusNotFound, gin.H{"error": "API route not found"})
+				return
+			}
+
+			// 检查是否为静态文件请求
+			if strings.Contains(path, ".") && !strings.HasSuffix(path, "/") {
+				// 尝试从 Embed 读取文件
+				filePath := strings.TrimPrefix(path, "/")
+				if _, err := fs.Stat(subFS, filePath); err == nil {
+					c.FileFromFS(path, http.FS(subFS))
+					return
+				}
+			}
+
+			// 返回 index.html
+			c.FileFromFS("/index.html", http.FS(subFS))
+		})
+	}
 }
 
 // SetupPluginRoutes 根据插件状态注册插件路由
