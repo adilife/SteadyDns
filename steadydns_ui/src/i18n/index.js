@@ -1,5 +1,6 @@
 import zhCN from './zh-CN'
 import enUS from './en-US'
+import arSA from './ar-SA'
 
 // Get saved language from localStorage or use default
 const getSavedLanguage = () => {
@@ -15,7 +16,7 @@ const saveLanguage = (language) => {
 const t = (key, lang = getSavedLanguage(), replacements = {}) => {
   // Split key into parts (e.g., 'login.title' -> ['login', 'title'])
   const keys = key.split('.')
-  let result = lang === 'zh-CN' ? zhCN : enUS
+  let result = lang === 'zh-CN' ? zhCN : lang === 'ar-SA' ? arSA : enUS
   
   // Traverse the language object to find the translation
   for (const k of keys) {
@@ -48,5 +49,6 @@ export {
   getSavedLanguage,
   saveLanguage,
   zhCN,
-  enUS
+  enUS,
+  arSA
 }

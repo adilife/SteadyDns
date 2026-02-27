@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Table,
   Button,
@@ -41,14 +41,8 @@ const ForwardGroups = ({ currentLanguage }) => {
   const [selectedGroupId, setSelectedGroupId] = useState(null)
   const [serverHealth, setServerHealth] = useState({})
 
-  // Load forward groups on component mount
-  useEffect(() => {
-    loadForwardGroups()
-  }, [])
-
-
   // Load forward groups from API
-  const loadForwardGroups = async () => {
+  const loadForwardGroups = useCallback(async () => {
     setApiLoading(true)
     try {
       const response = await apiClient.get('/forward-groups')
@@ -86,7 +80,12 @@ const ForwardGroups = ({ currentLanguage }) => {
     } finally {
       setApiLoading(false)
     }
-  }
+  }, [currentLanguage])
+
+  // Load forward groups on component mount
+  useEffect(() => {
+    loadForwardGroups()
+  }, [loadForwardGroups])
 
   // Show modal for adding/editing forward group
   const showModal = (group = null) => {
@@ -275,7 +274,7 @@ const ForwardGroups = ({ currentLanguage }) => {
   }
 
   // Check server health
-  const checkServerHealth = async (serverId) => {
+  const checkServerHealth = useCallback(async (serverId) => {
     try {
       const response = await apiClient.get(`/forward-servers/${serverId}?health=true`)
       
@@ -291,16 +290,16 @@ const ForwardGroups = ({ currentLanguage }) => {
       console.error('Error checking server health:', error)
       // Error already handled by apiClient
     }
-  }
+  }, [currentLanguage])
 
   // Check health for all servers
-  const checkAllServersHealth = () => {
+  const checkAllServersHealth = useCallback(() => {
     forwardGroups.forEach(group => {
       group.Servers.forEach(server => {
         checkServerHealth(server.ID)
       })
     })
-  }
+  }, [forwardGroups, checkServerHealth])
 
   // Auto check health every minute
   useEffect(() => {
@@ -319,7 +318,7 @@ const ForwardGroups = ({ currentLanguage }) => {
     return () => {
       clearInterval(healthCheckInterval)
     }
-  }, [forwardGroups])
+  }, [forwardGroups, checkAllServersHealth])
 
   // Delete forward group
   const handleDelete = async (id) => {
@@ -342,6 +341,32 @@ const ForwardGroups = ({ currentLanguage }) => {
     } catch (error) {
       console.error('Error deleting forward group:', error)
       // Error already handled by apiClient
+    } finally {
+      setApiLoading(false)
+    }
+  }
+
+  // Batch delete forward groups
+  const handleBatchDelete = async () => {
+    // Filter out default group (ID=1)
+    const deletableGroups = selectedGroupKeys.filter(id => id !== 1)
+    
+    if (deletableGroups.length === 0) {
+      message.warning(currentLanguage === 'zh-CN' ? '请选择要删除的转发组' : 'Please select forward groups to delete')
+      return
+    }
+    
+    setApiLoading(true)
+    try {
+      // Use batchOperation method for batch deletion
+      await apiClient.batchOperation('/forward-groups?batch=true', deletableGroups, 'DELETE')
+      
+      message.success(currentLanguage === 'zh-CN' ? '转发组批量删除成功' : 'Forward groups deleted successfully')
+      loadForwardGroups()
+      setSelectedGroupKeys([])
+    } catch (error) {
+      console.error('Error batch deleting forward groups:', error)
+      message.error(currentLanguage === 'zh-CN' ? '批量删除转发组失败' : 'Failed to delete forward groups')
     } finally {
       setApiLoading(false)
     }
@@ -590,6 +615,7 @@ const ForwardGroups = ({ currentLanguage }) => {
   const [testDomain, setTestDomain] = useState('')
   const [testResult, setTestResult] = useState(null)
   const [testLoading, setTestLoading] = useState(false)
+  const [selectedGroupKeys, setSelectedGroupKeys] = useState([])
   
   // Test domain match
   const handleTestDomainMatch = async () => {
@@ -629,57 +655,25 @@ const ForwardGroups = ({ currentLanguage }) => {
         </Button>
       </div>
 
-      {/* Domain Match Test Section */}
-      <Card title={<Space><BarChartOutlined />{t('forwardGroups.domainTest', currentLanguage)}</Space>} style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={16}>
-            <Input 
-              placeholder={currentLanguage === 'zh-CN' ? '请输入要测试的域名，例如: www.example.com' : 'Please enter a domain to test, e.g.: www.example.com'}
-              value={testDomain}
-              onChange={(e) => setTestDomain(e.target.value)}
-              onPressEnter={handleTestDomainMatch}
-              style={{ marginRight: 8 }}
-            />
-          </Col>
-          <Col xs={24} sm={8}>
-            <Space>
-              <Button 
-                type="primary" 
-                onClick={handleTestDomainMatch}
-                loading={testLoading}
-              >
-                {t('forwardGroups.testMatch', currentLanguage)}
-              </Button>
-              <Button 
-                onClick={() => {
-                  setTestDomain('')
-                  setTestResult(null)
-                }}
-              >
-                {currentLanguage === 'zh-CN' ? '重置' : 'Reset'}
-              </Button>
-            </Space>
-          </Col>
-          {testResult && (
-            <Col xs={24}>
-              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6ffed', borderRadius: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <strong>{t('forwardGroups.testResult', currentLanguage)}:</strong>
-                  <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
-                    {testResult.matched_group ? testResult.matched_group : t('forwardGroups.noMatch', currentLanguage)}
-                  </span>
-                </div>
-                <div style={{ fontSize: '14px', color: '#666' }}>
-                  {t('forwardGroups.matchedGroup', currentLanguage)}: 
-                  <strong>{testResult.matched_group || t('forwardGroups.noMatch', currentLanguage)}</strong>
-                </div>
-              </div>
-            </Col>
-          )}
-        </Row>
-      </Card>
+
 
       <Spin spinning={apiLoading}>
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            type="danger"
+            icon={<DeleteOutlined />}
+            onClick={handleBatchDelete}
+            disabled={selectedGroupKeys.length === 0}
+          >
+            {t('forwardGroups.batchDelete', currentLanguage)}
+          </Button>
+          <span style={{ marginLeft: 16 }}>
+            {selectedGroupKeys.length > 0 ? 
+              t('forwardGroups.selectedCount', currentLanguage, { count: selectedGroupKeys.length }) : 
+              ''
+            }
+          </span>
+        </div>
         <Table
           columns={columns}
           dataSource={forwardGroups}
@@ -690,6 +684,13 @@ const ForwardGroups = ({ currentLanguage }) => {
             defaultPageSize: 10
           }}
           scroll={{ x: 'max-content' }}
+          rowSelection={{
+            selectedRowKeys: selectedGroupKeys,
+            onChange: (keys) => setSelectedGroupKeys(keys),
+            getCheckboxProps: (record) => ({
+              disabled: record.ID === 1, // Disable checkbox for default group
+            }),
+          }}
         />
       </Spin>
 
@@ -837,6 +838,56 @@ const ForwardGroups = ({ currentLanguage }) => {
 
         </Form>
       </Modal>
+
+      {/* Domain Match Test Section */}
+      <Card title={<Space><BarChartOutlined />{t('forwardGroups.domainTest', currentLanguage)}</Space>} style={{ marginBottom: 24, marginTop: 24 }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={16}>
+            <Input 
+              placeholder={currentLanguage === 'zh-CN' ? '请输入要测试的域名，例如: www.example.com' : 'Please enter a domain to test, e.g.: www.example.com'}
+              value={testDomain}
+              onChange={(e) => setTestDomain(e.target.value)}
+              onPressEnter={handleTestDomainMatch}
+              style={{ marginRight: 8 }}
+            />
+          </Col>
+          <Col xs={24} sm={8}>
+            <Space>
+              <Button 
+                type="primary" 
+                onClick={handleTestDomainMatch}
+                loading={testLoading}
+              >
+                {t('forwardGroups.testMatch', currentLanguage)}
+              </Button>
+              <Button 
+                onClick={() => {
+                  setTestDomain('')
+                  setTestResult(null)
+                }}
+              >
+                {currentLanguage === 'zh-CN' ? '重置' : 'Reset'}
+              </Button>
+            </Space>
+          </Col>
+          {testResult && (
+            <Col xs={24}>
+              <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6ffed', borderRadius: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <strong>{t('forwardGroups.testResult', currentLanguage)}:</strong>
+                  <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
+                    {testResult.matched_group ? testResult.matched_group : t('forwardGroups.noMatch', currentLanguage)}
+                  </span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#666' }}>
+                  {t('forwardGroups.matchedGroup', currentLanguage)}: 
+                  <strong>{testResult.matched_group || t('forwardGroups.noMatch', currentLanguage)}</strong>
+                </div>
+              </div>
+            </Col>
+          )}
+        </Row>
+      </Card>
     </div>
   )
 }

@@ -49,7 +49,7 @@ const mockRules = [
   }
 ]
 
-const DnsRules = ({ currentLanguage, userInfo }) => {
+const DnsRules = ({ currentLanguage }) => {
   const [rules, setRules] = useState(mockRules)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState(null)

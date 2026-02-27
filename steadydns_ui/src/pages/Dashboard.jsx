@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Card, Row, Col, Statistic, Table, Progress, Select, Space, Typography, Spin, message, Button } from 'antd'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, Row, Col, Statistic, Table, Progress, Select, Space, Typography, Spin, Button } from 'antd'
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   BarChart, Bar, PieChart, Pie, Cell, LineChart, Line
@@ -26,10 +26,13 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
     systemStats: {
       totalQueries: 0,
       qps: 0,
+      currentQps: 0,
+      avgQps: 0,
       cacheHitRate: 0,
       systemHealth: 0,
       activeServers: 0
     },
+    serverStatus: null,
     forwardServers: [],
     cacheStats: {
       size: '0 GB',
@@ -51,14 +54,17 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
     topClients: [],
     qpsTrend: [],
     latencyData: [],
-    resourceUsage: []
+    resourceUsage: [],
+    networkUsage: []
   })
 
   // Get summary data from API
-  const fetchSummaryData = async () => {
+  const fetchSummaryData = useCallback(async () => {
     try {
       setError(null)
-      const response = await apiClient.get('/dashboard/summary')
+      
+      // Fetch dashboard summary data
+      const response = await apiClient.getDashboardSummary()
       if (response.success) {
         setDashboardData(prev => ({
           ...prev,
@@ -68,47 +74,125 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
           systemResources: response.data.systemResources
         }))
       }
+      
+      // Still fetch server status for additional info
+      const serverStatusResponse = await apiClient.getServerStatus()
+      if (serverStatusResponse.success) {
+        setDashboardData(prev => ({
+          ...prev,
+          serverStatus: serverStatusResponse.data
+        }))
+      }
+      
     } catch (error) {
       console.error('Error fetching summary data:', error)
       setError(t('dashboard.fetchError', currentLanguage) || 'Failed to fetch data')
     }
+  }, [currentLanguage])
+
+  // 网络流量单位转换函数
+  const formatNetworkSpeed = (bytesPerSecond) => {
+    if (bytesPerSecond < 1024) {
+      return `${bytesPerSecond} B/s`
+    } else if (bytesPerSecond < 1024 * 1024) {
+      return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`
+    } else {
+      return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`
+    }
   }
 
   // Get trends data from API
-  const fetchTrendsData = async () => {
+  const fetchTrendsData = useCallback(async () => {
     try {
-      const response = await apiClient.get(`/dashboard/trends?timeRange=${timeRange}`)
+      // Fetch dashboard trends data
+      const response = await apiClient.getDashboardTrends('all', timeRange, 12)
       if (response.success) {
+        // 处理数据格式转换
+        let qpsTrend = []
+        let resourceUsage = []
+        let networkUsage = []
+        
+        // 检查返回的数据格式
+        if (response.data.qpsTrend && response.data.qpsTrend.timeLabels) {
+          // 处理带 statistics 的格式
+          qpsTrend = response.data.qpsTrend.timeLabels.map((time, index) => ({
+            time,
+            qps: response.data.qpsTrend.qpsValues[index]
+          }))
+          
+          if (response.data.resourceUsage && response.data.resourceUsage.timeLabels) {
+            resourceUsage = response.data.resourceUsage.timeLabels.map((time, index) => ({
+              time,
+              cpu: response.data.resourceUsage.cpuValues[index],
+              memory: response.data.resourceUsage.memValues[index],
+              disk: response.data.resourceUsage.diskValues[index]
+            }))
+          }
+          
+          if (response.data.networkUsage && response.data.networkUsage.timeLabels) {
+            networkUsage = response.data.networkUsage.timeLabels.map((time, index) => ({
+              time,
+              inbound: response.data.networkUsage.inboundValues[index],
+              outbound: response.data.networkUsage.outboundValues[index]
+            }))
+          }
+        } else {
+          // 处理原始数据格式
+          qpsTrend = response.data.qpsTrend || []
+          resourceUsage = response.data.resourceUsage || []
+          networkUsage = response.data.networkUsage || []
+        }
+        
+        // 固定延迟区间顺序
+        const fixedLatencyRanges = ['<10ms', '10-20ms', '20-50ms', '50-100ms', '>100ms']
+        const latencyDataMap = {}
+        
+        // 将返回的数据转换为映射
+        const latencyDataArray = Array.isArray(response.data.latencyData) ? response.data.latencyData : []
+        latencyDataArray.forEach(item => {
+          // 处理可能的HTML实体编码
+          const range = item.range.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+          latencyDataMap[range] = item.count
+        })
+        
+        // 根据固定顺序重组数据
+        const orderedLatencyData = fixedLatencyRanges.map(range => ({
+          range,
+          count: latencyDataMap[range] || 0
+        }))
+        
         setDashboardData(prev => ({
           ...prev,
-          qpsTrend: response.data.qpsTrend,
-          latencyData: response.data.latencyData,
-          resourceUsage: response.data.resourceUsage
+          qpsTrend,
+          latencyData: orderedLatencyData,
+          resourceUsage,
+          networkUsage
         }))
       }
     } catch (error) {
       console.error('Error fetching trends data:', error)
     }
-  }
+  }, [timeRange])
 
   // Get top data from API
-  const fetchTopData = async () => {
+  const fetchTopData = useCallback(async () => {
     try {
-      const response = await apiClient.get('/dashboard/top?limit=10')
+      // Fetch dashboard top data
+      const response = await apiClient.getDashboardTop(10)
       if (response.success) {
         setDashboardData(prev => ({
           ...prev,
-          topDomains: response.data.topDomains,
-          topClients: response.data.topClients
+          topDomains: response.data.topDomains || [],
+          topClients: response.data.topClients || []
         }))
       }
     } catch (error) {
       console.error('Error fetching top data:', error)
     }
-  }
+  }, [])
 
   // Refresh all data
-  const refreshAllData = async () => {
+  const refreshAllData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -123,30 +207,30 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentLanguage, fetchSummaryData, fetchTrendsData, fetchTopData])
 
   // Initial load
   useEffect(() => {
     refreshAllData()
-  }, [])
+  }, [refreshAllData])
 
   // Auto refresh summary data every 5 seconds
   useEffect(() => {
     const summaryInterval = setInterval(fetchSummaryData, 5000)
     return () => clearInterval(summaryInterval)
-  }, [])
+  }, [fetchSummaryData])
 
   // Auto refresh trends data every 60 seconds
   useEffect(() => {
     const trendsInterval = setInterval(fetchTrendsData, 60000)
     return () => clearInterval(trendsInterval)
-  }, [timeRange])
+  }, [timeRange, fetchTrendsData])
 
   // Auto refresh top data every 30 seconds
   useEffect(() => {
     const topInterval = setInterval(fetchTopData, 30000)
     return () => clearInterval(topInterval)
-  }, [])
+  }, [fetchTopData])
 
   const handleTimeRangeChange = (value) => {
     setTimeRange(value)
@@ -194,7 +278,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
       {error && (
         <Card 
           style={{ marginBottom: 24, borderColor: '#ff4d4f' }}
-          bordered
+          variant="outlined"
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ff4d4f' }}>
             <Text strong>{error}</Text>
@@ -216,6 +300,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             variant="outlined"
             icon={<GlobalOutlined />}
             hoverable
+            style={{ height: '100%' }}
           >
             <Statistic 
               title={t('dashboard.totalQueries', currentLanguage)} 
@@ -225,7 +310,10 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
               suffix={t('dashboard.queries', currentLanguage)}
             />
             <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
-              {t('dashboard.qps', currentLanguage)}: {dashboardData.systemStats.qps}
+              {t('dashboard.successfulQueries', currentLanguage)}: {dashboardData.serverStatus?.dns_server?.stats?.successfulRequests || 0}
+            </Text>
+            <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+              {t('dashboard.failedQueries', currentLanguage)}: {dashboardData.serverStatus?.dns_server?.stats?.failedRequests || 0}
             </Text>
           </Card>
         </Col>
@@ -234,16 +322,20 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             variant="outlined"
             icon={<DatabaseOutlined />}
             hoverable
+            style={{ height: '100%' }}
           >
             <Statistic 
               title={t('dashboard.cacheHitRate', currentLanguage)} 
-              value={dashboardData.systemStats.cacheHitRate}
-              precision={1}
+              value={dashboardData.cacheStats.hitRate}
+              precision={0}
               styles={{ content: { color: '#1890ff' } }}
               suffix="%"
             />
-            <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
+            <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
               {t('dashboard.cacheSize', currentLanguage)}: {dashboardData.cacheStats.size}
+            </Text>
+            <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+              {t('dashboard.cacheItems', currentLanguage)}: {dashboardData.cacheStats.items}
             </Text>
           </Card>
         </Col>
@@ -252,6 +344,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             variant="outlined"
             icon={<AppstoreOutlined />}
             hoverable
+            style={{ height: '100%' }}
           >
             <Statistic 
               title={t('dashboard.systemHealth', currentLanguage)} 
@@ -263,6 +356,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
               {t('dashboard.activeServers', currentLanguage)}: {dashboardData.systemStats.activeServers}
             </Text>
+            <div style={{ height: 20 }}></div>
           </Card>
         </Col>
         <Col xs={24} sm={12} md={8} lg={6}>
@@ -270,16 +364,20 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             variant="outlined"
             icon={<BarChartOutlined />}
             hoverable
+            style={{ height: '100%' }}
           >
             <Statistic 
-              title={t('dashboard.qps', currentLanguage)} 
-              value={dashboardData.systemStats.qps}
-              precision={1}
+              title={t('dashboard.currentQps', currentLanguage)} 
+              value={dashboardData.systemStats.currentQps}
+              precision={2}
               styles={{ content: { color: '#fa8c16' } }}
               suffix={t('dashboard.queriesPerSecond', currentLanguage)}
             />
-            <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
-              {t('dashboard.timeRange', currentLanguage)}: {timeRange}
+            <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+              {t('dashboard.peakQps', currentLanguage)}: {dashboardData.systemStats.qps.toFixed(2)}
+            </Text>
+            <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+              {t('dashboard.avgQps', currentLanguage)}: {dashboardData.systemStats.avgQps.toFixed(2)}
             </Text>
           </Card>
         </Col>
@@ -310,12 +408,15 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
           </Col>
           <Col xs={24} lg={12}>
             <div style={{ marginBottom: 24 }}>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={dashboardData.latencyData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="range" />
-                  <YAxis />
-                  <Tooltip />
+                  <YAxis tickFormatter={(value) => `${value}%`} />
+                  <Tooltip 
+                    formatter={(value) => [`${value}%`, t('dashboard.percentage', currentLanguage)]}
+                    labelFormatter={(label) => `${t('dashboard.latencyRange', currentLanguage)}: ${label}`}
+                  />
                   <Bar dataKey="count" fill="#82ca9d" />
                 </BarChart>
               </ResponsiveContainer>
@@ -323,35 +424,37 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 {t('dashboard.latencyDistribution', currentLanguage)}
               </Text>
             </div>
-            <Row gutter={[16, 16]}>
-              {dashboardData.forwardServers.map((server) => (
-                <Col key={server.id} xs={24} sm={12} md={8}>
-                  <Card size="small" title={server.address}>
-                    <Statistic 
-                      title={t('dashboard.qps', currentLanguage)} 
-                      value={server.qps} 
-                      precision={1} 
-                    />
-                    <Statistic 
-                      title={t('dashboard.latency', currentLanguage)} 
-                      value={server.latency} 
-                      precision={1} 
-                      suffix="ms" 
-                    />
-                    <Text 
-                      style={{ 
-                        marginTop: 8, 
-                        display: 'block',
-                        color: server.status === 'healthy' ? '#52c41a' : '#ff4d4f'
-                      }}
-                    >
-                      {server.status === 'healthy' ? t('dashboard.healthy', currentLanguage) : t('dashboard.unhealthy', currentLanguage)}
-                    </Text>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
           </Col>
+        </Row>
+        
+        {/* Forward Servers Cards */}
+        <Row gutter={[16, 16]} justify="start" style={{ marginTop: 24 }}>
+          {dashboardData.forwardServers.map((server) => (
+            <Col key={server.id} xs={24} sm={12} md={4} lg={4} xl={4}>
+              <Card size="small" title={server.address}>
+                <Statistic 
+                  title={t('dashboard.qps', currentLanguage)} 
+                  value={server.qps} 
+                  precision={1} 
+                />
+                <Statistic 
+                  title={t('dashboard.latency', currentLanguage)} 
+                  value={server.latency} 
+                  precision={1} 
+                  suffix="ms" 
+                />
+                <Text 
+                  style={{ 
+                    marginTop: 8, 
+                    display: 'block',
+                    color: server.status === 'healthy' ? '#52c41a' : server.status === 'degraded' ? '#faad14' : '#ff4d4f'
+                  }}
+                >
+                  {server.status === 'healthy' ? t('dashboard.healthy', currentLanguage) : server.status === 'degraded' ? t('dashboard.degraded', currentLanguage) : t('dashboard.unhealthy', currentLanguage)}
+                </Text>
+              </Card>
+            </Col>
+          ))}
         </Row>
       </Card>
 
@@ -364,7 +467,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(value, name) => [`${value}%`, name]} />
                 <Legend />
                 <Line type="monotone" dataKey="cpu" stroke="#ff7300" name="CPU" />
                 <Line type="monotone" dataKey="memory" stroke="#3f8600" name="Memory" />
@@ -373,65 +476,17 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
             </ResponsiveContainer>
           </Col>
           <Col xs={24} lg={12}>
-            <Row gutter={[16, 16]}>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.cpuUsage', currentLanguage)}>
-                  <Progress 
-                    percent={dashboardData.systemResources.cpu} 
-                    status="active" 
-                    strokeColor={{
-                      from: '#108ee9',
-                      to: '#87d068',
-                    }}
-                  />
-                  <Text style={{ marginTop: 8, display: 'block' }}>
-                    {dashboardData.systemResources.cpu}% {t('dashboard.used', currentLanguage)}
-                  </Text>
-                </Card>
-              </Col>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.memoryUsage', currentLanguage)}>
-                  <Progress 
-                    percent={dashboardData.systemResources.memory} 
-                    status="active" 
-                    strokeColor={{
-                      from: '#108ee9',
-                      to: '#87d068',
-                    }}
-                  />
-                  <Text style={{ marginTop: 8, display: 'block' }}>
-                    {dashboardData.systemResources.memory}% {t('dashboard.used', currentLanguage)}
-                  </Text>
-                </Card>
-              </Col>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.diskUsage', currentLanguage)}>
-                  <Progress 
-                    percent={dashboardData.systemResources.disk} 
-                    status="active" 
-                    strokeColor={{
-                      from: '#108ee9',
-                      to: '#87d068',
-                    }}
-                  />
-                  <Text style={{ marginTop: 8, display: 'block' }}>
-                    {dashboardData.systemResources.disk}% {t('dashboard.used', currentLanguage)}
-                  </Text>
-                </Card>
-              </Col>
-              <Col span={24}>
-                <Card size="small" title={t('dashboard.networkUsage', currentLanguage)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text>{t('dashboard.inbound', currentLanguage)}:</Text>
-                    <Text strong>{dashboardData.systemResources.network.inbound}</Text>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Text>{t('dashboard.outbound', currentLanguage)}:</Text>
-                    <Text strong>{dashboardData.systemResources.network.outbound}</Text>
-                  </div>
-                </Card>
-              </Col>
-            </Row>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={dashboardData.networkUsage}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis tickFormatter={(value) => `${Math.round(value / 1024)} KB/s`} />
+                <Tooltip formatter={(value, name) => [formatNetworkSpeed(value), name === 'inbound' ? t('dashboard.inbound', currentLanguage) : t('dashboard.outbound', currentLanguage)]} />
+                <Legend />
+                <Line type="monotone" dataKey="inbound" stroke="#1890ff" name={t('dashboard.inbound', currentLanguage)} />
+                <Line type="monotone" dataKey="outbound" stroke="#52c41a" name={t('dashboard.outbound', currentLanguage)} />
+              </LineChart>
+            </ResponsiveContainer>
           </Col>
         </Row>
       </Card>
@@ -514,7 +569,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 { title: 'Domain', dataIndex: 'domain', key: 'domain' },
                 { title: t('dashboard.queriesColumn', currentLanguage), dataIndex: 'queries', key: 'queries', width: 100 },
                 { 
-                  title: 'Percentage', 
+                  title: t('dashboard.percentageColumn', currentLanguage), 
                   dataIndex: 'percentage', 
                   key: 'percentage', 
                   render: (value) => `${value}%`
@@ -534,7 +589,7 @@ const Dashboard = ({ currentLanguage, userInfo }) => {
                 { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
                 { title: t('dashboard.queriesColumn', currentLanguage), dataIndex: 'queries', key: 'queries', width: 100 },
                 { 
-                  title: 'Percentage', 
+                  title: t('dashboard.percentageColumn', currentLanguage), 
                   dataIndex: 'percentage', 
                   key: 'percentage', 
                   width: 120,

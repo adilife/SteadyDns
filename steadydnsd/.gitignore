@@ -1,0 +1,47 @@
+# 忽略priv_docs目录
+priv_docs/
+
+# 忽略docs/plans目录
+docs/plans/
+
+# 忽略bin目录
+bin/
+
+# 忽略可执行文件
+src/cmd/steadydns
+
+# 忽略备份目录
+src/cmd/backup/
+
+# 忽略日志目录
+src/cmd/log/
+
+# 忽略JSON测试文件
+localhost_current.json
+
+# 忽略临时文件
+*.tmp
+*.temp
+
+# 忽略编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 忽略环境文件（生产环境）
+# 注意：src/cmd/.env 用于开发环境，应该提交到仓库
+.env
+.env.local
+.env.*.local
+!src/cmd/.env
+
+# 忽略运行时文件
+**/steadydns.db
+**/steadydns.pid
+**/steadydns.startargs
+
+# 忽略前端构建产物（通过构建脚本复制）
+# 注意：保留 .gitkeep 文件以确保 Embed 目录不为空
+src/core/webapi/static/dist/*
+!src/core/webapi/static/dist/.gitkeep

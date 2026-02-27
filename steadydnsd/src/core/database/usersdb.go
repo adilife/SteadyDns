@@ -1,0 +1,243 @@
+/*
+SteadyDNS - DNS服务器实现
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+// core/database/usersdb.go
+
+package database
+
+import (
+	"fmt"
+	"strings"
+
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+)
+
+// bcryptCost bcrypt加密成本因子
+// Cost 12 约需400ms计算时间，提供较好的安全性与性能平衡
+const bcryptCost = 12
+
+// User 用户模型
+type User struct {
+	ID       uint   `json:"id" gorm:"primaryKey"`
+	Username string `json:"username" gorm:"uniqueIndex;not null"`
+	Email    string `json:"email" gorm:"uniqueIndex"`          // 邮箱改为可选项
+	Password string `json:"-" gorm:"column:password;not null"` // 不在JSON中输出
+}
+
+// isBcryptHash 检查密码是否已经是bcrypt加密格式
+// bcrypt哈希以 $2a$、$2b$、$2y$ 开头
+func isBcryptHash(password string) bool {
+	return strings.HasPrefix(password, "$2a$") ||
+		strings.HasPrefix(password, "$2b$") ||
+		strings.HasPrefix(password, "$2y$")
+}
+
+// hashPassword 对密码进行bcrypt加密
+// 如果密码已经是bcrypt格式，直接返回
+func hashPassword(password string) (string, error) {
+	if isBcryptHash(password) {
+		return password, nil
+	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return "", fmt.Errorf("加密密码失败: %v", err)
+	}
+	return string(hashedPassword), nil
+}
+
+// CreateUser 创建用户
+func CreateUser(user *User) error {
+	// 检查用户名是否已存在
+	var existingUser User
+	if err := DB.Where("username = ?", user.Username).First(&existingUser).Error; err == nil {
+		return fmt.Errorf("用户名已存在")
+	}
+
+	// 检查邮箱是否已存在（仅当邮箱不为空时检查）
+	if user.Email != "" {
+		if err := DB.Where("email = ?", user.Email).First(&existingUser).Error; err == nil {
+			return fmt.Errorf("邮箱已存在")
+		}
+	}
+
+	// 加密密码（确保密码为密文存储）
+	hashedPassword, err := hashPassword(user.Password)
+	if err != nil {
+		return err
+	}
+	user.Password = hashedPassword
+
+	// 创建用户
+	if err := DB.Create(user).Error; err != nil {
+		return fmt.Errorf("创建用户失败: %v", err)
+	}
+
+	return nil
+}
+
+// GetUserByID 根据ID获取用户
+func GetUserByID(id uint) (*User, error) {
+	var user User
+	if err := DB.First(&user, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("用户不存在")
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// GetUserByUsername 根据用户名获取用户
+func GetUserByUsername(username string) (*User, error) {
+	var user User
+	if err := DB.Where("username = ?", username).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("用户不存在")
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// GetUserByEmail 根据邮箱获取用户
+func GetUserByEmail(email string) (*User, error) {
+	var user User
+	if err := DB.Where("email = ?", email).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("用户不存在")
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// UpdateUser 更新用户信息
+// 如果密码字段被修改，会自动进行加密处理
+func UpdateUser(user *User) error {
+	// 如果密码字段不为空，确保密码为密文存储
+	if user.Password != "" {
+		hashedPassword, err := hashPassword(user.Password)
+		if err != nil {
+			return err
+		}
+		user.Password = hashedPassword
+	}
+
+	if err := DB.Save(user).Error; err != nil {
+		return fmt.Errorf("更新用户失败: %v", err)
+	}
+	return nil
+}
+
+// DeleteUser 删除用户
+// 参数:
+//   - id: 用户ID
+//
+// 返回:
+//   - error: 错误信息，如果用户是admin则返回"不能删除默认管理员用户"
+func DeleteUser(id uint) error {
+	// 先根据ID查询用户
+	var user User
+	if err := DB.First(&user, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("用户不存在")
+		}
+		return fmt.Errorf("查询用户失败: %v", err)
+	}
+
+	// 检查用户名是否为"admin"
+	if user.Username == "admin" {
+		return fmt.Errorf("不能删除默认管理员用户")
+	}
+
+	// 执行删除
+	if err := DB.Delete(&User{}, id).Error; err != nil {
+		return fmt.Errorf("删除用户失败: %v", err)
+	}
+	return nil
+}
+
+// ValidateUserWithDB 使用数据库验证用户凭据
+func ValidateUserWithDB(username, password string) (*User, bool) {
+	var user User
+	if err := DB.Where("username = ?", username).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, false
+		}
+		// 记录错误日志
+		GetLogManager().logger.Warn("查询用户失败: %v", err)
+		return nil, false
+	}
+
+	// 验证密码（密码已用bcrypt加密存储）
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return nil, false
+	}
+
+	// 返回时不包含密码字段
+	return &user, true
+}
+
+// GetAllUsers 获取所有用户（分页）
+func GetAllUsers(page, pageSize int) ([]User, int64, error) {
+	var users []User
+	var total int64
+
+	offset := (page - 1) * pageSize
+
+	// 获取总数
+	DB.Model(&User{}).Count(&total)
+
+	// 获取分页数据
+	if err := DB.Offset(offset).Limit(pageSize).Find(&users).Error; err != nil {
+		return nil, 0, fmt.Errorf("查询用户列表失败: %v", err)
+	}
+
+	return users, total, nil
+}
+
+// CreateDefaultAdminUser 创建默认管理员用户
+func CreateDefaultAdminUser() error {
+	username := "admin"
+	password := "admin123"
+
+	// 检查是否存在管理员用户
+	var count int64
+	DB.Model(&User{}).Where("username = ?", username).Count(&count)
+	if count > 0 {
+		GetLogManager().logger.Warn("管理员用户已存在")
+		return nil
+	}
+
+	// 创建默认管理员用户
+	user := &User{
+		Username: username,
+		Email:    "admin@steadydns.local",
+		Password: password,
+	}
+
+	if err := CreateUser(user); err != nil {
+		return fmt.Errorf("创建管理员用户失败: %v", err)
+	}
+
+	GetLogManager().logger.Info("默认管理员用户创建成功: %s / %s", username, password)
+	return nil
+}
