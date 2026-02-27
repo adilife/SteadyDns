@@ -120,7 +120,7 @@ export default {
     securityConfig: 'تكوين الأمان',
     
     // Form labels
-    bindEnabled: 'الإضافة BIND مفعلة',
+    bindEnabled: 'إضافة BIND',
     bindEnabledTooltip: 'تمكين أو تعطيل إضافة BIND. توفر إضافة BIND إدارة مناطق الأuthority، إدارة خادم BIND، استعلامات التوجيه والوظائف النسخ الاحتياطي. يتطلب إعادة تشغيل الخدمة للتطبيق.',
     pluginsConfigNotice: 'تغييرات تكوين الإضافات تتطلب إعادة تشغيل كامل للخدمة للتطبيق.',
     logEnabled: 'التسجيل مفعلة',
@@ -329,6 +329,7 @@ export default {
     cacheItems: 'عناصر التخزين المؤقت',
     systemHealth: 'صحة النظام',
     healthy: 'صحيح',
+    degraded: 'متدهور',
     unhealthy: 'غير صحيح',
     activeServers: 'الخوادم النشطة',
     timeRange: 'نطاق الوقت',
@@ -840,5 +841,18 @@ export default {
     invalidEmail: 'تنسيق البريد الإلكتروني غير صالح',
     usernameMinLength: 'يجب أن يكون اسم المستخدم 3 أحرف على الأقل',
     passwordMinLength: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل'
+  },
+  
+  // About
+  about: {
+    title: 'حول SteadyDNS',
+    version: 'الإصدار',
+    betaWarning: 'نسخة تجريبية، لا يُنصح بها للإنتاج',
+    description: 'SteadyDNS هي نظام خادم DNS مؤسسية مع استراتيجيات إعادة توجيه DNS وتكامل خادم BIND.',
+    license: 'الترخيص',
+    copyright: '© 2026 SteadyDNS Team',
+    reportBug: 'الإبلاغ عن خطأ',
+    changelog: 'عرض سجل التغييرات',
+    ok: 'موافق'
   }
 }

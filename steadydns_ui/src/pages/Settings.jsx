@@ -651,7 +651,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             valuePropName="checked"
             tooltip="DNS query rules management - Restart the service for changes to take effect"
           >
-            <Switch />
+            <Switch disabled />
           </Form.Item>
           
           <Form.Item
@@ -660,7 +660,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
             valuePropName="checked"
             tooltip="DNS query log analysis - Restart the service for changes to take effect"
           >
-            <Switch />
+            <Switch disabled />
           </Form.Item>
           </Space>
         </Card>

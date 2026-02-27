@@ -120,7 +120,7 @@ export default {
     securityConfig: '安全配置',
     
     // 表单标签
-    bindEnabled: 'BIND插件启用',
+    bindEnabled: 'BIND插件',
     bindEnabledTooltip: '启用或禁用BIND插件。BIND插件提供权威域管理、BIND服务器管理、转发查询和备份功能。修改后需重启服务生效。',
     pluginsConfigNotice: '插件配置修改后需要完全重启后台服务才能生效。',
     logEnabled: '日志启用',
@@ -329,6 +329,7 @@ export default {
     cacheItems: '缓存项目数',
     systemHealth: '系统健康度',
     healthy: '健康',
+    degraded: '降级',
     unhealthy: '不健康',
     activeServers: '活跃服务器',
     timeRange: '时间范围',
@@ -840,5 +841,18 @@ export default {
     invalidEmail: '邮箱格式不正确',
     usernameMinLength: '用户名至少3个字符',
     passwordMinLength: '密码至少6个字符'
+  },
+  
+  // 关于
+  about: {
+    title: '关于 SteadyDNS',
+    version: '版本',
+    betaWarning: '测试版本，不建议用于生产环境',
+    description: 'SteadyDNS 是一个企业级 DNS 服务器系统，支持 DNS 转发策略、BIND 服务器集成等功能。',
+    license: '许可证',
+    copyright: '© 2026 SteadyDNS Team',
+    reportBug: '反馈Bug',
+    changelog: '查看更新日志',
+    ok: '确定'
   }
 }

@@ -120,7 +120,7 @@ export default {
     securityConfig: 'Security Configuration',
     
     // Form labels
-    bindEnabled: 'BIND Plugin Enabled',
+    bindEnabled: 'BIND Plugin',
     bindEnabledTooltip: 'Enable or disable BIND plugin. BIND plugin provides authoritative zone management, BIND server management, forwarding queries and backup features. Requires service restart to take effect.',
     pluginsConfigNotice: 'Plugin configuration changes require full service restart to take effect.',
     logEnabled: 'Log Enabled',
@@ -329,6 +329,7 @@ export default {
     cacheItems: 'Cache Items',
     systemHealth: 'System Health',
     healthy: 'Healthy',
+    degraded: 'Degraded',
     unhealthy: 'Unhealthy',
     activeServers: 'Active Servers',
     timeRange: 'Time Range',
@@ -840,5 +841,18 @@ export default {
     invalidEmail: 'Invalid email format',
     usernameMinLength: 'Username must be at least 3 characters',
     passwordMinLength: 'Password must be at least 6 characters'
+  },
+  
+  // About
+  about: {
+    title: 'About SteadyDNS',
+    version: 'Version',
+    betaWarning: 'Beta version, not recommended for production',
+    description: 'SteadyDNS is an enterprise DNS server system with DNS forwarding strategies and BIND server integration.',
+    license: 'License',
+    copyright: '© 2026 SteadyDNS Team',
+    reportBug: 'Report Bug',
+    changelog: 'View Changelog',
+    ok: 'OK'
   }
 }
