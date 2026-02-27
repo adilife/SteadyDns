@@ -4,17 +4,43 @@ package database
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
+// bcryptCost bcrypt加密成本因子
+// Cost 12 约需400ms计算时间，提供较好的安全性与性能平衡
+const bcryptCost = 12
+
 // User 用户模型
 type User struct {
 	ID       uint   `json:"id" gorm:"primaryKey"`
 	Username string `json:"username" gorm:"uniqueIndex;not null"`
-	Email    string `json:"email" gorm:"uniqueIndex"` // 邮箱改为可选项
+	Email    string `json:"email" gorm:"uniqueIndex"`          // 邮箱改为可选项
 	Password string `json:"-" gorm:"column:password;not null"` // 不在JSON中输出
+}
+
+// isBcryptHash 检查密码是否已经是bcrypt加密格式
+// bcrypt哈希以 $2a$、$2b$、$2y$ 开头
+func isBcryptHash(password string) bool {
+	return strings.HasPrefix(password, "$2a$") ||
+		strings.HasPrefix(password, "$2b$") ||
+		strings.HasPrefix(password, "$2y$")
+}
+
+// hashPassword 对密码进行bcrypt加密
+// 如果密码已经是bcrypt格式，直接返回
+func hashPassword(password string) (string, error) {
+	if isBcryptHash(password) {
+		return password, nil
+	}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return "", fmt.Errorf("加密密码失败: %v", err)
+	}
+	return string(hashedPassword), nil
 }
 
 // CreateUser 创建用户
@@ -32,12 +58,12 @@ func CreateUser(user *User) error {
 		}
 	}
 
-	// 加密密码
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	// 加密密码（确保密码为密文存储）
+	hashedPassword, err := hashPassword(user.Password)
 	if err != nil {
-		return fmt.Errorf("加密密码失败: %v", err)
+		return err
 	}
-	user.Password = string(hashedPassword)
+	user.Password = hashedPassword
 
 	// 创建用户
 	if err := DB.Create(user).Error; err != nil {
@@ -87,7 +113,17 @@ func GetUserByEmail(email string) (*User, error) {
 }
 
 // UpdateUser 更新用户信息
+// 如果密码字段被修改，会自动进行加密处理
 func UpdateUser(user *User) error {
+	// 如果密码字段不为空，确保密码为密文存储
+	if user.Password != "" {
+		hashedPassword, err := hashPassword(user.Password)
+		if err != nil {
+			return err
+		}
+		user.Password = hashedPassword
+	}
+
 	if err := DB.Save(user).Error; err != nil {
 		return fmt.Errorf("更新用户失败: %v", err)
 	}
@@ -97,6 +133,7 @@ func UpdateUser(user *User) error {
 // DeleteUser 删除用户
 // 参数:
 //   - id: 用户ID
+//
 // 返回:
 //   - error: 错误信息，如果用户是admin则返回"不能删除默认管理员用户"
 func DeleteUser(id uint) error {
