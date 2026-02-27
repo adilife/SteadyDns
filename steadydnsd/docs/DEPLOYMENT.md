@@ -113,36 +113,113 @@ make build    # 编译
 
 创建配置文件 `config/steadydns.conf`：
 
-```yaml
-# SteadyDNS 配置文件
+```ini
+# SteadyDNS Configuration File
+# Format: INI/Conf
 
-# DNS 服务配置
-dns:
-  listen: ":53"           # DNS 监听地址
-  enable_tcp: true        # 启用 TCP
-  enable_udp: true        # 启用 UDP
+[Database]
+# Database file path (relative to working directory)
+DB_PATH=steadydns.db
 
-# Web API 配置
-web:
-  listen: ":8080"         # Web 服务监听地址
-  cors:
-    enabled: true         # 启用 CORS
+[APIServer]
+# API Server port
+API_SERVER_PORT=8080
+# API Server IPv4 address
+API_SERVER_IP_ADDR=0.0.0.0
+# API Server IPv6 address
+API_SERVER_IPV6_ADDR=::
+# GIN running mode (debug/release)
+GIN_MODE=release
 
-# 日志配置
-log:
-  level: "info"           # 日志级别: debug, info, warn, error
-  file: "log/steadydns.log"
-  max_size: 100           # 单个日志文件最大大小 (MB)
-  max_backups: 10         # 保留的旧日志文件数量
-  max_age: 30             # 保留旧日志文件的最大天数
+[JWT]
+# JWT secret key for authentication
+JWT_SECRET_KEY=your-strong-secret-key-change-this
+# Access token expiration (minutes)
+ACCESS_TOKEN_EXPIRATION=300
+# Refresh token expiration (days)
+REFRESH_TOKEN_EXPIRATION=7
+# JWT algorithm
+JWT_ALGORITHM=HS256
 
-# BIND 配置
-bind:
-  enabled: true           # 启用 BIND 集成
-  config_path: "/etc/named.conf"
-  zone_dir: "/var/named"
-  named_checkzone: "/usr/sbin/named-checkzone"
-  named_checkconf: "/usr/sbin/named-checkconf"
+[API]
+# API rate limit enabled
+RATE_LIMIT_ENABLED=true
+# General API limit (requests per minute)
+RATE_LIMIT_API=300
+# Login API limit (requests per minute)
+RATE_LIMIT_LOGIN=60
+# API log enabled
+LOG_ENABLED=true
+# API log level
+LOG_LEVEL=INFO
+
+[BIND]
+# BIND server address
+BIND_ADDRESS=127.0.0.1:5300
+# RNDC key file path
+RNDC_KEY=/etc/named/rndc.key
+# Zone file storage path
+ZONE_FILE_PATH=/usr/local/bind9/var/named
+# Named configuration path
+NAMED_CONF_PATH=/etc/named
+# RNDC port
+RNDC_PORT=9530
+# BIND user
+BIND_USER=named
+# BIND group
+BIND_GROUP=named
+# BIND start command
+BIND_EXEC_START=/usr/local/bind9/sbin/named -u named
+# named-checkconf executable path
+BIND_CHECKCONF_PATH=/usr/local/bind9/bin/named-checkconf
+# named-checkzone executable path
+BIND_CHECKZONE_PATH=/usr/local/bind9/bin/named-checkzone
+
+[DNS]
+# Client processing worker pool size
+DNS_CLIENT_WORKERS=10000
+# Task queue multiplier
+DNS_QUEUE_MULTIPLIER=2
+# DNS server priority timeout (milliseconds)
+DNS_PRIORITY_TIMEOUT_MS=50
+
+[Cache]
+# Cache size limit (MB)
+DNS_CACHE_SIZE_MB=100
+# Cache cleanup interval (seconds)
+DNS_CACHE_CLEANUP_INTERVAL=60
+# Error cache TTL (seconds)
+DNS_CACHE_ERROR_TTL=3600
+
+[Logging]
+# Query log storage path (relative to working directory)
+QUERY_LOG_PATH=log/
+# Query log file size limit (MB)
+QUERY_LOG_MAX_SIZE=10
+# Query log file count limit
+QUERY_LOG_MAX_FILES=10
+# Log level
+DNS_LOG_LEVEL=INFO
+
+[Security]
+# DNS query rate limit per IP (queries per minute)
+DNS_RATE_LIMIT_PER_IP=50000
+# Global DNS query rate limit (queries per minute)
+DNS_RATE_LIMIT_GLOBAL=1000000
+# DNS query ban duration (minutes)
+DNS_BAN_DURATION=5
+# DNS message size limit (bytes)
+DNS_MESSAGE_SIZE_LIMIT=4096
+# DNS query validation enabled
+DNS_VALIDATION_ENABLED=true
+
+[Plugins]
+# BIND Plugin - Authoritative Domain Management
+BIND_ENABLED=true
+# DNS Rules Plugin (Reserved)
+DNS_RULES_ENABLED=false
+# Log Analysis Plugin (Reserved)
+LOG_ANALYSIS_ENABLED=false
 ```
 
 ### 环境变量
