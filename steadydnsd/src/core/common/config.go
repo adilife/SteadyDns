@@ -29,7 +29,6 @@ import (
 // 默认配置模板
 const DefaultConfigTemplate = `# SteadyDNS Configuration File
 # Format: INI/Conf
-
 [Database]
 # Database file path (relative to working directory)
 # Default: steadydns.db
@@ -49,7 +48,7 @@ API_SERVER_IP_ADDR=0.0.0.0
 API_SERVER_IPV6_ADDR=::
 # GIN running mode (debug/release)
 # Default: debug, Recommended: release (production)
-GIN_MODE=debug
+GIN_MODE=release
 
 [JWT]
 # JWT secret key for authentication
@@ -213,7 +212,7 @@ QUERY_LOG_MAX_FILES=10
 # Log level
 # Default: DEBUG, Recommended: INFO (production)/DEBUG (development)
 # Log detail level. Possible values: DEBUG, INFO, WARN, ERROR
-DNS_LOG_LEVEL=DEBUG
+DNS_LOG_LEVEL=INFO
 
 [Security]
 # DNS query rate limit per IP (queries per minute)
@@ -241,11 +240,9 @@ DNS_VALIDATION_ENABLED=true
 # BIND Plugin - Authoritative Domain Management, BIND Server Management, Forwarding Queries, Backup
 # Restart the service for changes to take effect
 BIND_ENABLED=true
-
 # DNS Rules Plugin - DNS query rules management (Reserved - feature not implemented yet)
 # Restart the service for changes to take effect
 DNS_RULES_ENABLED=false
-
 # Log Analysis Plugin - DNS query log analysis (Reserved - feature not implemented yet)
 # Restart the service for changes to take effect
 LOG_ANALYSIS_ENABLED=false
