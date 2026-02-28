@@ -1,3 +1,5 @@
+  🌐 中文版: [README.md](./README.md)
+
 # SteadyDNS
 
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.1-blue.svg)](https://github.com/adilife/SteadyDns/releases/tag/v0.9.0-beta.1)
