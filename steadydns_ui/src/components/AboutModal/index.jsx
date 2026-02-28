@@ -18,7 +18,7 @@
 
 import { Modal, Typography, Space, Divider, Alert, Flex } from 'antd'
 import { BugOutlined, FileTextOutlined } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 import { VERSION_INFO } from '../../config/version'
 
 const { Text, Paragraph, Link } = Typography
@@ -28,14 +28,14 @@ const { Text, Paragraph, Link } = Typography
  * @param {Object} props - 组件属性
  * @param {boolean} props.open - 弹窗是否打开
  * @param {Function} props.onCancel - 关闭弹窗回调
- * @param {string} props.currentLanguage - 当前语言
  */
-const AboutModal = ({ open, onCancel, currentLanguage }) => {
-  const isRTL = currentLanguage === 'ar-SA'
+const AboutModal = ({ open, onCancel }) => {
+  const { t, i18n } = useTranslation()
+  const isRTL = i18n.language === 'ar-SA'
 
   return (
     <Modal
-      title={t('about.title', currentLanguage)}
+      title={t('about.title')}
       open={open}
       onCancel={onCancel}
       footer={null}
@@ -46,7 +46,7 @@ const AboutModal = ({ open, onCancel, currentLanguage }) => {
       <Flex vertical gap="middle" style={{ width: '100%' }}>
         {/* 版本信息 */}
         <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-          <Text strong>{t('about.version', currentLanguage)}: </Text>
+          <Text strong>{t('about.version')}: </Text>
           <Text code>{VERSION_INFO.version}</Text>
         </div>
 
@@ -57,20 +57,20 @@ const AboutModal = ({ open, onCancel, currentLanguage }) => {
             showIcon
             style={{ textAlign: isRTL ? 'right' : 'left' }}
           >
-            {t('about.betaWarning', currentLanguage)}
+            {t('about.betaWarning')}
           </Alert>
         )}
 
         {/* 项目描述 */}
         <Paragraph style={{ textAlign: isRTL ? 'right' : 'left', marginBottom: 0 }}>
-          {t('about.description', currentLanguage)}
+          {t('about.description')}
         </Paragraph>
 
         <Divider style={{ margin: '12px 0' }} />
 
         {/* 许可证和版权 */}
         <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-          <Text type="secondary">{t('about.license', currentLanguage)}: </Text>
+          <Text type="secondary">{t('about.license')}: </Text>
           <Text>{VERSION_INFO.license}</Text>
         </div>
         <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
@@ -88,7 +88,7 @@ const AboutModal = ({ open, onCancel, currentLanguage }) => {
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <BugOutlined />
-            {t('about.reportBug', currentLanguage)}
+            {t('about.reportBug')}
           </Link>
           <Link 
             href={VERSION_INFO.changelogUrl} 
@@ -97,7 +97,7 @@ const AboutModal = ({ open, onCancel, currentLanguage }) => {
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <FileTextOutlined />
-            {t('about.changelog', currentLanguage)}
+            {t('about.changelog')}
           </Link>
         </Flex>
       </Flex>

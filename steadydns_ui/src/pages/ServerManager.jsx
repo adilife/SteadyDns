@@ -22,12 +22,13 @@ import {
   SettingOutlined,
   InfoCircleOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 
 const { Option } = Select
 
-const ServerManager = ({ currentLanguage }) => {
+const ServerManager = () => {
+  const { t } = useTranslation()
   const [serverStatus, setServerStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [apiLogLevel, setApiLogLevel] = useState('INFO')
@@ -52,15 +53,15 @@ const ServerManager = ({ currentLanguage }) => {
           setDnsLogLevel(response.data.logging.dns_log_level || 'DEBUG')
         }
       } else {
-        message.error(response.message || t('servermanager.fetchError', currentLanguage))
+        message.error(response.message || t('servermanager.fetchError'))
       }
     } catch (error) {
       console.error('Error loading server status:', error)
-      message.error(t('servermanager.fetchError', currentLanguage))
+      message.error(t('servermanager.fetchError'))
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage])
+  }, [t])
 
   // Load server status on component mount
   useEffect(() => {
@@ -136,17 +137,17 @@ const ServerManager = ({ currentLanguage }) => {
     try {
       const response = await apiClient.controlServer(action, serverType)
       if (response.success) {
-        message.success(response.message || t('servermanager.controlSuccess', currentLanguage))
+        message.success(response.message || t('servermanager.controlSuccess'))
         // Reload server status after action
         // Add longer delay for HTTP server restart to ensure it fully restarts
         const reloadDelay = (serverType === 'httpd' && action === 'restart') ? 6000 : 1000
         setTimeout(loadServerStatus, reloadDelay)
       } else {
-        message.error(response.message || t('servermanager.controlError', currentLanguage))
+        message.error(response.message || t('servermanager.controlError'))
       }
     } catch (error) {
       console.error(`Error ${action}ing ${serverType}:`, error)
-      message.error(t('servermanager.controlError', currentLanguage))
+      message.error(t('servermanager.controlError'))
     } finally {
       // For non-HTTP restart actions, reset actionLoading here
       if (!(serverType === 'httpd' && action === 'restart')) {
@@ -161,13 +162,13 @@ const ServerManager = ({ currentLanguage }) => {
     try {
       const response = await apiClient.reloadForwardGroups()
       if (response.success) {
-        message.success(response.message || t('servermanager.reloadSuccess', currentLanguage))
+        message.success(response.message || t('servermanager.reloadSuccess'))
       } else {
-        message.error(response.message || t('servermanager.reloadError', currentLanguage))
+        message.error(response.message || t('servermanager.reloadError'))
       }
     } catch (error) {
       console.error('Error reloading forward groups:', error)
-      message.error(t('servermanager.reloadError', currentLanguage))
+      message.error(t('servermanager.reloadError'))
     } finally {
       setActionLoading(false)
     }
@@ -185,13 +186,13 @@ const ServerManager = ({ currentLanguage }) => {
         // Update local state
         setApiLogLevel(apiLevel)
         setDnsLogLevel(dnsLevel)
-        message.success(response.message || 'Log levels set successfully')
+        message.success(response.message || t('servermanager.logLevelsSetSuccess'))
       } else {
-        message.error(response.error || 'Failed to set log levels')
+        message.error(response.error || t('servermanager.logLevelsSetFailed'))
       }
     } catch (error) {
       console.error('Error setting log levels:', error)
-      message.error('Failed to set log levels')
+      message.error(t('servermanager.logLevelsSetFailed'))
     } finally {
       setActionLoading(false)
     }
@@ -215,13 +216,13 @@ const ServerManager = ({ currentLanguage }) => {
   const getStatusText = (status) => {
     switch (status) {
       case 'running':
-        return t('servermanager.running', currentLanguage)
+        return t('servermanager.running')
       case 'stopped':
-        return t('servermanager.stopped', currentLanguage)
+        return t('servermanager.stopped')
       case 'partial':
-        return t('servermanager.partialRunning', currentLanguage)
+        return t('servermanager.partialRunning')
       default:
-        return t('servermanager.unknown', currentLanguage)
+        return t('servermanager.unknown')
     }
   }
 
@@ -248,7 +249,7 @@ const ServerManager = ({ currentLanguage }) => {
         <h2>
           <Space>
             <AppstoreOutlined />
-            {t('servermanager.title', currentLanguage)}
+            {t('servermanager.title')}
           </Space>
         </h2>
         <Button
@@ -256,7 +257,7 @@ const ServerManager = ({ currentLanguage }) => {
           onClick={loadServerStatus}
           loading={loading}
         >
-          {t('servermanager.refresh', currentLanguage)}
+          {t('servermanager.refresh')}
         </Button>
       </div>
 
@@ -267,12 +268,12 @@ const ServerManager = ({ currentLanguage }) => {
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('servermanager.dnsServer', currentLanguage)}
+                  title={t('servermanager.dnsServer')}
                   style={{ border: '1px solid #f0f0f0' }}
                   hoverable
                 >
                   <Statistic
-                    title={t('servermanager.status', currentLanguage)}
+                    title={t('servermanager.status')}
                     value={getStatusText(getDnsServerStatus())}
                     valueProps={{
                       style: {
@@ -288,13 +289,13 @@ const ServerManager = ({ currentLanguage }) => {
                           icon={<PlayCircleOutlined />}
                           onClick={() => showConfirmModal(
                             'controlServer',
-                            t('servermanager.confirmTitle', currentLanguage),
-                            t('servermanager.confirmStartDns', currentLanguage),
+                            t('servermanager.confirmTitle'),
+                            t('servermanager.confirmStartDns'),
                             { action: 'start', serverType: 'sdnsd' }
                           )}
                           loading={actionLoading}
                         >
-                          {t('servermanager.start', currentLanguage)}
+                          {t('servermanager.start')}
                         </Button>
                       ) : (
                         <Button
@@ -302,26 +303,26 @@ const ServerManager = ({ currentLanguage }) => {
                           icon={<PauseCircleOutlined />}
                           onClick={() => showConfirmModal(
                             'controlServer',
-                            t('servermanager.confirmTitle', currentLanguage),
-                            t('servermanager.confirmStopDns', currentLanguage),
+                            t('servermanager.confirmTitle'),
+                            t('servermanager.confirmStopDns'),
                             { action: 'stop', serverType: 'sdnsd' }
                           )}
                           loading={actionLoading}
                         >
-                          {t('servermanager.stop', currentLanguage)}
+                          {t('servermanager.stop')}
                         </Button>
                       )}
                       <Button
                         icon={<SyncOutlined />}
                         onClick={() => showConfirmModal(
                           'controlServer',
-                          t('servermanager.confirmTitle', currentLanguage),
-                          t('servermanager.confirmRestartDns', currentLanguage),
+                          t('servermanager.confirmTitle'),
+                          t('servermanager.confirmRestartDns'),
                           { action: 'restart', serverType: 'sdnsd' }
                         )}
                         loading={actionLoading}
                       >
-                        {t('servermanager.restart', currentLanguage)}
+                        {t('servermanager.restart')}
                       </Button>
                     </Space>
                   </div>
@@ -329,13 +330,13 @@ const ServerManager = ({ currentLanguage }) => {
               </Col>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('servermanager.httpServer', currentLanguage)}
+                  title={t('servermanager.httpServer')}
                   style={{ border: '1px solid #f0f0f0' }}
                   hoverable
                 >
                   <Statistic
-                    title={t('servermanager.status', currentLanguage)}
-                    value={serverStatus.http_server?.running ? t('servermanager.running', currentLanguage) : t('servermanager.stopped', currentLanguage)}
+                    title={t('servermanager.status')}
+                    value={serverStatus.http_server?.running ? t('servermanager.running') : t('servermanager.stopped')}
                     valueProps={{
                       style: {
                         color: serverStatus.http_server?.running ? '#52c41a' : '#ff4d4f'
@@ -348,13 +349,13 @@ const ServerManager = ({ currentLanguage }) => {
                         icon={<SyncOutlined />}
                         onClick={() => showConfirmModal(
                           'controlServer',
-                          t('servermanager.confirmTitle', currentLanguage),
-                          t('servermanager.confirmRestartHttp', currentLanguage),
+                          t('servermanager.confirmTitle'),
+                          t('servermanager.confirmRestartHttp'),
                           { action: 'restart', serverType: 'httpd' }
                         )}
                         loading={actionLoading}
                       >
-                        {t('servermanager.restart', currentLanguage)}
+                        {t('servermanager.restart')}
                       </Button>
                     </Space>
                   </div>
@@ -362,13 +363,13 @@ const ServerManager = ({ currentLanguage }) => {
               </Col>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('servermanager.systemInfo', currentLanguage)}
+                  title={t('servermanager.systemInfo')}
                   style={{ border: '1px solid #f0f0f0' }}
                   hoverable
                 >
                   <Statistic
-                    title="Cache Initialized"
-                    value={serverStatus.cache?.initialized ? t('servermanager.running', currentLanguage) : t('servermanager.stopped', currentLanguage)}
+                    title={t('servermanager.cacheInitialized')}
+                    value={serverStatus.cache?.initialized ? t('servermanager.running') : t('servermanager.stopped')}
                     valueProps={{
                       style: {
                         color: serverStatus.cache?.initialized ? '#52c41a' : '#ff4d4f'
@@ -376,8 +377,8 @@ const ServerManager = ({ currentLanguage }) => {
                     }}
                   />
                   <Statistic
-                    title="Forwarder Initialized"
-                    value={serverStatus.forwarder?.initialized ? t('servermanager.running', currentLanguage) : t('servermanager.stopped', currentLanguage)}
+                    title={t('servermanager.forwarderInitialized')}
+                    value={serverStatus.forwarder?.initialized ? t('servermanager.running') : t('servermanager.stopped')}
                     valueProps={{
                       style: {
                         color: serverStatus.forwarder?.initialized ? '#52c41a' : '#ff4d4f'
@@ -390,7 +391,7 @@ const ServerManager = ({ currentLanguage }) => {
                       onClick={reloadForwardGroups}
                       loading={actionLoading}
                     >
-                      {t('servermanager.reloadForwardGroups', currentLanguage)}
+                      {t('servermanager.reloadForwardGroups')}
                     </Button>
                   </div>
                 </Card>
@@ -398,51 +399,51 @@ const ServerManager = ({ currentLanguage }) => {
             </Row>
 
             {/* Server Configuration */}
-            <Card title={t('servermanager.configuration', currentLanguage)} style={{ marginBottom: 24 }}>
+            <Card title={t('servermanager.configuration')} style={{ marginBottom: 24 }}>
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <span style={{ fontWeight: 'bold', minWidth: 120 }}>
-                      DNS {t('servermanager.logLevel', currentLanguage)}:
+                      DNS {t('servermanager.logLevel')}:
                     </span>
                     <Select
                       value={dnsLogLevel}
                       onChange={(level) => showConfirmModal(
                         'setLogLevels',
-                        t('servermanager.confirmTitle', currentLanguage),
-                        t('servermanager.confirmDnsLogLevel', currentLanguage).replace('{{level}}', level),
+                        t('servermanager.confirmTitle'),
+                        t('servermanager.confirmDnsLogLevel').replace('{{level}}', level),
                         { apiLevel: apiLogLevel, dnsLevel: level }
                       )}
                       style={{ width: 150 }}
                       disabled={actionLoading}
                     >
-                      <Select.Option value="debug">{t('servermanager.logDebug', currentLanguage)}</Select.Option>
-                      <Select.Option value="info">{t('servermanager.logInfo', currentLanguage)}</Select.Option>
-                      <Select.Option value="warn">{t('servermanager.logWarn', currentLanguage)}</Select.Option>
-                      <Select.Option value="error">{t('servermanager.logError', currentLanguage)}</Select.Option>
+                      <Select.Option value="debug">{t('servermanager.logDebug')}</Select.Option>
+                      <Select.Option value="info">{t('servermanager.logInfo')}</Select.Option>
+                      <Select.Option value="warn">{t('servermanager.logWarn')}</Select.Option>
+                      <Select.Option value="error">{t('servermanager.logError')}</Select.Option>
                     </Select>
                   </div>
                 </Col>
                 <Col xs={24} sm={12}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                     <span style={{ fontWeight: 'bold', minWidth: 120 }}>
-                      API {t('servermanager.logLevel', currentLanguage)}:
+                      API {t('servermanager.logLevel')}:
                     </span>
                     <Select
                       value={apiLogLevel}
                       onChange={(level) => showConfirmModal(
                         'setLogLevels',
-                        t('servermanager.confirmTitle', currentLanguage),
-                        t('servermanager.confirmApiLogLevel', currentLanguage).replace('{{level}}', level),
+                        t('servermanager.confirmTitle'),
+                        t('servermanager.confirmApiLogLevel').replace('{{level}}', level),
                         { apiLevel: level, dnsLevel: dnsLogLevel }
                       )}
                       style={{ width: 150 }}
                       disabled={actionLoading}
                     >
-                      <Select.Option value="debug">{t('servermanager.logDebug', currentLanguage)}</Select.Option>
-                      <Select.Option value="info">{t('servermanager.logInfo', currentLanguage)}</Select.Option>
-                      <Select.Option value="warn">{t('servermanager.logWarn', currentLanguage)}</Select.Option>
-                      <Select.Option value="error">{t('servermanager.logError', currentLanguage)}</Select.Option>
+                      <Select.Option value="debug">{t('servermanager.logDebug')}</Select.Option>
+                      <Select.Option value="info">{t('servermanager.logInfo')}</Select.Option>
+                      <Select.Option value="warn">{t('servermanager.logWarn')}</Select.Option>
+                      <Select.Option value="error">{t('servermanager.logError')}</Select.Option>
                     </Select>
                   </div>
                 </Col>
@@ -452,8 +453,8 @@ const ServerManager = ({ currentLanguage }) => {
           </>
         ) : (
           <Alert
-            title={t('servermanager.loading', currentLanguage)}
-            description={t('servermanager.loadingDescription', currentLanguage)}
+            title={t('servermanager.loading')}
+            description={t('servermanager.loadingDescription')}
             type="info"
             showIcon
           />
@@ -466,8 +467,8 @@ const ServerManager = ({ currentLanguage }) => {
         open={confirmModalVisible}
         onOk={handleConfirmAction}
         onCancel={handleCancelAction}
-        okText={t('servermanager.confirmOk', currentLanguage)}
-        cancelText={t('servermanager.confirmCancel', currentLanguage)}
+        okText={t('servermanager.confirmOk')}
+        cancelText={t('servermanager.confirmCancel')}
         okButtonProps={{ danger: true }}
         confirmLoading={actionLoading}
       >

@@ -17,7 +17,7 @@ import {
   DeleteOutlined,
   SaveOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 
 const { Option } = Select
 
@@ -49,7 +49,8 @@ const mockRules = [
   }
 ]
 
-const DnsRules = ({ currentLanguage }) => {
+const DnsRules = () => {
+  const { t } = useTranslation()
   const [rules, setRules] = useState(mockRules)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingRule, setEditingRule] = useState(null)
@@ -76,7 +77,7 @@ const DnsRules = ({ currentLanguage }) => {
       if (editingRule) {
         // Update existing rule
         setRules(rules.map(rule => rule.id === editingRule.id ? { ...rule, ...values } : rule))
-        message.success(t('dnsRules.ruleUpdated', currentLanguage))
+        message.success(t('dnsRules.ruleUpdated'))
       } else {
         // Add new rule
         const newRule = {
@@ -84,75 +85,75 @@ const DnsRules = ({ currentLanguage }) => {
           ...values
         }
         setRules([...rules, newRule])
-        message.success(t('dnsRules.ruleAdded', currentLanguage))
+        message.success(t('dnsRules.ruleAdded'))
       }
       setIsModalOpen(false)
       setEditingRule(null)
       form.resetFields()
     }).catch(() => {
-      message.error(currentLanguage === 'zh-CN' ? '请检查表单字段' : 'Please check form fields')
+      message.error(t('dnsRules.checkFormFields'))
     })
   }
   const handleDelete = (id) => {
     setRules(rules.filter(rule => rule.id !== id))
-    message.success(t('dnsRules.ruleDeleted', currentLanguage))
+    message.success(t('dnsRules.ruleDeleted'))
   }
   const columns = [
     {
-      title: t('dnsRules.id', currentLanguage),
+      title: t('dnsRules.id'),
       dataIndex: 'id',
       key: 'id',
       width: 60
     },
     {
-      title: t('dnsRules.domain', currentLanguage),
+      title: t('dnsRules.domain'),
       dataIndex: 'domain',
       key: 'domain',
       ellipsis: true
     },
     {
-      title: t('dnsRules.type', currentLanguage),
+      title: t('dnsRules.type'),
       dataIndex: 'type',
       key: 'type',
       width: 100
     },
     {
-      title: t('dnsRules.value', currentLanguage),
+      title: t('dnsRules.value'),
       dataIndex: 'value',
       key: 'value',
       ellipsis: true
     },
     {
-      title: t('dnsRules.priority', currentLanguage),
+      title: t('dnsRules.priority'),
       dataIndex: 'priority',
       key: 'priority',
       width: 100
     },
     {
-      title: t('dnsRules.description', currentLanguage),
+      title: t('dnsRules.description'),
       dataIndex: 'description',
       key: 'description',
       ellipsis: true
     },
     {
-      title: t('dnsRules.actions', currentLanguage),
+      title: t('dnsRules.actions'),
       key: 'actions',
       width: 150,
       render: (_, record) => (
         <Space size="middle">
-          <Tooltip title={t('dnsRules.edit', currentLanguage)}>
+          <Tooltip title={t('dnsRules.edit')}>
             <Button
               icon={<EditOutlined />}
               size="small"
               onClick={() => showModal(record)}
             />
           </Tooltip>
-          <Tooltip title={t('dnsRules.delete', currentLanguage)}>
+          <Tooltip title={t('dnsRules.delete')}>
             <Popconfirm
-              title={t('dnsRules.confirmDelete', currentLanguage)}
+              title={t('dnsRules.confirmDelete')}
               onConfirm={() => handleDelete(record.id)}
-              okText={t('dnsRules.yes', currentLanguage)}
-              cancelText={t('dnsRules.no', currentLanguage)}
+              okText={t('dnsRules.yes')}
+              cancelText={t('dnsRules.no')}
             >
               <Button
                 icon={<DeleteOutlined />}
@@ -169,13 +170,13 @@ const DnsRules = ({ currentLanguage }) => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>{t('dnsRules.title', currentLanguage)}</h2>
+        <h2>{t('dnsRules.title')}</h2>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => showModal()}
         >
-          {t('dnsRules.addRule', currentLanguage)}
+          {t('dnsRules.addRule')}
         </Button>
       </div>
 
@@ -192,7 +193,7 @@ const DnsRules = ({ currentLanguage }) => {
       />
 
       <Modal
-        title={editingRule ? t('dnsRules.editRule', currentLanguage) : t('dnsRules.addNewRule', currentLanguage)}
+        title={editingRule ? t('dnsRules.editRule') : t('dnsRules.addNewRule')}
         open={isModalOpen}
         onOk={handleOk}
         onCancel={handleCancel}
@@ -208,18 +209,18 @@ const DnsRules = ({ currentLanguage }) => {
         >
           <Form.Item
             name="domain"
-            label={t('dnsRules.domain', currentLanguage)}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入域名' : 'Please input domain' }]}
+            label={t('dnsRules.domain')}
+            rules={[{ required: true, message: t('dnsRules.pleaseInputDomain') }]}
           >
-            <Input placeholder={currentLanguage === 'zh-CN' ? '请输入域名' : 'Enter domain name'} />
+            <Input placeholder={t('dnsRules.enterDomainName')} />
           </Form.Item>
 
           <Form.Item
             name="type"
-            label={t('dnsRules.type', currentLanguage)}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请选择类型' : 'Please select type' }]}
+            label={t('dnsRules.type')}
+            rules={[{ required: true, message: t('dnsRules.pleaseSelectType') }]}
           >
-            <Select placeholder={currentLanguage === 'zh-CN' ? '选择DNS类型' : 'Select DNS type'}>
+            <Select placeholder={t('dnsRules.selectDnsType')}>
               <Option value="A">A</Option>
               <Option value="CNAME">CNAME</Option>
               <Option value="MX">MX</Option>
@@ -230,25 +231,25 @@ const DnsRules = ({ currentLanguage }) => {
 
           <Form.Item
             name="value"
-            label={t('dnsRules.value', currentLanguage)}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入值' : 'Please input value' }]}
+            label={t('dnsRules.value')}
+            rules={[{ required: true, message: t('dnsRules.pleaseInputValue') }]}
           >
-            <Input placeholder={currentLanguage === 'zh-CN' ? '请输入DNS值' : 'Enter DNS value'} />
+            <Input placeholder={t('dnsRules.enterDnsValue')} />
           </Form.Item>
 
           <Form.Item
             name="priority"
-            label={t('dnsRules.priority', currentLanguage)}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入优先级' : 'Please input priority' }]}
+            label={t('dnsRules.priority')}
+            rules={[{ required: true, message: t('dnsRules.pleaseInputPriority') }]}
           >
-            <Input type="number" min={1} max={10} placeholder={currentLanguage === 'zh-CN' ? '请输入优先级' : 'Enter priority'} />
+            <Input type="number" min={1} max={10} placeholder={t('dnsRules.enterPriority')} />
           </Form.Item>
 
           <Form.Item
             name="description"
-            label={t('dnsRules.description', currentLanguage)}
+            label={t('dnsRules.description')}
           >
-            <Input.TextArea rows={3} placeholder={currentLanguage === 'zh-CN' ? '请输入描述' : 'Enter description'} />
+            <Input.TextArea rows={3} placeholder={t('dnsRules.enterDescription')} />
           </Form.Item>
         </Form>
       </Modal>

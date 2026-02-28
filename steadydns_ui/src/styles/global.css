@@ -16,9 +16,89 @@
   font-style: normal;
 }
 
+/* 
+ * 阿拉伯语字体配置 - Noto Sans Arabic
+ * 授权协议: SIL Open Font License 1.1 (免费商用)
+ * 支持语言: 阿拉伯语、波斯语、乌尔都语等
+ * 字体文件来源: @fontsource/noto-sans-arabic (已在 main.jsx 中导入)
+ */
+
 /* 全局字体设置 */
 * {
   font-family: 'Source Han Sans', 'Kylin Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* 阿拉伯语专用字体设置 - RTL布局支持 */
+[lang="ar-SA"],
+[lang="ar"],
+[dir="rtl"],
+.rtl {
+  font-family: 'Noto Sans Arabic', 'Source Han Sans', 'Kylin Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  direction: rtl;
+  text-align: right;
+}
+
+/* 阿拉伯语表单元素对齐 */
+[lang="ar-SA"] input,
+[lang="ar-SA"] select,
+[lang="ar-SA"] textarea,
+[lang="ar"] input,
+[lang="ar"] select,
+[lang="ar"] textarea,
+[dir="rtl"] input,
+[dir="rtl"] select,
+[dir="rtl"] textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+/* 阿拉伯语表格对齐 */
+[lang="ar-SA"] .ant-table,
+[lang="ar"] .ant-table,
+[dir="rtl"] .ant-table {
+  text-align: right;
+}
+
+[lang="ar-SA"] .ant-table-tbody > tr > td,
+[lang="ar"] .ant-table-tbody > tr > td,
+[dir="rtl"] .ant-table-tbody > tr > td {
+  text-align: right;
+}
+
+/* 阿拉伯语侧边栏折叠箭头方向修复 */
+[lang="ar-SA"] .ant-layout-sider-trigger,
+[lang="ar"] .ant-layout-sider-trigger,
+[dir="rtl"] .ant-layout-sider-trigger {
+  text-align: center;
+}
+
+/* RTL 模式下展开状态的箭头指向右侧 */
+[lang="ar-SA"] .ant-layout-sider-collapsed .ant-layout-sider-trigger .anticon,
+[lang="ar"] .ant-layout-sider-collapsed .ant-layout-sider-trigger .anticon,
+[dir="rtl"] .ant-layout-sider-collapsed .ant-layout-sider-trigger .anticon {
+  transform: rotate(0deg);
+}
+
+/* RTL 模式下折叠状态的箭头指向左侧 */
+[lang="ar-SA"] .ant-layout-sider:not(.ant-layout-sider-collapsed) .ant-layout-sider-trigger .anticon,
+[lang="ar"] .ant-layout-sider:not(.ant-layout-sider-collapsed) .ant-layout-sider-trigger .anticon,
+[dir="rtl"] .ant-layout-sider:not(.ant-layout-sider-collapsed) .ant-layout-sider-trigger .anticon {
+  transform: rotate(180deg);
+}
+
+/* RTL 模式下菜单图标和文本间距 */
+[lang="ar-SA"] .ant-menu-item,
+[lang="ar"] .ant-menu-item,
+[dir="rtl"] .ant-menu-item {
+  padding-right: 16px !important;
+  padding-left: 16px !important;
+}
+
+[lang="ar-SA"] .ant-menu-item .anticon,
+[lang="ar"] .ant-menu-item .anticon,
+[dir="rtl"] .ant-menu-item .anticon {
+  margin-left: 10px;
+  margin-right: 0;
 }
 
 /* 基础样式重置 */
@@ -124,4 +204,124 @@ input, select, textarea {
 2. 渲染：适配360浏览器和麒麟浏览器的渲染规则
 3. 布局：确保在不同分辨率下的布局一致性
 4. 性能：优化样式，减少重排和重绘
+
+国际化字体支持：
+- 中文/英文：思源黑体、麒麟字体
+- 阿拉伯语：Noto Sans Arabic (SIL OFL 1.1 免费商用)
+- RTL布局：自动识别 lang="ar" 或 dir="rtl" 属性
 */
+
+/* 阿拉伯语Modal弹窗RTL支持 */
+[dir="rtl"] .ant-modal,
+[lang="ar-SA"] .ant-modal,
+[lang="ar"] .ant-modal {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .ant-modal-content,
+[lang="ar-SA"] .ant-modal-content,
+[lang="ar"] .ant-modal-content {
+  direction: rtl;
+}
+
+[dir="rtl"] .ant-modal-header,
+[lang="ar-SA"] .ant-modal-header,
+[lang="ar"] .ant-modal-header {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .ant-modal-title,
+[lang="ar-SA"] .ant-modal-title,
+[lang="ar"] .ant-modal-title {
+  text-align: right;
+}
+
+[dir="rtl"] .ant-modal-body,
+[lang="ar-SA"] .ant-modal-body,
+[lang="ar"] .ant-modal-body {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .ant-modal-footer,
+[lang="ar-SA"] .ant-modal-footer,
+[lang="ar"] .ant-modal-footer {
+  direction: rtl;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .ant-modal-footer .ant-btn,
+[lang="ar-SA"] .ant-modal-footer .ant-btn,
+[lang="ar"] .ant-modal-footer .ant-btn {
+  margin-left: 8px;
+  margin-right: 0;
+}
+
+[dir="rtl"] .ant-modal-close,
+[lang="ar-SA"] .ant-modal-close,
+[lang="ar"] .ant-modal-close {
+  left: 0;
+  right: auto;
+}
+
+/* 阿拉伯语Form表单RTL支持 */
+[dir="rtl"] .ant-form-item-label,
+[lang="ar-SA"] .ant-form-item-label,
+[lang="ar"] .ant-form-item-label {
+  text-align: right;
+}
+
+[dir="rtl"] .ant-form-item-label > label,
+[lang="ar-SA"] .ant-form-item-label > label,
+[lang="ar"] .ant-form-item-label > label {
+  text-align: right;
+}
+
+[dir="rtl"] .ant-input,
+[lang="ar-SA"] .ant-input,
+[lang="ar"] .ant-input {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .ant-select,
+[lang="ar-SA"] .ant-select,
+[lang="ar"] .ant-select {
+  direction: rtl;
+}
+
+[dir="rtl"] .ant-select-selector,
+[lang="ar-SA"] .ant-select-selector,
+[lang="ar"] .ant-select-selector {
+  text-align: right;
+}
+
+[dir="rtl"] .ant-select-dropdown,
+[lang="ar-SA"] .ant-select-dropdown,
+[lang="ar"] .ant-select-dropdown {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .ant-select-item,
+[lang="ar-SA"] .ant-select-item,
+[lang="ar"] .ant-select-item {
+  text-align: right;
+}
+
+/* 阿拉伯语Card卡片RTL支持 */
+[dir="rtl"] .ant-card-head-title,
+[lang="ar-SA"] .ant-card-head-title,
+[lang="ar"] .ant-card-head-title {
+  text-align: right;
+}
+
+[dir="rtl"] .ant-card-body,
+[lang="ar-SA"] .ant-card-body,
+[lang="ar"] .ant-card-body {
+  direction: rtl;
+  text-align: right;
+}

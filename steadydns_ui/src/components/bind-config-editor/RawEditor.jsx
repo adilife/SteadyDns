@@ -12,13 +12,16 @@ import {
   CheckOutlined,
   HighlightOutlined
 } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 
 
 const { TextArea } = Input
 const { Text } = Typography
 
 const RawEditor = ({ content, onContentChange }) => {
+  // 国际化
+  const { t } = useTranslation()
+  
   console.log('RawEditor组件渲染，接收到的props:', {
     content: content ? `有数据 (${content.length} 字符)` : '空',
     onContentChange: typeof onContentChange === 'function' ? '有函数' : '无'

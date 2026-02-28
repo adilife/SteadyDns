@@ -36,16 +36,15 @@ import {
   DeleteOutlined,
   KeyOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 
 /**
  * 用户管理页面组件
  * 提供用户的增删改查和密码修改功能
- * @param {Object} props - 组件属性
- * @param {string} props.currentLanguage - 当前语言
  */
-const UserManagement = ({ currentLanguage }) => {
+const UserManagement = () => {
+  const { t } = useTranslation()
   // 用户列表数据
   const [users, setUsers] = useState([])
   // 分页信息
@@ -89,15 +88,15 @@ const UserManagement = ({ currentLanguage }) => {
           total: response.data.total || 0
         })
       } else {
-        message.error(response.message || t('userManagement.fetchError', currentLanguage))
+        message.error(response.message || t('userManagement.fetchError'))
       }
     } catch (error) {
       console.error('Error loading users:', error)
-      message.error(t('userManagement.fetchError', currentLanguage))
+      message.error(t('userManagement.fetchError'))
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage])
+  }, [t])
 
   /**
    * 组件挂载时加载用户列表
@@ -132,21 +131,21 @@ const UserManagement = ({ currentLanguage }) => {
         const response = await apiClient.createUser(values)
         
         if (response.success) {
-          message.success(response.message || t('userManagement.userCreated', currentLanguage))
+          message.success(response.message || t('userManagement.userCreated'))
           setIsCreateModalOpen(false)
           createForm.resetFields()
           loadUsers(pagination.current, pagination.pageSize)
         } else {
-          message.error(response.message || t('userManagement.createError', currentLanguage))
+          message.error(response.message || t('userManagement.createError'))
         }
       } catch (error) {
         console.error('Error creating user:', error)
-        message.error(t('userManagement.createError', currentLanguage))
+        message.error(t('userManagement.createError'))
       } finally {
         setLoading(false)
       }
     }).catch(() => {
-      message.error(t('userManagement.createError', currentLanguage))
+      message.error(t('userManagement.createError'))
     })
   }
 
@@ -182,22 +181,22 @@ const UserManagement = ({ currentLanguage }) => {
         const response = await apiClient.updateUser(editingUser.id, values)
         
         if (response.success) {
-          message.success(response.message || t('userManagement.userUpdated', currentLanguage))
+          message.success(response.message || t('userManagement.userUpdated'))
           setIsEditModalOpen(false)
           setEditingUser(null)
           editForm.resetFields()
           loadUsers(pagination.current, pagination.pageSize)
         } else {
-          message.error(response.message || t('userManagement.updateError', currentLanguage))
+          message.error(response.message || t('userManagement.updateError'))
         }
       } catch (error) {
         console.error('Error updating user:', error)
-        message.error(t('userManagement.updateError', currentLanguage))
+        message.error(t('userManagement.updateError'))
       } finally {
         setLoading(false)
       }
     }).catch(() => {
-      message.error(t('userManagement.updateError', currentLanguage))
+      message.error(t('userManagement.updateError'))
     })
   }
 
@@ -208,7 +207,7 @@ const UserManagement = ({ currentLanguage }) => {
   const handleDelete = async (user) => {
     // 防止删除admin用户
     if (user.username === 'admin') {
-      message.warning(t('userManagement.confirmDeleteAdmin', currentLanguage))
+      message.warning(t('userManagement.confirmDeleteAdmin'))
       return
     }
     
@@ -217,14 +216,14 @@ const UserManagement = ({ currentLanguage }) => {
       const response = await apiClient.deleteUser(user.id)
       
       if (response.success) {
-        message.success(response.message || t('userManagement.userDeleted', currentLanguage))
+        message.success(response.message || t('userManagement.userDeleted'))
         loadUsers(pagination.current, pagination.pageSize)
       } else {
-        message.error(response.message || t('userManagement.deleteError', currentLanguage))
+        message.error(response.message || t('userManagement.deleteError'))
       }
     } catch (error) {
       console.error('Error deleting user:', error)
-      message.error(t('userManagement.deleteError', currentLanguage))
+      message.error(t('userManagement.deleteError'))
     } finally {
       setLoading(false)
     }
@@ -263,21 +262,21 @@ const UserManagement = ({ currentLanguage }) => {
         const response = await apiClient.changePassword(editingUser.id, passwordData)
         
         if (response.success) {
-          message.success(response.message || t('userManagement.passwordChanged', currentLanguage))
+          message.success(response.message || t('userManagement.passwordChanged'))
           setIsPasswordModalOpen(false)
           setEditingUser(null)
           passwordForm.resetFields()
         } else {
-          message.error(response.message || t('userManagement.passwordError', currentLanguage))
+          message.error(response.message || t('userManagement.passwordError'))
         }
       } catch (error) {
         console.error('Error changing password:', error)
-        message.error(t('userManagement.passwordError', currentLanguage))
+        message.error(t('userManagement.passwordError'))
       } finally {
         setLoading(false)
       }
     }).catch(() => {
-      message.error(t('userManagement.passwordError', currentLanguage))
+      message.error(t('userManagement.passwordError'))
     })
   }
 
@@ -295,30 +294,30 @@ const UserManagement = ({ currentLanguage }) => {
    */
   const columns = [
     {
-      title: t('userManagement.id', currentLanguage),
+      title: t('userManagement.id'),
       dataIndex: 'id',
       key: 'id',
       width: 80
     },
     {
-      title: t('userManagement.username', currentLanguage),
+      title: t('userManagement.username'),
       dataIndex: 'username',
       key: 'username',
       ellipsis: true
     },
     {
-      title: t('userManagement.email', currentLanguage),
+      title: t('userManagement.email'),
       dataIndex: 'email',
       key: 'email',
       ellipsis: true
     },
     {
-      title: t('userManagement.actions', currentLanguage),
+      title: t('userManagement.actions'),
       key: 'actions',
       width: 200,
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title={t('userManagement.edit', currentLanguage)}>
+          <Tooltip title={t('userManagement.edit')}>
             <Button
               type="link"
               icon={<EditOutlined />}
@@ -326,7 +325,7 @@ const UserManagement = ({ currentLanguage }) => {
               onClick={() => showEditModal(record)}
             />
           </Tooltip>
-          <Tooltip title={t('userManagement.changePassword', currentLanguage)}>
+          <Tooltip title={t('userManagement.changePassword')}>
             <Button
               type="link"
               icon={<KeyOutlined />}
@@ -335,13 +334,13 @@ const UserManagement = ({ currentLanguage }) => {
             />
           </Tooltip>
           <Popconfirm
-            title={t('userManagement.confirmDelete', currentLanguage)}
+            title={t('userManagement.confirmDelete')}
             onConfirm={() => handleDelete(record)}
-            okText={t('userManagement.confirm', currentLanguage)}
-            cancelText={t('userManagement.cancel', currentLanguage)}
+            okText={t('userManagement.confirm')}
+            cancelText={t('userManagement.cancel')}
             disabled={record.username === 'admin'}
           >
-            <Tooltip title={record.username === 'admin' ? t('userManagement.confirmDeleteAdmin', currentLanguage) : t('userManagement.delete', currentLanguage)}>
+            <Tooltip title={record.username === 'admin' ? t('userManagement.confirmDeleteAdmin') : t('userManagement.delete')}>
               <Button
                 type="link"
                 icon={<DeleteOutlined />}
@@ -360,13 +359,13 @@ const UserManagement = ({ currentLanguage }) => {
     <div>
       {/* 标题和操作按钮区域 */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>{t('userManagement.title', currentLanguage)}</h2>
+        <h2>{t('userManagement.title')}</h2>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={showCreateModal}
         >
-          {t('userManagement.addUser', currentLanguage)}
+          {t('userManagement.addUser')}
         </Button>
       </div>
 
@@ -389,11 +388,7 @@ const UserManagement = ({ currentLanguage }) => {
             onChange={handlePaginationChange}
             showSizeChanger
             showQuickJumper
-            showTotal={(total) => 
-              currentLanguage === 'zh-CN' 
-                ? `共 ${total} 条记录` 
-                : `Total ${total} records`
-            }
+            showTotal={(total) => t('userManagement.totalRecords', { total })}
             pageSizeOptions={['10', '20', '50', '100']}
           />
         </div>
@@ -401,12 +396,12 @@ const UserManagement = ({ currentLanguage }) => {
 
       {/* 创建用户弹窗 */}
       <Modal
-        title={t('userManagement.addUser', currentLanguage)}
+        title={t('userManagement.addUser')}
         open={isCreateModalOpen}
         onOk={handleCreateOk}
         onCancel={handleCreateCancel}
-        okText={t('userManagement.confirm', currentLanguage)}
-        cancelText={t('userManagement.cancel', currentLanguage)}
+        okText={t('userManagement.confirm')}
+        cancelText={t('userManagement.cancel')}
         confirmLoading={loading}
       >
         <Form
@@ -415,47 +410,47 @@ const UserManagement = ({ currentLanguage }) => {
         >
           <Form.Item
             name="username"
-            label={t('userManagement.username', currentLanguage)}
+            label={t('userManagement.username')}
             rules={[
-              { required: true, message: t('userManagement.pleaseInputUsername', currentLanguage) },
-              { min: 3, message: t('userManagement.usernameMinLength', currentLanguage) }
+              { required: true, message: t('userManagement.pleaseInputUsername') },
+              { min: 3, message: t('userManagement.usernameMinLength') }
             ]}
           >
-            <Input placeholder={t('userManagement.pleaseInputUsername', currentLanguage)} />
+            <Input placeholder={t('userManagement.pleaseInputUsername')} />
           </Form.Item>
           
           <Form.Item
             name="email"
-            label={t('userManagement.email', currentLanguage)}
+            label={t('userManagement.email')}
             rules={[
               { required: false },
-              { type: 'email', message: t('userManagement.invalidEmail', currentLanguage) }
+              { type: 'email', message: t('userManagement.invalidEmail') }
             ]}
           >
-            <Input placeholder={t('userManagement.pleaseInputEmail', currentLanguage)} />
+            <Input placeholder={t('userManagement.pleaseInputEmail')} />
           </Form.Item>
           
           <Form.Item
             name="password"
-            label={t('userManagement.password', currentLanguage)}
+            label={t('userManagement.password')}
             rules={[
-              { required: true, message: t('userManagement.pleaseInputPassword', currentLanguage) },
-              { min: 6, message: t('userManagement.passwordMinLength', currentLanguage) }
+              { required: true, message: t('userManagement.pleaseInputPassword') },
+              { min: 6, message: t('userManagement.passwordMinLength') }
             ]}
           >
-            <Input.Password placeholder={t('userManagement.pleaseInputPassword', currentLanguage)} />
+            <Input.Password placeholder={t('userManagement.pleaseInputPassword')} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* 编辑用户弹窗 */}
       <Modal
-        title={t('userManagement.editUser', currentLanguage)}
+        title={t('userManagement.editUser')}
         open={isEditModalOpen}
         onOk={handleEditOk}
         onCancel={handleEditCancel}
-        okText={t('userManagement.confirm', currentLanguage)}
-        cancelText={t('userManagement.cancel', currentLanguage)}
+        okText={t('userManagement.confirm')}
+        cancelText={t('userManagement.cancel')}
         confirmLoading={loading}
       >
         <Form
@@ -464,36 +459,36 @@ const UserManagement = ({ currentLanguage }) => {
         >
           <Form.Item
             name="username"
-            label={t('userManagement.username', currentLanguage)}
+            label={t('userManagement.username')}
             rules={[
-              { required: true, message: t('userManagement.pleaseInputUsername', currentLanguage) },
-              { min: 3, message: t('userManagement.usernameMinLength', currentLanguage) }
+              { required: true, message: t('userManagement.pleaseInputUsername') },
+              { min: 3, message: t('userManagement.usernameMinLength') }
             ]}
           >
-            <Input placeholder={t('userManagement.pleaseInputUsername', currentLanguage)} />
+            <Input placeholder={t('userManagement.pleaseInputUsername')} />
           </Form.Item>
           
           <Form.Item
             name="email"
-            label={t('userManagement.email', currentLanguage)}
+            label={t('userManagement.email')}
             rules={[
               { required: false },
-              { type: 'email', message: t('userManagement.invalidEmail', currentLanguage) }
+              { type: 'email', message: t('userManagement.invalidEmail') }
             ]}
           >
-            <Input placeholder={t('userManagement.pleaseInputEmail', currentLanguage)} />
+            <Input placeholder={t('userManagement.pleaseInputEmail')} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* 修改密码弹窗 */}
       <Modal
-        title={t('userManagement.changePassword', currentLanguage)}
+        title={t('userManagement.changePassword')}
         open={isPasswordModalOpen}
         onOk={handlePasswordOk}
         onCancel={handlePasswordCancel}
-        okText={t('userManagement.confirm', currentLanguage)}
-        cancelText={t('userManagement.cancel', currentLanguage)}
+        okText={t('userManagement.confirm')}
+        cancelText={t('userManagement.cancel')}
         confirmLoading={loading}
       >
         <Form
@@ -502,42 +497,42 @@ const UserManagement = ({ currentLanguage }) => {
         >
           <Form.Item
             name="oldPassword"
-            label={t('userManagement.oldPassword', currentLanguage)}
+            label={t('userManagement.oldPassword')}
             rules={[
-              { required: true, message: t('userManagement.pleaseInputOldPassword', currentLanguage) }
+              { required: true, message: t('userManagement.pleaseInputOldPassword') }
             ]}
           >
-            <Input.Password placeholder={t('userManagement.pleaseInputOldPassword', currentLanguage)} />
+            <Input.Password placeholder={t('userManagement.pleaseInputOldPassword')} />
           </Form.Item>
           
           <Form.Item
             name="newPassword"
-            label={t('userManagement.newPassword', currentLanguage)}
+            label={t('userManagement.newPassword')}
             rules={[
-              { required: true, message: t('userManagement.pleaseInputNewPassword', currentLanguage) },
-              { min: 6, message: t('userManagement.passwordMinLength', currentLanguage) }
+              { required: true, message: t('userManagement.pleaseInputNewPassword') },
+              { min: 6, message: t('userManagement.passwordMinLength') }
             ]}
           >
-            <Input.Password placeholder={t('userManagement.pleaseInputNewPassword', currentLanguage)} />
+            <Input.Password placeholder={t('userManagement.pleaseInputNewPassword')} />
           </Form.Item>
           
           <Form.Item
             name="confirmPassword"
-            label={t('userManagement.confirmPassword', currentLanguage)}
+            label={t('userManagement.confirmPassword')}
             dependencies={['newPassword']}
             rules={[
-              { required: true, message: t('userManagement.pleaseConfirmPassword', currentLanguage) },
+              { required: true, message: t('userManagement.pleaseConfirmPassword') },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('newPassword') === value) {
                     return Promise.resolve()
                   }
-                  return Promise.reject(new Error(t('userManagement.passwordNotMatch', currentLanguage)))
+                  return Promise.reject(new Error(t('userManagement.passwordNotMatch')))
                 }
               })
             ]}
           >
-            <Input.Password placeholder={t('userManagement.pleaseConfirmPassword', currentLanguage)} />
+            <Input.Password placeholder={t('userManagement.pleaseConfirmPassword')} />
           </Form.Item>
         </Form>
       </Modal>

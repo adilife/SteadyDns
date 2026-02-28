@@ -21,10 +21,11 @@ import {
   SearchOutlined,
   InfoCircleOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 
-const CacheManager = ({ currentLanguage }) => {
+const CacheManager = () => {
+  const { t } = useTranslation()
   const [cacheStats, setCacheStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
@@ -38,15 +39,15 @@ const CacheManager = ({ currentLanguage }) => {
       if (response.success) {
         setCacheStats(response.data)
       } else {
-        message.error(response.message || t('cachemanager.fetchError', currentLanguage))
+        message.error(response.message || t('cachemanager.fetchError'))
       }
     } catch (error) {
       console.error('Error loading cache stats:', error)
-      message.error(t('cachemanager.fetchError', currentLanguage))
+      message.error(t('cachemanager.fetchError'))
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage])
+  }, [t])
 
   // Load cache stats on component mount
   useEffect(() => {
@@ -67,14 +68,14 @@ const CacheManager = ({ currentLanguage }) => {
     try {
       const response = await apiClient.clearCache()
       if (response.success) {
-        message.success(response.message || t('cachemanager.clearSuccess', currentLanguage))
+        message.success(response.message || t('cachemanager.clearSuccess'))
         loadCacheStats()
       } else {
-        message.error(response.message || t('cachemanager.clearError', currentLanguage))
+        message.error(response.message || t('cachemanager.clearError'))
       }
     } catch (error) {
       console.error('Error clearing cache:', error)
-      message.error(t('cachemanager.clearError', currentLanguage))
+      message.error(t('cachemanager.clearError'))
     } finally {
       setClearLoading(false)
     }
@@ -83,7 +84,7 @@ const CacheManager = ({ currentLanguage }) => {
   // Clear cache for specific domain
   const clearDomainCache = async () => {
     if (!testDomain.trim()) {
-      message.warning(t('cachemanager.domainRequired', currentLanguage))
+      message.warning(t('cachemanager.domainRequired'))
       return
     }
 
@@ -91,15 +92,15 @@ const CacheManager = ({ currentLanguage }) => {
     try {
       const response = await apiClient.clearCache(testDomain)
       if (response.success) {
-        message.success(response.message || t('cachemanager.clearDomainSuccess', currentLanguage))
+        message.success(response.message || t('cachemanager.clearDomainSuccess'))
         loadCacheStats()
         setTestDomain('')
       } else {
-        message.error(response.message || t('cachemanager.clearDomainError', currentLanguage))
+        message.error(response.message || t('cachemanager.clearDomainError'))
       }
     } catch (error) {
       console.error('Error clearing domain cache:', error)
-      message.error(t('cachemanager.clearDomainError', currentLanguage))
+      message.error(t('cachemanager.clearDomainError'))
     } finally {
       setClearLoading(false)
     }
@@ -118,7 +119,7 @@ const CacheManager = ({ currentLanguage }) => {
         <h2>
           <Space>
             <DatabaseOutlined />
-            {t('cachemanager.title', currentLanguage)}
+            {t('cachemanager.title')}
           </Space>
         </h2>
         <Button
@@ -126,7 +127,7 @@ const CacheManager = ({ currentLanguage }) => {
           onClick={loadCacheStats}
           loading={loading}
         >
-          {t('cachemanager.refresh', currentLanguage)}
+          {t('cachemanager.refresh')}
         </Button>
       </div>
 
@@ -137,7 +138,7 @@ const CacheManager = ({ currentLanguage }) => {
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('cachemanager.totalItems', currentLanguage)}
+                  title={t('cachemanager.totalItems')}
                   variant="outlined"
                   hoverable
                 >
@@ -149,7 +150,7 @@ const CacheManager = ({ currentLanguage }) => {
               </Col>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('cachemanager.hitCount', currentLanguage)}
+                  title={t('cachemanager.hitCount')}
                   variant="outlined"
                   hoverable
                 >
@@ -161,7 +162,7 @@ const CacheManager = ({ currentLanguage }) => {
               </Col>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('cachemanager.missCount', currentLanguage)}
+                  title={t('cachemanager.missCount')}
                   variant="outlined"
                   hoverable
                 >
@@ -174,7 +175,7 @@ const CacheManager = ({ currentLanguage }) => {
             </Row>
 
             {/* Cache Hit Rate */}
-            <Card title={t('cachemanager.hitRate', currentLanguage)} style={{ marginBottom: 24 }}>
+            <Card title={t('cachemanager.hitRate')} style={{ marginBottom: 24 }}>
               <div style={{ marginBottom: 16 }}>
                 <Progress
                   percent={cacheStats.hitRate.toFixed(1)}
@@ -185,13 +186,13 @@ const CacheManager = ({ currentLanguage }) => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-around' }}>
                 <Statistic
-                  title={t('cachemanager.hitRate', currentLanguage)}
+                  title={t('cachemanager.hitRate')}
                   value={cacheStats.hitRate.toFixed(1)}
                   suffix="%"
                   styles={{ content: { color: '#52c41a' } }}
                 />
                 <Statistic
-                  title={t('cachemanager.missRate', currentLanguage)}
+                  title={t('cachemanager.missRate')}
                   value={(100 - cacheStats.hitRate).toFixed(1)}
                   suffix="%"
                   styles={{ content: { color: '#ff4d4f' } }}
@@ -200,10 +201,10 @@ const CacheManager = ({ currentLanguage }) => {
             </Card>
 
             {/* Cache Management */}
-            <Card title={t('cachemanager.management', currentLanguage)} style={{ marginBottom: 24 }}>
+            <Card title={t('cachemanager.management')} style={{ marginBottom: 24 }}>
               <Alert
-                title={t('cachemanager.warning', currentLanguage)}
-                description={t('cachemanager.clearWarning', currentLanguage)}
+                title={t('cachemanager.warning')}
+                description={t('cachemanager.clearWarning')}
                 type="warning"
                 showIcon
                 style={{ marginBottom: 16 }}
@@ -211,7 +212,7 @@ const CacheManager = ({ currentLanguage }) => {
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={16}>
                   <Input
-                    placeholder={t('cachemanager.domainPlaceholder', currentLanguage)}
+                    placeholder={t('cachemanager.domainPlaceholder')}
                     value={testDomain}
                     onChange={(e) => setTestDomain(e.target.value)}
                     onPressEnter={clearDomainCache}
@@ -227,7 +228,7 @@ const CacheManager = ({ currentLanguage }) => {
                       loading={clearLoading}
                       style={{ flex: 1 }}
                     >
-                      {t('cachemanager.clearDomain', currentLanguage)}
+                      {t('cachemanager.clearDomain')}
                     </Button>
                     <Button
                       danger
@@ -236,7 +237,7 @@ const CacheManager = ({ currentLanguage }) => {
                       loading={clearLoading}
                       style={{ flex: 1 }}
                     >
-                      {t('cachemanager.clearAll', currentLanguage)}
+                      {t('cachemanager.clearAll')}
                     </Button>
                   </Space>
                 </Col>
@@ -244,42 +245,42 @@ const CacheManager = ({ currentLanguage }) => {
             </Card>
 
             {/* Cache Details */}
-            <Card title={t('cachemanager.details', currentLanguage)} style={{ marginBottom: 24 }}>
+            <Card title={t('cachemanager.details')} style={{ marginBottom: 24 }}>
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title={t('cachemanager.currentSize', currentLanguage)}
+                    title={t('cachemanager.currentSize')}
                     value={formatCacheSize(cacheStats.currentSize || 0)}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title={t('cachemanager.maxSize', currentLanguage)}
+                    title={t('cachemanager.maxSize')}
                     value={formatCacheSize(cacheStats.maxSize || 0)}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title={t('cachemanager.usagePercent', currentLanguage)}
+                    title={t('cachemanager.usagePercent')}
                     value={(cacheStats.usagePercent || 0).toFixed(2)}
                     suffix="%"
                   />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title={t('cachemanager.cleanupCount', currentLanguage)}
+                    title={t('cachemanager.cleanupCount')}
                     value={cacheStats.cleanupCount || 0}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title={t('cachemanager.evictionCount', currentLanguage)}
+                    title={t('cachemanager.evictionCount')}
                     value={cacheStats.evictionCount || 0}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
-                    title={t('cachemanager.totalRequests', currentLanguage)}
+                    title={t('cachemanager.totalRequests')}
                     value={cacheStats.totalRequests || 0}
                   />
                 </Col>
@@ -287,10 +288,10 @@ const CacheManager = ({ currentLanguage }) => {
             </Card>
 
             {/* Cache Information */}
-            <Card title={t('cachemanager.information', currentLanguage)}>
+            <Card title={t('cachemanager.information')}>
               <Alert
-                title={t('cachemanager.infoMessage', currentLanguage)}
-                description={t('cachemanager.infoDescription', currentLanguage)}
+                title={t('cachemanager.infoMessage')}
+                description={t('cachemanager.infoDescription')}
                 type="info"
                 showIcon
               />
@@ -298,8 +299,8 @@ const CacheManager = ({ currentLanguage }) => {
           </>
         ) : (
           <Alert
-            title={t('cachemanager.loading', currentLanguage)}
-            description={t('cachemanager.loadingDescription', currentLanguage)}
+            title={t('cachemanager.loading')}
+            description={t('cachemanager.loadingDescription')}
             type="info"
             showIcon
           />

@@ -23,12 +23,13 @@ import {
   SettingOutlined,
   RollbackOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 
 const { Option } = Select
 
-const Settings = ({ currentLanguage, userInfo }) => {
+const Settings = ({ userInfo }) => {
+  const { t } = useTranslation()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [initialConfig, setInitialConfig] = useState(null)
@@ -429,14 +430,14 @@ const Settings = ({ currentLanguage, userInfo }) => {
         
         // If no changes, show message and return
         if (changedCount === 0) {
-          message.info(t('settings.noChanges', currentLanguage))
+          message.info(t('settings.noChanges'))
           return
         }
         
         // Show confirmation modal
         setConfirmModalVisible(true)
       }).catch(() => {
-        message.error(t('settings.pleaseCheckFormFields', currentLanguage))
+        message.error(t('settings.pleaseCheckFormFields'))
       })
   }
 
@@ -471,8 +472,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
           await apiClient.controlServer('restart', 'sdnsd')
           
           // Show success message with changed count
-          message.success(`${t('settings.settingsSaved', currentLanguage)} (${changedCount} ${t('settings.fieldsChanged', currentLanguage)})`)
-          message.success(t('settings.servicesRestarted', currentLanguage))
+          message.success(`${t('settings.settingsSaved')} (${changedCount} ${t('settings.fieldsChanged')})`)
+          message.success(t('settings.servicesRestarted'))
           
           // Update initial config with new values
           setInitialConfig(values)
@@ -481,12 +482,12 @@ const Settings = ({ currentLanguage, userInfo }) => {
           setConfirmModalVisible(false)
         } catch (error) {
           console.error('Error saving settings:', error)
-          message.error(t('settings.saveError', currentLanguage))
+          message.error(t('settings.saveError'))
         } finally {
           setLoading(false)
         }
       }).catch(() => {
-        message.error(t('settings.pleaseCheckFormFields', currentLanguage))
+        message.error(t('settings.pleaseCheckFormFields'))
       })
   }
 
@@ -515,14 +516,14 @@ const Settings = ({ currentLanguage, userInfo }) => {
       // Restart DNS server
       await apiClient.controlServer('restart', 'sdnsd')
       
-      message.success(t('settings.settingsReset', currentLanguage))
-      message.success(t('settings.servicesRestarted', currentLanguage))
+      message.success(t('settings.settingsReset'))
+      message.success(t('settings.servicesRestarted'))
       
       // Close confirmation modal
       setResetModalVisible(false)
     } catch (error) {
       console.error('Error resetting settings:', error)
-      message.error(t('settings.resetError', currentLanguage))
+      message.error(t('settings.resetError'))
     } finally {
       setLoading(false)
     }
@@ -575,10 +576,10 @@ const Settings = ({ currentLanguage, userInfo }) => {
       setLoading(true)
       await apiClient.reloadConfig()
       await loadConfig()
-      message.success(t('settings.settingsReloaded', currentLanguage))
+      message.success(t('settings.settingsReloaded'))
     } catch (error) {
       console.error('Error reloading settings:', error)
-      message.error(t('settings.reloadError', currentLanguage))
+      message.error(t('settings.reloadError'))
     } finally {
       setLoading(false)
     }
@@ -587,7 +588,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <h2>{t('settings.title', currentLanguage)}</h2>
+        <h2>{t('settings.title')}</h2>
       </div>
 
       <Space style={{ width: '100%', justifyContent: 'flex-end', marginBottom: 16 }}>
@@ -595,13 +596,13 @@ const Settings = ({ currentLanguage, userInfo }) => {
           icon={<RollbackOutlined />}
           onClick={handleReset}
         >
-          {t('settings.reset', currentLanguage)}
+          {t('settings.reset')}
         </Button>
         <Button
           icon={<ReloadOutlined />}
           onClick={handleReload}
         >
-          {t('settings.reload', currentLanguage)}
+          {t('settings.reload')}
         </Button>
         <Button
           type="primary"
@@ -609,7 +610,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           onClick={handleSave}
           loading={loading}
         >
-          {t('settings.saveSettings', currentLanguage)}
+          {t('settings.saveSettings')}
         </Button>
       </Space>
 
@@ -623,14 +624,14 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SettingOutlined />
-              {t('settings.pluginsConfig', currentLanguage)}
+              {t('settings.pluginsConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
           collapsible="true"
         >
           <Alert
-            title={t('settings.pluginsConfigNotice', currentLanguage)}
+            title={t('settings.pluginsConfigNotice')}
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
@@ -638,27 +639,27 @@ const Settings = ({ currentLanguage, userInfo }) => {
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Form.Item
             name={['Plugins', 'BIND_ENABLED']}
-            label={t('settings.bindEnabled', currentLanguage)}
+            label={t('settings.bindEnabled')}
             valuePropName="checked"
-            tooltip={t('settings.bindEnabledTooltip', currentLanguage)}
+            tooltip={t('settings.bindEnabledTooltip')}
           >
             <Switch />
           </Form.Item>
           
           <Form.Item
             name={['Plugins', 'DNS_RULES_ENABLED']}
-            label="DNS Rules Plugin"
+            label={t('plugins.dnsRulesPlugin')}
             valuePropName="checked"
-            tooltip="DNS query rules management - Restart the service for changes to take effect"
+            tooltip={t('plugins.dnsRulesPluginTooltip')}
           >
             <Switch disabled />
           </Form.Item>
           
           <Form.Item
             name={['Plugins', 'LOG_ANALYSIS_ENABLED']}
-            label="Log Analysis Plugin"
+            label={t('plugins.logAnalysisPlugin')}
             valuePropName="checked"
-            tooltip="DNS query log analysis - Restart the service for changes to take effect"
+            tooltip={t('plugins.logAnalysisPluginTooltip')}
           >
             <Switch disabled />
           </Form.Item>
@@ -670,7 +671,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SettingOutlined />
-              {t('settings.apiConfig', currentLanguage)}
+              {t('settings.apiConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -679,36 +680,36 @@ const Settings = ({ currentLanguage, userInfo }) => {
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Form.Item
               name={['API', 'LOG_ENABLED']}
-              label={t('settings.logEnabled', currentLanguage)}
+              label={t('settings.logEnabled')}
               valuePropName="checked"
-              tooltip={t('settings.logEnabledTooltip', currentLanguage)}
+              tooltip={t('settings.logEnabledTooltip')}
             >
               <Switch />
             </Form.Item>
 
             <Form.Item
               name={['API', 'RATE_LIMIT_ENABLED']}
-              label={t('settings.rateLimitEnabled', currentLanguage)}
+              label={t('settings.rateLimitEnabled')}
               valuePropName="checked"
-              tooltip={t('settings.rateLimitEnabledTooltip', currentLanguage)}
+              tooltip={t('settings.rateLimitEnabledTooltip')}
             >
               <Switch />
             </Form.Item>
 
             <Form.Item
               name={['API', 'LOG_REQUEST_BODY']}
-              label={t('settings.logRequestBody', currentLanguage)}
+              label={t('settings.logRequestBody')}
               valuePropName="checked"
-              tooltip={t('settings.logRequestBodyTooltip', currentLanguage)}
+              tooltip={t('settings.logRequestBodyTooltip')}
             >
               <Switch />
             </Form.Item>
 
             <Form.Item
               name={['API', 'LOG_RESPONSE_BODY']}
-              label={t('settings.logResponseBody', currentLanguage)}
+              label={t('settings.logResponseBody')}
               valuePropName="checked"
-              tooltip={t('settings.logResponseBodyTooltip', currentLanguage)}
+              tooltip={t('settings.logResponseBodyTooltip')}
             >
               <Switch />
             </Form.Item>
@@ -716,8 +717,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
           <Form.Item
             name={['API', 'LOG_LEVEL']}
-            label={t('settings.logLevel', currentLanguage)}
-            tooltip={t('settings.logLevelTooltip', currentLanguage)}
+            label={t('settings.logLevel')}
+            tooltip={t('settings.logLevelTooltip')}
             hidden={true}
           >
             <Select style={{ width: '100%' }}>
@@ -730,21 +731,21 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
           {/* Rate Limit Configuration */}
           <Card
-            title={t('settings.rateLimitConfig', currentLanguage)}
+            title={t('settings.rateLimitConfig')}
             style={{ marginBottom: 16 }}
             collapsible="true"
           >
             {/* Basic Rate Limits */}
             <Card
-              title={t('settings.basicRateLimits', currentLanguage)}
+              title={t('settings.basicRateLimits')}
               style={{ marginBottom: 16 }}
               size="small"
             >
               <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                 <Form.Item
                   name={['API', 'RATE_LIMIT_API']}
-                  label={t('settings.rateLimitApi', currentLanguage)}
-                  tooltip={t('settings.rateLimitApiTooltip', currentLanguage)}
+                  label={t('settings.rateLimitApi')}
+                  tooltip={t('settings.rateLimitApiTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={1000} style={{ width: '100%' }} />
@@ -752,8 +753,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_LOGIN']}
-                  label={t('settings.rateLimitLogin', currentLanguage)}
-                  tooltip={t('settings.rateLimitLoginTooltip', currentLanguage)}
+                  label={t('settings.rateLimitLogin')}
+                  tooltip={t('settings.rateLimitLoginTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={200} style={{ width: '100%' }} />
@@ -761,8 +762,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_REFRESH']}
-                  label={t('settings.rateLimitRefresh', currentLanguage)}
-                  tooltip={t('settings.rateLimitRefreshTooltip', currentLanguage)}
+                  label={t('settings.rateLimitRefresh')}
+                  tooltip={t('settings.rateLimitRefreshTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={50} style={{ width: '100%' }} />
@@ -770,8 +771,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_HEALTH']}
-                  label={t('settings.rateLimitHealth', currentLanguage)}
-                  tooltip={t('settings.rateLimitHealthTooltip', currentLanguage)}
+                  label={t('settings.rateLimitHealth')}
+                  tooltip={t('settings.rateLimitHealthTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={100} max={2000} style={{ width: '100%' }} />
@@ -779,8 +780,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_USER']}
-                  label={t('settings.rateLimitUser', currentLanguage)}
-                  tooltip={t('settings.rateLimitUserTooltip', currentLanguage)}
+                  label={t('settings.rateLimitUser')}
+                  tooltip={t('settings.rateLimitUserTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={100} max={2000} style={{ width: '100%' }} />
@@ -788,8 +789,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_WINDOW_SECONDS']}
-                  label={t('settings.rateLimitWindowSeconds', currentLanguage)}
-                  tooltip={t('settings.rateLimitWindowSecondsTooltip', currentLanguage)}
+                  label={t('settings.rateLimitWindowSeconds')}
+                  tooltip={t('settings.rateLimitWindowSecondsTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={300} style={{ width: '100%' }} />
@@ -799,15 +800,15 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
             {/* Failure Limits */}
             <Card
-              title={t('settings.failureLimits', currentLanguage)}
+              title={t('settings.failureLimits')}
               style={{ marginBottom: 16 }}
               size="small"
             >
               <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                 <Form.Item
                   name={['API', 'RATE_LIMIT_MAX_FAILURES']}
-                  label={t('settings.rateLimitMaxFailures', currentLanguage)}
-                  tooltip={t('settings.rateLimitMaxFailuresTooltip', currentLanguage)}
+                  label={t('settings.rateLimitMaxFailures')}
+                  tooltip={t('settings.rateLimitMaxFailuresTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={50} style={{ width: '100%' }} />
@@ -815,8 +816,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_LOGIN_MAX_FAILURES']}
-                  label={t('settings.rateLimitLoginMaxFailures', currentLanguage)}
-                  tooltip={t('settings.rateLimitLoginMaxFailuresTooltip', currentLanguage)}
+                  label={t('settings.rateLimitLoginMaxFailures')}
+                  tooltip={t('settings.rateLimitLoginMaxFailuresTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={50} style={{ width: '100%' }} />
@@ -824,8 +825,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_REFRESH_MAX_FAILURES']}
-                  label={t('settings.rateLimitRefreshMaxFailures', currentLanguage)}
-                  tooltip={t('settings.rateLimitRefreshMaxFailuresTooltip', currentLanguage)}
+                  label={t('settings.rateLimitRefreshMaxFailures')}
+                  tooltip={t('settings.rateLimitRefreshMaxFailuresTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={20} style={{ width: '100%' }} />
@@ -833,8 +834,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_HEALTH_MAX_FAILURES']}
-                  label={t('settings.rateLimitHealthMaxFailures', currentLanguage)}
-                  tooltip={t('settings.rateLimitHealthMaxFailuresTooltip', currentLanguage)}
+                  label={t('settings.rateLimitHealthMaxFailures')}
+                  tooltip={t('settings.rateLimitHealthMaxFailuresTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={100} style={{ width: '100%' }} />
@@ -842,8 +843,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_USER_MAX_FAILURES']}
-                  label={t('settings.rateLimitUserMaxFailures', currentLanguage)}
-                  tooltip={t('settings.rateLimitUserMaxFailuresTooltip', currentLanguage)}
+                  label={t('settings.rateLimitUserMaxFailures')}
+                  tooltip={t('settings.rateLimitUserMaxFailuresTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={100} style={{ width: '100%' }} />
@@ -853,14 +854,14 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
             {/* Ban Durations */}
             <Card
-              title={t('settings.banDurations', currentLanguage)}
+              title={t('settings.banDurations')}
               size="small"
             >
               <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                 <Form.Item
                   name={['API', 'RATE_LIMIT_BAN_MINUTES']}
-                  label={t('settings.rateLimitBanMinutes', currentLanguage)}
-                  tooltip={t('settings.rateLimitBanMinutesTooltip', currentLanguage)}
+                  label={t('settings.rateLimitBanMinutes')}
+                  tooltip={t('settings.rateLimitBanMinutesTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={60} style={{ width: '100%' }} />
@@ -868,8 +869,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_LOGIN_BAN_MINUTES']}
-                  label={t('settings.rateLimitLoginBanMinutes', currentLanguage)}
-                  tooltip={t('settings.rateLimitLoginBanMinutesTooltip', currentLanguage)}
+                  label={t('settings.rateLimitLoginBanMinutes')}
+                  tooltip={t('settings.rateLimitLoginBanMinutesTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={60} style={{ width: '100%' }} />
@@ -877,8 +878,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_REFRESH_BAN_MINUTES']}
-                  label={t('settings.rateLimitRefreshBanMinutes', currentLanguage)}
-                  tooltip={t('settings.rateLimitRefreshBanMinutesTooltip', currentLanguage)}
+                  label={t('settings.rateLimitRefreshBanMinutes')}
+                  tooltip={t('settings.rateLimitRefreshBanMinutesTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={60} style={{ width: '100%' }} />
@@ -886,8 +887,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_HEALTH_BAN_MINUTES']}
-                  label={t('settings.rateLimitHealthBanMinutes', currentLanguage)}
-                  tooltip={t('settings.rateLimitHealthBanMinutesTooltip', currentLanguage)}
+                  label={t('settings.rateLimitHealthBanMinutes')}
+                  tooltip={t('settings.rateLimitHealthBanMinutesTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={60} style={{ width: '100%' }} />
@@ -895,8 +896,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
                 <Form.Item
                   name={['API', 'RATE_LIMIT_USER_BAN_MINUTES']}
-                  label={t('settings.rateLimitUserBanMinutes', currentLanguage)}
-                  tooltip={t('settings.rateLimitUserBanMinutesTooltip', currentLanguage)}
+                  label={t('settings.rateLimitUserBanMinutes')}
+                  tooltip={t('settings.rateLimitUserBanMinutesTooltip')}
                   style={{ minWidth: 300 }}
                 >
                   <InputNumber min={1} max={60} style={{ width: '100%' }} />
@@ -911,7 +912,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SettingOutlined />
-              {t('settings.apiServerConfig', currentLanguage)}
+              {t('settings.apiServerConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -919,34 +920,34 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['APIServer', 'API_SERVER_PORT']}
-            label={t('settings.apiServerPort', currentLanguage)}
-            rules={[{ required: true, message: t('settings.pleaseInputPort', currentLanguage) }]}
-            tooltip={t('settings.apiServerPortTooltip', currentLanguage)}
+            label={t('settings.apiServerPort')}
+            rules={[{ required: true, message: t('settings.pleaseInputPort') }]}
+            tooltip={t('settings.apiServerPortTooltip')}
           >
             <InputNumber min={1} max={65535} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['APIServer', 'API_SERVER_IP_ADDR']}
-            label={t('settings.apiServerIpAddr', currentLanguage)}
-            rules={[{ required: true, message: t('settings.pleaseInputIpv4Address', currentLanguage) }]}
-            tooltip={t('settings.apiServerIpAddrTooltip', currentLanguage)}
+            label={t('settings.apiServerIpAddr')}
+            rules={[{ required: true, message: t('settings.pleaseInputIpv4Address') }]}
+            tooltip={t('settings.apiServerIpAddrTooltip')}
           >
-            <Input placeholder="例如：0.0.0.0 表示所有接口" />
+            <Input placeholder={t('placeholders.allInterfaces')} />
           </Form.Item>
 
           <Form.Item
             name={['APIServer', 'API_SERVER_IPV6_ADDR']}
-            label={t('settings.apiServerIpv6Addr', currentLanguage)}
-            tooltip={t('settings.apiServerIpv6AddrTooltip', currentLanguage)}
+            label={t('settings.apiServerIpv6Addr')}
+            tooltip={t('settings.apiServerIpv6AddrTooltip')}
           >
-            <Input placeholder={currentLanguage === 'zh-CN' ? '例如：:: 表示所有接口' : 'e.g.: :: for all interfaces'} />
+            <Input placeholder={t('placeholders.allInterfacesIpv6')} />
           </Form.Item>
 
           <Form.Item
             name={['APIServer', 'GIN_MODE']}
-            label={t('settings.ginMode', currentLanguage)}
-            tooltip={t('settings.ginModeTooltip', currentLanguage)}
+            label={t('settings.ginMode')}
+            tooltip={t('settings.ginModeTooltip')}
           >
             <Select style={{ width: '100%' }}>
               <Option value="debug">debug</Option>
@@ -960,7 +961,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SettingOutlined />
-              {t('settings.bindServerConfig', currentLanguage)}
+              {t('settings.bindServerConfig')}
             </Space>
           }
           style={{ marginBottom: 16, display: bindEnabled ? 'block' : 'none' }}
@@ -968,96 +969,96 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['BIND', 'BIND_ADDRESS']}
-            label={t('settings.bindAddress', currentLanguage)}
-            tooltip={t('settings.bindAddressTooltip', currentLanguage)}
+            label={t('settings.bindAddress')}
+            tooltip={t('settings.bindAddressTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'RNDC_KEY']}
-            label={t('settings.rndcKey', currentLanguage)}
-            tooltip={t('settings.rndcKeyTooltip', currentLanguage)}
+            label={t('settings.rndcKey')}
+            tooltip={t('settings.rndcKeyTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'ZONE_FILE_PATH']}
-            label={t('settings.zoneFilePath', currentLanguage)}
-            tooltip={t('settings.zoneFilePathTooltip', currentLanguage)}
+            label={t('settings.zoneFilePath')}
+            tooltip={t('settings.zoneFilePathTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'NAMED_CONF_PATH']}
-            label={t('settings.namedConfPath', currentLanguage)}
-            tooltip={t('settings.namedConfPathTooltip', currentLanguage)}
+            label={t('settings.namedConfPath')}
+            tooltip={t('settings.namedConfPathTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'RNDC_PORT']}
-            label={t('settings.rndcPort', currentLanguage)}
-            tooltip={t('settings.rndcPortTooltip', currentLanguage)}
+            label={t('settings.rndcPort')}
+            tooltip={t('settings.rndcPortTooltip')}
           >
             <InputNumber min={1} max={65535} style={{ width: '100%' }} disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_USER']}
-            label={t('settings.bindUser', currentLanguage)}
-            tooltip={t('settings.bindUserTooltip', currentLanguage)}
+            label={t('settings.bindUser')}
+            tooltip={t('settings.bindUserTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_GROUP']}
-            label={t('settings.bindGroup', currentLanguage)}
-            tooltip={t('settings.bindGroupTooltip', currentLanguage)}
+            label={t('settings.bindGroup')}
+            tooltip={t('settings.bindGroupTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_EXEC_START']}
-            label={t('settings.bindExecStart', currentLanguage)}
-            tooltip={t('settings.bindExecStartTooltip', currentLanguage)}
+            label={t('settings.bindExecStart')}
+            tooltip={t('settings.bindExecStartTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_EXEC_RELOAD']}
-            label={t('settings.bindExecReload', currentLanguage)}
-            tooltip={t('settings.bindExecReloadTooltip', currentLanguage)}
+            label={t('settings.bindExecReload')}
+            tooltip={t('settings.bindExecReloadTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_EXEC_STOP']}
-            label={t('settings.bindExecStop', currentLanguage)}
-            tooltip={t('settings.bindExecStopTooltip', currentLanguage)}
+            label={t('settings.bindExecStop')}
+            tooltip={t('settings.bindExecStopTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_CHECKCONF_PATH']}
-            label={t('settings.bindCheckconfPath', currentLanguage)}
-            tooltip={t('settings.bindCheckconfPathTooltip', currentLanguage)}
+            label={t('settings.bindCheckconfPath')}
+            tooltip={t('settings.bindCheckconfPathTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
 
           <Form.Item
             name={['BIND', 'BIND_CHECKZONE_PATH']}
-            label={t('settings.bindCheckzonePath', currentLanguage)}
-            tooltip={t('settings.bindCheckzonePathTooltip', currentLanguage)}
+            label={t('settings.bindCheckzonePath')}
+            tooltip={t('settings.bindCheckzonePathTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
@@ -1068,7 +1069,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <DatabaseOutlined />
-              {t('settings.cacheConfig', currentLanguage)}
+              {t('settings.cacheConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -1076,24 +1077,24 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['Cache', 'DNS_CACHE_SIZE_MB']}
-            label={t('settings.dnsCacheSizeMb', currentLanguage)}
-            tooltip={t('settings.dnsCacheSizeMbTooltip', currentLanguage)}
+            label={t('settings.dnsCacheSizeMb')}
+            tooltip={t('settings.dnsCacheSizeMbTooltip')}
           >
             <InputNumber min={1} max={10000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['Cache', 'DNS_CACHE_CLEANUP_INTERVAL']}
-            label={t('settings.dnsCacheCleanupInterval', currentLanguage)}
-            tooltip={t('settings.dnsCacheCleanupIntervalTooltip', currentLanguage)}
+            label={t('settings.dnsCacheCleanupInterval')}
+            tooltip={t('settings.dnsCacheCleanupIntervalTooltip')}
           >
             <InputNumber min={1} max={3600} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['Cache', 'DNS_CACHE_ERROR_TTL']}
-            label={t('settings.dnsCacheErrorTtl', currentLanguage)}
-            tooltip={t('settings.dnsCacheErrorTtlTooltip', currentLanguage)}
+            label={t('settings.dnsCacheErrorTtl')}
+            tooltip={t('settings.dnsCacheErrorTtlTooltip')}
           >
             <InputNumber min={1} max={86400} style={{ width: '100%' }} />
           </Form.Item>
@@ -1104,7 +1105,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SettingOutlined />
-              {t('settings.dnsConfig', currentLanguage)}
+              {t('settings.dnsConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -1112,24 +1113,24 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['DNS', 'DNS_CLIENT_WORKERS']}
-            label={t('settings.dnsClientWorkers', currentLanguage)}
-            tooltip={t('settings.dnsClientWorkersTooltip', currentLanguage)}
+            label={t('settings.dnsClientWorkers')}
+            tooltip={t('settings.dnsClientWorkersTooltip')}
           >
             <InputNumber min={100} max={100000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['DNS', 'DNS_QUEUE_MULTIPLIER']}
-            label={t('settings.dnsQueueMultiplier', currentLanguage)}
-            tooltip={t('settings.dnsQueueMultiplierTooltip', currentLanguage)}
+            label={t('settings.dnsQueueMultiplier')}
+            tooltip={t('settings.dnsQueueMultiplierTooltip')}
           >
             <InputNumber min={1} max={10} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['DNS', 'DNS_PRIORITY_TIMEOUT_MS']}
-            label={t('settings.dnsPriorityTimeoutMs', currentLanguage)}
-            tooltip={t('settings.dnsPriorityTimeoutMsTooltip', currentLanguage)}
+            label={t('settings.dnsPriorityTimeoutMs')}
+            tooltip={t('settings.dnsPriorityTimeoutMsTooltip')}
           >
             <InputNumber min={1} max={1000} style={{ width: '100%' }} />
           </Form.Item>
@@ -1140,7 +1141,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <DatabaseOutlined />
-              {t('settings.databaseConfig', currentLanguage)}
+              {t('settings.databaseConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -1148,8 +1149,8 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['Database', 'DB_PATH']}
-            label={t('settings.dbPath', currentLanguage)}
-            tooltip={t('settings.dbPathTooltip', currentLanguage)}
+            label={t('settings.dbPath')}
+            tooltip={t('settings.dbPathTooltip')}
           >
             <Input disabled={true} />
           </Form.Item>
@@ -1160,7 +1161,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SafetyOutlined />
-              {t('settings.jwtConfig', currentLanguage)}
+              {t('settings.jwtConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -1170,42 +1171,42 @@ const Settings = ({ currentLanguage, userInfo }) => {
             name={['JWT', 'JWT_SECRET_KEY']}
             label={
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span>{t('settings.jwtSecretKey', currentLanguage)}</span>
+                <span>{t('settings.jwtSecretKey')}</span>
                 <Button
                   type="default"
                   size="small"
                   onClick={handleGenerateKeyModalOpen}
                   style={{ marginLeft: 8 }}
                 >
-                  生成随机密钥
+                  {t('jwt.generateRandomKey')}
                 </Button>
               </div>
             }
-            tooltip={t('settings.jwtSecretKeyTooltip', currentLanguage)}
+            tooltip={t('settings.jwtSecretKeyTooltip')}
           >
             <Input />
           </Form.Item>
 
           <Form.Item
             name={['JWT', 'ACCESS_TOKEN_EXPIRATION']}
-            label={t('settings.accessTokenExpiration', currentLanguage)}
-            tooltip={t('settings.accessTokenExpirationTooltip', currentLanguage)}
+            label={t('settings.accessTokenExpiration')}
+            tooltip={t('settings.accessTokenExpirationTooltip')}
           >
             <InputNumber min={1} max={1440} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['JWT', 'REFRESH_TOKEN_EXPIRATION']}
-            label={t('settings.refreshTokenExpiration', currentLanguage)}
-            tooltip={t('settings.refreshTokenExpirationTooltip', currentLanguage)}
+            label={t('settings.refreshTokenExpiration')}
+            tooltip={t('settings.refreshTokenExpirationTooltip')}
           >
             <InputNumber min={1} max={365} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['JWT', 'JWT_ALGORITHM']}
-            label={t('settings.jwtAlgorithm', currentLanguage)}
-            tooltip={t('settings.jwtAlgorithmTooltip', currentLanguage)}
+            label={t('settings.jwtAlgorithm')}
+            tooltip={t('settings.jwtAlgorithmTooltip')}
           >
             <Select style={{ width: '100%' }} disabled={true}>
               <Option value="HS256">HS256</Option>
@@ -1220,7 +1221,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SettingOutlined />
-              {t('settings.loggingConfig', currentLanguage)}
+              {t('settings.loggingConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -1228,16 +1229,16 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['Logging', 'QUERY_LOG_PATH']}
-            label={t('settings.queryLogPath', currentLanguage)}
-            tooltip={t('settings.queryLogPathTooltip', currentLanguage)}
+            label={t('settings.queryLogPath')}
+            tooltip={t('settings.queryLogPathTooltip')}
           >
             <Input />
           </Form.Item>
 
           <Form.Item
             name={['Logging', 'DNS_LOG_LEVEL']}
-            label={t('settings.dnsLogLevel', currentLanguage)}
-            tooltip={t('settings.dnsLogLevelTooltip', currentLanguage)}
+            label={t('settings.dnsLogLevel')}
+            tooltip={t('settings.dnsLogLevelTooltip')}
             hidden={true}
           >
             <Select style={{ width: '100%' }}>
@@ -1251,16 +1252,16 @@ const Settings = ({ currentLanguage, userInfo }) => {
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Form.Item
               name={['Logging', 'QUERY_LOG_MAX_SIZE']}
-              label={t('settings.queryLogMaxSize', currentLanguage)}
-              tooltip={t('settings.queryLogMaxSizeTooltip', currentLanguage)}
+              label={t('settings.queryLogMaxSize')}
+              tooltip={t('settings.queryLogMaxSizeTooltip')}
             >
               <InputNumber min={1} max={1000} style={{ width: 150 }} />
             </Form.Item>
 
             <Form.Item
               name={['Logging', 'QUERY_LOG_MAX_FILES']}
-              label={t('settings.queryLogMaxFiles', currentLanguage)}
-              tooltip={t('settings.queryLogMaxFilesTooltip', currentLanguage)}
+              label={t('settings.queryLogMaxFiles')}
+              tooltip={t('settings.queryLogMaxFilesTooltip')}
             >
               <InputNumber min={1} max={100} style={{ width: 150 }} />
             </Form.Item>
@@ -1272,7 +1273,7 @@ const Settings = ({ currentLanguage, userInfo }) => {
           title={
             <Space>
               <SafetyOutlined />
-              {t('settings.securityConfig', currentLanguage)}
+              {t('settings.securityConfig')}
             </Space>
           }
           style={{ marginBottom: 16 }}
@@ -1280,41 +1281,41 @@ const Settings = ({ currentLanguage, userInfo }) => {
         >
           <Form.Item
             name={['Security', 'DNS_VALIDATION_ENABLED']}
-            label={t('settings.dnsValidationEnabled', currentLanguage)}
+            label={t('settings.dnsValidationEnabled')}
             valuePropName="checked"
-            tooltip={t('settings.dnsValidationEnabledTooltip', currentLanguage)}
+            tooltip={t('settings.dnsValidationEnabledTooltip')}
           >
             <Switch />
           </Form.Item>
 
           <Form.Item
             name={['Security', 'DNS_RATE_LIMIT_PER_IP']}
-            label={t('settings.dnsRateLimitPerIp', currentLanguage)}
-            tooltip={t('settings.dnsRateLimitPerIpTooltip', currentLanguage)}
+            label={t('settings.dnsRateLimitPerIp')}
+            tooltip={t('settings.dnsRateLimitPerIpTooltip')}
           >
             <InputNumber min={1} max={100000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['Security', 'DNS_RATE_LIMIT_GLOBAL']}
-            label={t('settings.dnsRateLimitGlobal', currentLanguage)}
-            tooltip={t('settings.dnsRateLimitGlobalTooltip', currentLanguage)}
+            label={t('settings.dnsRateLimitGlobal')}
+            tooltip={t('settings.dnsRateLimitGlobalTooltip')}
           >
             <InputNumber min={1} max={1000000} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['Security', 'DNS_BAN_DURATION']}
-            label={t('settings.dnsBanDuration', currentLanguage)}
-            tooltip={t('settings.dnsBanDurationTooltip', currentLanguage)}
+            label={t('settings.dnsBanDuration')}
+            tooltip={t('settings.dnsBanDurationTooltip')}
           >
             <InputNumber min={1} max={60} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name={['Security', 'DNS_MESSAGE_SIZE_LIMIT']}
-            label={t('settings.dnsMessageSizeLimit', currentLanguage)}
-            tooltip={t('settings.dnsMessageSizeLimitTooltip', currentLanguage)}
+            label={t('settings.dnsMessageSizeLimit')}
+            tooltip={t('settings.dnsMessageSizeLimitTooltip')}
           >
             <InputNumber min={512} max={65535} style={{ width: '100%' }} />
           </Form.Item>
@@ -1323,43 +1324,43 @@ const Settings = ({ currentLanguage, userInfo }) => {
 
       {/* Confirmation Modal */}
       <Modal
-        title={t('settings.confirmSave', currentLanguage)}
+        title={t('settings.confirmSave')}
         open={confirmModalVisible}
         onOk={handleConfirmSave}
         onCancel={handleCancelConfirm}
         confirmLoading={loading}
-        okText={t('settings.confirm', currentLanguage)}
-        cancelText={t('settings.cancel', currentLanguage)}
+        okText={t('settings.confirm')}
+        cancelText={t('settings.cancel')}
       >
-        <p>{t('settings.confirmSaveMessage', currentLanguage)}</p>
-        <p style={{ color: '#ff4d4f' }}>{t('settings.restartNotice', currentLanguage)}</p>
+        <p>{t('settings.confirmSaveMessage')}</p>
+        <p style={{ color: '#ff4d4f' }}>{t('settings.restartNotice')}</p>
       </Modal>
 
       {/* Reset Confirmation Modal */}
       <Modal
-        title={t('settings.confirmReset', currentLanguage)}
+        title={t('settings.confirmReset')}
         open={resetModalVisible}
         onOk={handleConfirmReset}
         onCancel={handleCancelReset}
         confirmLoading={loading}
-        okText={t('settings.confirm', currentLanguage)}
-        cancelText={t('settings.cancel', currentLanguage)}
+        okText={t('settings.confirm')}
+        cancelText={t('settings.cancel')}
       >
-        <p>{t('settings.confirmResetMessage', currentLanguage)}</p>
-        <p style={{ color: '#ff4d4f' }}>{t('settings.restartNotice', currentLanguage)}</p>
+        <p>{t('settings.confirmResetMessage')}</p>
+        <p style={{ color: '#ff4d4f' }}>{t('settings.restartNotice')}</p>
       </Modal>
 
       {/* Generate Random Key Modal */}
       <Modal
-        title="生成随机JWT密钥"
+        title={t('jwt.generateRandomJwtKey')}
         open={generateKeyModalVisible}
         onOk={handleConfirmGenerateKey}
         onCancel={handleCancelGenerateKey}
-        okText="确定"
-        cancelText="取消"
+        okText={t('settings.confirm')}
+        cancelText={t('settings.cancel')}
       >
         <div style={{ marginBottom: 16 }}>
-          <p>生成的随机密钥：</p>
+          <p>{t('jwt.generatedKey')}</p>
           <Input.TextArea
             value={generatedKey}
             rows={4}
@@ -1371,9 +1372,9 @@ const Settings = ({ currentLanguage, userInfo }) => {
             onClick={handleRegenerateKey}
             style={{ marginRight: 8 }}
           >
-            生成
+            {t('common.generate')}
           </Button>
-          <span style={{ color: '#666' }}>点击重新生成随机密钥</span>
+          <span style={{ color: '#666' }}>{t('jwt.clickRegenerate')}</span>
         </div>
       </Modal>
     </div>

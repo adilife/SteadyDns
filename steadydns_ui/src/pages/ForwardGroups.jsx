@@ -24,12 +24,13 @@ import {
   SaveOutlined,
   BarChartOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 
 const { Option } = Select
 
-const ForwardGroups = ({ currentLanguage }) => {
+const ForwardGroups = () => {
+  const { t } = useTranslation()
   const [forwardGroups, setForwardGroups] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState(null)
@@ -72,7 +73,7 @@ const ForwardGroups = ({ currentLanguage }) => {
         
         setForwardGroups(normalizedGroups)
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '获取转发组失败' : 'Failed to get forward groups'))
+        message.error(response.message || t('forwardGroups.fetchError'))
       }
     } catch (error) {
       console.error('Error loading forward groups:', error)
@@ -80,7 +81,7 @@ const ForwardGroups = ({ currentLanguage }) => {
     } finally {
       setApiLoading(false)
     }
-  }, [currentLanguage])
+  }, [t])
 
   // Load forward groups on component mount
   useEffect(() => {
@@ -115,7 +116,7 @@ const ForwardGroups = ({ currentLanguage }) => {
         createForwardGroup(values)
       }
     }).catch(() => {
-      message.error(currentLanguage === 'zh-CN' ? '请检查表单字段' : 'Please check form fields')
+      message.error(t('forwardGroups.formValidateError'))
       setApiLoading(false)
     })
   }
@@ -126,13 +127,13 @@ const ForwardGroups = ({ currentLanguage }) => {
       const response = await apiClient.post('/forward-groups', values)
       
       if (response.success) {
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '转发组创建成功' : 'Forward group created successfully'))
+        message.success(response.message || t('forwardGroups.createSuccess'))
         loadForwardGroups()
         setIsModalOpen(false)
         setEditingGroup(null)
         form.resetFields()
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '创建转发组失败' : 'Failed to create forward group'))
+        message.error(response.message || t('forwardGroups.createError'))
       }
     } catch (error) {
       console.error('Error creating forward group:', error)
@@ -148,13 +149,13 @@ const ForwardGroups = ({ currentLanguage }) => {
       const response = await apiClient.put(`/forward-groups/${id}`, values)
       
       if (response.success) {
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '转发组更新成功' : 'Forward group updated successfully'))
+        message.success(response.message || t('forwardGroups.updateSuccess'))
         loadForwardGroups()
         setIsModalOpen(false)
         setEditingGroup(null)
         form.resetFields()
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '更新转发组失败' : 'Failed to update forward group'))
+        message.error(response.message || t('forwardGroups.updateError'))
       }
     } catch (error) {
       console.error('Error updating forward group:', error)
@@ -194,7 +195,7 @@ const ForwardGroups = ({ currentLanguage }) => {
         addServer(values)
       }
     }).catch(() => {
-      message.error(currentLanguage === 'zh-CN' ? '请检查表单字段' : 'Please check form fields')
+      message.error(t('forwardGroups.formValidateError'))
       setApiLoading(false)
     })
   }
@@ -211,10 +212,10 @@ const ForwardGroups = ({ currentLanguage }) => {
       const response = await apiClient.post('/forward-servers?batch=true', [serverData])
       
       if (response.success) {
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '服务器添加成功' : 'Server added successfully'))
+        message.success(response.message || t('forwardGroups.serverAdded'))
         loadForwardGroups()
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '添加服务器失败' : 'Failed to add server'))
+        message.error(response.message || t('forwardGroups.serverAddError'))
       }
     } catch (error) {
       console.error('Error adding server:', error)
@@ -239,10 +240,10 @@ const ForwardGroups = ({ currentLanguage }) => {
       const response = await apiClient.put(`/forward-servers/${id}`, serverData)
       
       if (response.success) {
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '服务器更新成功' : 'Server updated successfully'))
+        message.success(response.message || t('forwardGroups.serverUpdated'))
         loadForwardGroups()
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '更新服务器失败' : 'Failed to update server'))
+        message.error(response.message || t('forwardGroups.serverUpdateError'))
       }
     } catch (error) {
       console.error('Error updating server:', error)
@@ -262,10 +263,10 @@ const ForwardGroups = ({ currentLanguage }) => {
       const response = await apiClient.delete(`/forward-servers/${serverId}`)
       
       if (response.success) {
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '服务器删除成功' : 'Server deleted successfully'))
+        message.success(response.message || t('forwardGroups.serverDeleted'))
         loadForwardGroups()
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '删除服务器失败' : 'Failed to delete server'))
+        message.error(response.message || t('forwardGroups.serverDeleteError'))
       }
     } catch (error) {
       console.error('Error deleting server:', error)
@@ -284,13 +285,13 @@ const ForwardGroups = ({ currentLanguage }) => {
           [serverId]: response.data
         }))
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '健康检查失败' : 'Health check failed'))
+        message.error(response.message || t('forwardGroups.healthCheckFailed'))
       }
     } catch (error) {
       console.error('Error checking server health:', error)
       // Error already handled by apiClient
     }
-  }, [currentLanguage])
+  }, [t])
 
   // Check health for all servers
   const checkAllServersHealth = useCallback(() => {
@@ -324,7 +325,7 @@ const ForwardGroups = ({ currentLanguage }) => {
   const handleDelete = async (id) => {
     // Prevent deletion of default forward group (ID=1)
     if (id === 1) {
-      message.warning(currentLanguage === 'zh-CN' ? '默认转发组不可删除' : 'Default forward group cannot be deleted')
+      message.warning(t('forwardGroups.defaultGroupCannotDelete'))
       return
     }
     
@@ -333,10 +334,10 @@ const ForwardGroups = ({ currentLanguage }) => {
       const response = await apiClient.delete(`/forward-groups/${id}`)
       
       if (response.success) {
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '转发组删除成功' : 'Forward group deleted successfully'))
+        message.success(response.message || t('forwardGroups.deleteSuccess'))
         loadForwardGroups()
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '删除转发组失败' : 'Failed to delete forward group'))
+        message.error(response.message || t('forwardGroups.deleteError'))
       }
     } catch (error) {
       console.error('Error deleting forward group:', error)
@@ -352,7 +353,7 @@ const ForwardGroups = ({ currentLanguage }) => {
     const deletableGroups = selectedGroupKeys.filter(id => id !== 1)
     
     if (deletableGroups.length === 0) {
-      message.warning(currentLanguage === 'zh-CN' ? '请选择要删除的转发组' : 'Please select forward groups to delete')
+      message.warning(t('forwardGroups.selectToDelete'))
       return
     }
     
@@ -361,12 +362,12 @@ const ForwardGroups = ({ currentLanguage }) => {
       // Use batchOperation method for batch deletion
       await apiClient.batchOperation('/forward-groups?batch=true', deletableGroups, 'DELETE')
       
-      message.success(currentLanguage === 'zh-CN' ? '转发组批量删除成功' : 'Forward groups deleted successfully')
+      message.success(t('forwardGroups.batchDeleteSuccess'))
       loadForwardGroups()
       setSelectedGroupKeys([])
     } catch (error) {
       console.error('Error batch deleting forward groups:', error)
-      message.error(currentLanguage === 'zh-CN' ? '批量删除转发组失败' : 'Failed to delete forward groups')
+      message.error(t('forwardGroups.batchDeleteError'))
     } finally {
       setApiLoading(false)
     }
@@ -374,13 +375,13 @@ const ForwardGroups = ({ currentLanguage }) => {
   // Table columns
   const columns = [
     {
-      title: currentLanguage === 'zh-CN' ? '序号' : 'No.',
+      title: t('forwardGroups.index'),
       key: 'index',
       width: 60,
       render: (_, __, index) => index + 1
     },
     {
-      title: t('forwardGroups.domain', currentLanguage),
+      title: t('forwardGroups.domain'),
       dataIndex: 'Domain',
       key: 'Domain',
       ellipsis: true,
@@ -399,7 +400,7 @@ const ForwardGroups = ({ currentLanguage }) => {
               marginRight: '8px',
               fontWeight: 'bold'
             }}>
-              {t('forwardGroups.default', currentLanguage)}
+              {t('forwardGroups.default')}
             </span>
           )}
           {text}
@@ -407,13 +408,13 @@ const ForwardGroups = ({ currentLanguage }) => {
       )
     },
     {
-      title: t('forwardGroups.description', currentLanguage),
+      title: t('forwardGroups.description'),
       dataIndex: 'Description',
       key: 'Description',
       ellipsis: true
     },
     {
-      title: currentLanguage === 'zh-CN' ? '启用状态' : 'Enable Status',
+      title: t('forwardGroups.enableStatus'),
       dataIndex: 'Enable',
       key: 'Enable',
       width: 100,
@@ -425,12 +426,12 @@ const ForwardGroups = ({ currentLanguage }) => {
           backgroundColor: enable ? '#f6ffed' : '#fff2f0',
           color: enable ? '#52c41a' : '#ff4d4f'
         }}>
-          {enable ? (currentLanguage === 'zh-CN' ? '启用' : 'Enabled') : (currentLanguage === 'zh-CN' ? '禁用' : 'Disabled')}
+          {enable ? t('forwardGroups.enabled') : t('forwardGroups.disabled')}
         </span>
       )
     },
     {
-      title: t('forwardGroups.servers', currentLanguage),
+      title: t('forwardGroups.servers'),
       dataIndex: 'Servers',
       key: 'Servers',
       ellipsis: true,
@@ -438,14 +439,14 @@ const ForwardGroups = ({ currentLanguage }) => {
         if (!servers || servers.length === 0) {
           return (
             <Space>
-              <span>{t('forwardGroups.noServers', currentLanguage)}</span>
+              <span>{t('forwardGroups.noServers')}</span>
               <Button
                 type="link"
                 icon={<PlusOutlined />}
                 size="small"
                 onClick={() => showServerModal(null, record.ID)}
               >
-                {currentLanguage === 'zh-CN' ? '添加' : 'Add'}
+                {t('forwardGroups.add')}
               </Button>
             </Space>
           )
@@ -460,9 +461,9 @@ const ForwardGroups = ({ currentLanguage }) => {
                     const priorityServers = servers.filter(server => server.Priority === priority)
                     if (priorityServers.length === 0) return null
                     
-                    const priorityText = priority === 1 ? (currentLanguage === 'zh-CN' ? '高' : 'High') : 
-                                        priority === 2 ? (currentLanguage === 'zh-CN' ? '中' : 'Medium') : 
-                                        (currentLanguage === 'zh-CN' ? '低' : 'Low')
+                    const priorityText = priority === 1 ? t('forwardGroups.priorityHigh') : 
+                                        priority === 2 ? t('forwardGroups.priorityMedium') : 
+                                        t('forwardGroups.priorityLow')
                     
                     return (
                       <div key={priority} style={{ marginBottom: 12 }}>
@@ -472,7 +473,7 @@ const ForwardGroups = ({ currentLanguage }) => {
                           marginBottom: 8,
                           color: priority === 1 ? '#ff4d4f' : priority === 2 ? '#faad14' : '#1890ff'
                         }}>
-                          {currentLanguage === 'zh-CN' ? '优先级 ' : 'Priority '}{priorityText} ({priorityServers.length} {currentLanguage === 'zh-CN' ? '个服务器' : 'servers'})
+                          {t('forwardGroups.priority')} {priorityText} ({priorityServers.length} {t('forwardGroups.serversCount')})
                         </div>
                         <div style={{ marginLeft: 16 }}>
                           {priorityServers.map(server => {
@@ -527,13 +528,13 @@ const ForwardGroups = ({ currentLanguage }) => {
                                       size="small"
                                       onClick={() => checkServerHealth(server.ID)}
                                     >
-                                      {currentLanguage === 'zh-CN' ? '检查' : 'Check'}
+                                      {t('forwardGroups.check')}
                                     </Button>
                                     <Popconfirm
-                                      title={currentLanguage === 'zh-CN' ? '确定要删除此服务器吗？' : 'Are you sure to delete this server?'}
+                                      title={t('forwardGroups.confirmDeleteServer')}
                                       onConfirm={() => handleDeleteServer(server.ID)}
-                                      okText={t('forwardGroups.yes', currentLanguage)}
-                                      cancelText={t('forwardGroups.no', currentLanguage)}
+                                      okText={t('forwardGroups.yes')}
+                                      cancelText={t('forwardGroups.no')}
                                     >
                                       <Button
                                         type="link"
@@ -554,14 +555,14 @@ const ForwardGroups = ({ currentLanguage }) => {
                 </div>
               ) : (
                 <Space>
-                  <span>{t('forwardGroups.noServers', currentLanguage)}</span>
+                  <span>{t('forwardGroups.noServers')}</span>
                   <Button
                     type="link"
                     icon={<PlusOutlined />}
                     size="small"
                     onClick={() => showServerModal(null, record.ID)}
                   >
-                    {currentLanguage === 'zh-CN' ? '添加' : 'Add'}
+                    {t('forwardGroups.add')}
                   </Button>
                 </Space>
               )}
@@ -572,31 +573,31 @@ const ForwardGroups = ({ currentLanguage }) => {
               size="small"
               onClick={() => showServerModal(null, record.ID)}
             >
-              {currentLanguage === 'zh-CN' ? '添加服务器' : 'Add Server'}
+              {t('forwardGroups.addServer')}
             </Button>
           </div>
         )
       }
     },
     {
-      title: t('forwardGroups.actions', currentLanguage),
+      title: t('forwardGroups.actions'),
       key: 'actions',
       width: 150,
       render: (_, record) => (
         <Space size="middle">
-          <Tooltip title={t('forwardGroups.edit', currentLanguage)}>
+          <Tooltip title={t('forwardGroups.edit')}>
             <Button
               icon={<EditOutlined />}
               size="small"
               onClick={() => showModal(record)}
             />
           </Tooltip>
-          <Tooltip title={record.ID === 1 ? (currentLanguage === 'zh-CN' ? '默认转发组不可删除' : 'Default group cannot be deleted') : t('forwardGroups.delete', currentLanguage)}>
+          <Tooltip title={record.ID === 1 ? t('forwardGroups.defaultGroupCannotDelete') : t('forwardGroups.delete')}>
             <Popconfirm
-              title={t('forwardGroups.confirmDelete', currentLanguage)}
+              title={t('forwardGroups.confirmDelete')}
               onConfirm={() => handleDelete(record.ID)}
-              okText={t('forwardGroups.yes', currentLanguage)}
-              cancelText={t('forwardGroups.no', currentLanguage)}
+              okText={t('forwardGroups.yes')}
+              cancelText={t('forwardGroups.no')}
             >
               <Button
                 icon={<DeleteOutlined />}
@@ -620,7 +621,7 @@ const ForwardGroups = ({ currentLanguage }) => {
   // Test domain match
   const handleTestDomainMatch = async () => {
     if (!testDomain.trim()) {
-      message.warning(currentLanguage === 'zh-CN' ? '请输入测试域名' : 'Please enter a test domain')
+      message.warning(t('forwardGroups.enterTestDomain'))
       return
     }
     
@@ -630,12 +631,12 @@ const ForwardGroups = ({ currentLanguage }) => {
       if (response.success) {
         setTestResult(response.data)
       } else {
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '测试失败' : 'Test failed'))
+        message.error(response.message || t('forwardGroups.testFailed'))
         setTestResult(null)
       }
     } catch (error) {
       console.error('Error testing domain match:', error)
-      message.error(currentLanguage === 'zh-CN' ? '测试失败，请稍后重试' : 'Test failed, please try again later')
+      message.error(t('forwardGroups.testFailedRetry'))
       setTestResult(null)
     } finally {
       setTestLoading(false)
@@ -645,13 +646,13 @@ const ForwardGroups = ({ currentLanguage }) => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>{t('forwardGroups.title', currentLanguage)}</h2>
+        <h2>{t('forwardGroups.title')}</h2>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => showModal()}
         >
-          {t('forwardGroups.addGroup', currentLanguage)}
+          {t('forwardGroups.addGroup')}
         </Button>
       </div>
 
@@ -665,11 +666,11 @@ const ForwardGroups = ({ currentLanguage }) => {
             onClick={handleBatchDelete}
             disabled={selectedGroupKeys.length === 0}
           >
-            {t('forwardGroups.batchDelete', currentLanguage)}
+            {t('forwardGroups.batchDelete')}
           </Button>
           <span style={{ marginLeft: 16 }}>
             {selectedGroupKeys.length > 0 ? 
-              t('forwardGroups.selectedCount', currentLanguage, { count: selectedGroupKeys.length }) : 
+              t('forwardGroups.selectedCount', { count: selectedGroupKeys.length }) : 
               ''
             }
           </span>
@@ -695,7 +696,7 @@ const ForwardGroups = ({ currentLanguage }) => {
       </Spin>
 
       <Modal
-        title={editingGroup ? t('forwardGroups.editGroup', currentLanguage) : t('forwardGroups.addNewGroup', currentLanguage)}
+        title={editingGroup ? t('forwardGroups.editGroup') : t('forwardGroups.addNewGroup')}
         open={isModalOpen}
         onOk={handleOk}
         onCancel={handleCancel}
@@ -712,15 +713,15 @@ const ForwardGroups = ({ currentLanguage }) => {
         >
           <Form.Item
             name="Domain"
-            label={t('forwardGroups.domain', currentLanguage)}
+            label={t('forwardGroups.domain')}
             rules={[
               { 
                 required: true, 
-                message: t('forwardGroups.domainValidation.required', currentLanguage) 
+                message: t('forwardGroups.domainValidation.required')
               },
               { 
                 max: 255, 
-                message: t('forwardGroups.domainValidation.maxLength', currentLanguage) 
+                message: t('forwardGroups.domainValidation.maxLength')
               },
               {
                 validator: (_, value) => {
@@ -732,17 +733,17 @@ const ForwardGroups = ({ currentLanguage }) => {
                   // Basic domain format validation
                   const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
                   if (!domainRegex.test(value)) {
-                    return Promise.reject(new Error(t('forwardGroups.domainValidation.invalidFormat', currentLanguage)));
+                    return Promise.reject(new Error(t('forwardGroups.domainValidation.invalidFormat')));
                   }
                   
                   // Check each label length
                   const labels = value.split('.');
                   for (const label of labels) {
                     if (label.length < 1 || label.length > 63) {
-                      return Promise.reject(new Error(t('forwardGroups.domainValidation.labelLength', currentLanguage)));
+                      return Promise.reject(new Error(t('forwardGroups.domainValidation.labelLength')));
                     }
                     if (!/^[a-zA-Z0-9]/.test(label) || !/[a-zA-Z0-9]$/.test(label)) {
-                      return Promise.reject(new Error(t('forwardGroups.domainValidation.hyphenStartEnd', currentLanguage)));
+                      return Promise.reject(new Error(t('forwardGroups.domainValidation.hyphenStartEnd')));
                     }
                   }
                   
@@ -750,29 +751,29 @@ const ForwardGroups = ({ currentLanguage }) => {
                 }
               }
             ]}
-            tooltip={editingGroup && editingGroup.ID === 1 ? t('forwardGroups.defaultGroupDomainLocked', currentLanguage) : ''}
+            tooltip={editingGroup && editingGroup.ID === 1 ? t('forwardGroups.defaultGroupDomainLocked') : ''}
           >
             <Input 
-              placeholder={currentLanguage === 'zh-CN' ? '请输入转发组域名' : 'Please enter forward group domain'} 
+              placeholder={t('forwardGroups.domainPlaceholder')} 
               disabled={editingGroup && editingGroup.ID === 1}
             />
           </Form.Item>
 
           <Form.Item
             name="Description"
-            label={t('forwardGroups.description', currentLanguage)}
-            tooltip={editingGroup && editingGroup.ID === 1 ? t('forwardGroups.defaultGroupDescriptionLocked', currentLanguage) : ''}
+            label={t('forwardGroups.description')}
+            tooltip={editingGroup && editingGroup.ID === 1 ? t('forwardGroups.defaultGroupDescriptionLocked') : ''}
           >
             <Input.TextArea 
               rows={3} 
-              placeholder={currentLanguage === 'zh-CN' ? '请输入转发组描述' : 'Please enter forward group description'} 
+              placeholder={t('forwardGroups.descriptionPlaceholder')} 
               disabled={editingGroup && editingGroup.ID === 1}
             />
           </Form.Item>
 
           <Form.Item
             name="Enable"
-            label={currentLanguage === 'zh-CN' ? '启用状态' : 'Enable Status'}
+            label={t('forwardGroups.enableStatus')}
             valuePropName="checked"
           >
             <Switch defaultChecked />
@@ -784,7 +785,7 @@ const ForwardGroups = ({ currentLanguage }) => {
 
       {/* Server Management Modal */}
       <Modal
-        title={editingServer ? (currentLanguage === 'zh-CN' ? '编辑服务器' : 'Edit Server') : (currentLanguage === 'zh-CN' ? '添加服务器' : 'Add Server')}
+        title={editingServer ? t('forwardGroups.editServer') : t('forwardGroups.addServer')}
         open={isServerModalOpen}
         onOk={handleServerOk}
         onCancel={handleServerCancel}
@@ -802,36 +803,36 @@ const ForwardGroups = ({ currentLanguage }) => {
         >
           <Form.Item
             name="Address"
-            label={currentLanguage === 'zh-CN' ? '服务器地址' : 'Server Address'}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入服务器地址' : 'Please enter server address' }]}
+            label={t('forwardGroups.serverAddress')}
+            rules={[{ required: true, message: t('forwardGroups.inputServerAddress') }]}
           >
-            <Input placeholder={currentLanguage === 'zh-CN' ? '请输入DNS服务器地址 (IPv4/IPv6)' : 'Please enter DNS server address (IPv4/IPv6)'} />
+            <Input placeholder={t('forwardGroups.serverAddressPlaceholder')} />
           </Form.Item>
 
           <Form.Item
             name="Port"
-            label={currentLanguage === 'zh-CN' ? '端口' : 'Port'}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入端口' : 'Please enter port' }]}
+            label={t('forwardGroups.port')}
+            rules={[{ required: true, message: t('forwardGroups.inputPort') }]}
           >
             <InputNumber min={1} max={65535} style={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
             name="Description"
-            label={currentLanguage === 'zh-CN' ? '描述' : 'Description'}
+            label={t('forwardGroups.serverDescription')}
           >
-            <Input.TextArea rows={3} placeholder={currentLanguage === 'zh-CN' ? '请输入服务器描述' : 'Please enter server description'} />
+            <Input.TextArea rows={3} placeholder={t('forwardGroups.serverDescriptionPlaceholder')} />
           </Form.Item>
 
           <Form.Item
             name="Priority"
-            label={currentLanguage === 'zh-CN' ? '优先级' : 'Priority'}
-            rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请选择优先级' : 'Please select priority' }]}
+            label={t('forwardGroups.priorityLabel')}
+            rules={[{ required: true, message: t('forwardGroups.priorityPlaceholder') }]}
           >
             <Select style={{ width: '100%' }}>
-              <Option value={1}>{currentLanguage === 'zh-CN' ? '高 (1)' : 'High (1)'}</Option>
-              <Option value={2}>{currentLanguage === 'zh-CN' ? '中 (2)' : 'Medium (2)'}</Option>
-              <Option value={3}>{currentLanguage === 'zh-CN' ? '低 (3)' : 'Low (3)'}</Option>
+              <Option value={1}>{t('forwardGroups.priorityHighOption')}</Option>
+              <Option value={2}>{t('forwardGroups.priorityMediumOption')}</Option>
+              <Option value={3}>{t('forwardGroups.priorityLowOption')}</Option>
             </Select>
           </Form.Item>
 
@@ -840,11 +841,11 @@ const ForwardGroups = ({ currentLanguage }) => {
       </Modal>
 
       {/* Domain Match Test Section */}
-      <Card title={<Space><BarChartOutlined />{t('forwardGroups.domainTest', currentLanguage)}</Space>} style={{ marginBottom: 24, marginTop: 24 }}>
+      <Card title={<Space><BarChartOutlined />{t('forwardGroups.domainTest')}</Space>} style={{ marginBottom: 24, marginTop: 24 }}>
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={16}>
             <Input 
-              placeholder={currentLanguage === 'zh-CN' ? '请输入要测试的域名，例如: www.example.com' : 'Please enter a domain to test, e.g.: www.example.com'}
+              placeholder={t('forwardGroups.testDomainPlaceholder')}
               value={testDomain}
               onChange={(e) => setTestDomain(e.target.value)}
               onPressEnter={handleTestDomainMatch}
@@ -858,7 +859,7 @@ const ForwardGroups = ({ currentLanguage }) => {
                 onClick={handleTestDomainMatch}
                 loading={testLoading}
               >
-                {t('forwardGroups.testMatch', currentLanguage)}
+                {t('forwardGroups.testMatch')}
               </Button>
               <Button 
                 onClick={() => {
@@ -866,7 +867,7 @@ const ForwardGroups = ({ currentLanguage }) => {
                   setTestResult(null)
                 }}
               >
-                {currentLanguage === 'zh-CN' ? '重置' : 'Reset'}
+                {t('forwardGroups.reset')}
               </Button>
             </Space>
           </Col>
@@ -874,14 +875,14 @@ const ForwardGroups = ({ currentLanguage }) => {
             <Col xs={24}>
               <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6ffed', borderRadius: 4 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <strong>{t('forwardGroups.testResult', currentLanguage)}:</strong>
+                  <strong>{t('forwardGroups.testResult')}:</strong>
                   <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
-                    {testResult.matched_group ? testResult.matched_group : t('forwardGroups.noMatch', currentLanguage)}
+                    {testResult.matched_group ? testResult.matched_group : t('forwardGroups.noMatch')}
                   </span>
                 </div>
                 <div style={{ fontSize: '14px', color: '#666' }}>
-                  {t('forwardGroups.matchedGroup', currentLanguage)}: 
-                  <strong>{testResult.matched_group || t('forwardGroups.noMatch', currentLanguage)}</strong>
+                  {t('forwardGroups.matchedGroup')}: 
+                  <strong>{testResult.matched_group || t('forwardGroups.noMatch')}</strong>
                 </div>
               </div>
             </Col>

@@ -25,13 +25,14 @@ import {
   SettingOutlined,
   InfoCircleOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 import BindConfigEditor from '../components/bind-config-editor/BindConfigEditor'
 
 const { Option } = Select
 
-const BindServerManager = ({ currentLanguage }) => {
+const BindServerManager = () => {
+  const { t } = useTranslation()
   const [bindStatus, setBindStatus] = useState(null)
   const [bindStats, setBindStats] = useState(null)
   const [bindConfig, setBindConfig] = useState(null)
@@ -88,7 +89,7 @@ const BindServerManager = ({ currentLanguage }) => {
       if (statusResponse.success) {
         setBindStatus(statusResponse.data)
       } else {
-        message.error(statusResponse.message || t('bindServer.fetchError', currentLanguage))
+        message.error(statusResponse.message || t('bindServer.fetchError'))
       }
 
       // Load stats
@@ -96,7 +97,7 @@ const BindServerManager = ({ currentLanguage }) => {
       if (statsResponse.success) {
         setBindStats(statsResponse.data)
       } else {
-        message.error(statsResponse.message || t('bindServer.fetchError', currentLanguage))
+        message.error(statsResponse.message || t('bindServer.fetchError'))
       }
 
       // Load config
@@ -104,21 +105,21 @@ const BindServerManager = ({ currentLanguage }) => {
       if (configResponse.success) {
         setBindConfig(configResponse.data)
       } else {
-        message.error(configResponse.message || t('bindServer.fetchError', currentLanguage))
+        message.error(configResponse.message || t('bindServer.fetchError'))
       }
     } catch (error) {
       console.error('Error loading BIND server data:', error)
       // 检查是否是404错误（插件禁用）
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('bindServer.pluginNotEnabled'))
       } else {
-        message.error(t('bindServer.fetchError', currentLanguage))
+        message.error(t('bindServer.fetchError'))
       }
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage, pluginEnabled])
+  }, [pluginEnabled, t])
 
   // 组件挂载时检查插件状态
   useEffect(() => {
@@ -153,7 +154,7 @@ const BindServerManager = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error executing action:', error)
-      message.error(t('bindServer.controlError', currentLanguage))
+      message.error(t('bindServer.controlError'))
     } finally {
       setActionLoading(false)
     }
@@ -162,26 +163,26 @@ const BindServerManager = ({ currentLanguage }) => {
   // Control BIND server - actual implementation
   const handleControlBindServer = async (action) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('bindServer.pluginNotEnabled'))
       return
     }
     
     try {
       const response = await apiClient.controlBindServer(action)
       if (response.success) {
-        message.success(response.message || t('bindServer.controlSuccess', currentLanguage))
+        message.success(response.message || t('bindServer.controlSuccess'))
         // Reload status after action
         setTimeout(loadBindServerStatus, 1000)
       } else {
-        message.error(response.message || t('bindServer.controlError', currentLanguage))
+        message.error(response.message || t('bindServer.controlError'))
       }
     } catch (error) {
       console.error(`Error ${action}ing BIND server:`, error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('bindServer.pluginNotEnabled'))
       } else {
-        message.error(t('bindServer.controlError', currentLanguage))
+        message.error(t('bindServer.controlError'))
       }
     }
   }
@@ -189,24 +190,24 @@ const BindServerManager = ({ currentLanguage }) => {
   // Validate BIND configuration - actual implementation
   const handleValidateBindConfig = async () => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('bindServer.pluginNotEnabled'))
       return
     }
     
     try {
       const response = await apiClient.validateBindConfig()
       if (response.success) {
-        message.success(response.message || t('bindServer.validateSuccess', currentLanguage))
+        message.success(response.message || t('bindServer.validateSuccess'))
       } else {
-        message.error(response.message || t('bindServer.validateError', currentLanguage))
+        message.error(response.message || t('bindServer.validateError'))
       }
     } catch (error) {
       console.error('Error validating BIND config:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('bindServer.pluginNotEnabled'))
       } else {
-        message.error(t('bindServer.validateError', currentLanguage))
+        message.error(t('bindServer.validateError'))
       }
     }
   }
@@ -218,20 +219,20 @@ const BindServerManager = ({ currentLanguage }) => {
     // Map action to human-readable name and warning message
     const actionMap = {
       start: {
-        title: t('bindServer.start', currentLanguage),
-        content: t('bindServer.startWarning', currentLanguage)
+        title: t('bindServer.start'),
+        content: t('bindServer.startWarning')
       },
       stop: {
-        title: t('bindServer.stop', currentLanguage),
-        content: t('bindServer.stopWarning', currentLanguage)
+        title: t('bindServer.stop'),
+        content: t('bindServer.stopWarning')
       },
       restart: {
-        title: t('bindServer.restart', currentLanguage),
-        content: t('bindServer.restartWarning', currentLanguage)
+        title: t('bindServer.restart'),
+        content: t('bindServer.restartWarning')
       },
       reload: {
-        title: t('bindServer.reload', currentLanguage),
-        content: t('bindServer.reloadWarning', currentLanguage)
+        title: t('bindServer.reload'),
+        content: t('bindServer.reloadWarning')
       }
     }
 
@@ -247,8 +248,8 @@ const BindServerManager = ({ currentLanguage }) => {
 
   // Validate BIND configuration - with confirmation modal
   const validateBindConfig = () => {
-    setConfirmModalTitle(t('bindServer.validateConfig', currentLanguage))
-    setConfirmModalContent(t('bindServer.validateWarning', currentLanguage))
+    setConfirmModalTitle(t('bindServer.validateConfig'))
+    setConfirmModalContent(t('bindServer.validateWarning'))
     setCurrentAction('validateBindConfig')
     setCurrentActionParams(null)
     setConfirmModalVisible(true)
@@ -257,7 +258,7 @@ const BindServerManager = ({ currentLanguage }) => {
   // Load backups
   const loadBackups = async () => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('bindServer.pluginNotEnabled'))
       setBackupLoading(false)
       return
     }
@@ -268,15 +269,15 @@ const BindServerManager = ({ currentLanguage }) => {
       if (response.success) {
         setBackups(response.data || [])
       } else {
-        message.error(response.message || '加载备份列表失败')
+        message.error(response.message || t('bindServer.loadBackupListFailed'))
       }
     } catch (error) {
       console.error('Error loading backups:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('bindServer.pluginNotEnabled'))
       } else {
-        message.error('加载备份列表失败')
+        message.error(t('bindServer.loadBackupListFailed'))
       }
     } finally {
       setBackupLoading(false)
@@ -286,7 +287,7 @@ const BindServerManager = ({ currentLanguage }) => {
   // Handle restore backup
   const handleRestoreBackup = async (backupPath) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('bindServer.pluginNotEnabled'))
       setBackupLoading(false)
       return
     }
@@ -295,20 +296,20 @@ const BindServerManager = ({ currentLanguage }) => {
       setBackupLoading(true)
       const response = await apiClient.restoreBindNamedConfBackup(backupPath)
       if (response.success) {
-        message.success(response.message || '恢复备份成功')
+        message.success(response.message || t('bindServer.restoreBackupSuccess'))
         // Reload BIND server status after restore
         setTimeout(loadBindServerStatus, 1000)
         setBackupModalVisible(false)
       } else {
-        message.error(response.message || '恢复备份失败')
+        message.error(response.message || t('bindServer.restoreBackupFailed'))
       }
     } catch (error) {
       console.error('Error restoring backup:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('bindServer.pluginNotEnabled'))
       } else {
-        message.error('恢复备份失败')
+        message.error(t('bindServer.restoreBackupFailed'))
       }
     } finally {
       setBackupLoading(false)
@@ -318,7 +319,7 @@ const BindServerManager = ({ currentLanguage }) => {
   // Handle delete backup
   const handleDeleteBackup = async (backupId) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('bindServer.pluginNotEnabled'))
       setBackupLoading(false)
       return
     }
@@ -327,19 +328,19 @@ const BindServerManager = ({ currentLanguage }) => {
       setBackupLoading(true)
       const response = await apiClient.deleteBindNamedConfBackup(backupId)
       if (response.success) {
-        message.success(response.message || '删除备份成功')
+        message.success(response.message || t('bindServer.deleteBackupSuccess'))
         // Reload backups after delete
         loadBackups()
       } else {
-        message.error(response.message || '删除备份失败')
+        message.error(response.message || t('bindServer.deleteBackupFailed'))
       }
     } catch (error) {
       console.error('Error deleting backup:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('bindServer.pluginNotEnabled'))
       } else {
-        message.error('删除备份失败')
+        message.error(t('bindServer.deleteBackupFailed'))
       }
     } finally {
       setBackupLoading(false)
@@ -348,8 +349,8 @@ const BindServerManager = ({ currentLanguage }) => {
 
   // Handle delete backup with confirmation
   const confirmDeleteBackup = (backupId) => {
-    setConfirmModalTitle('删除备份')
-    setConfirmModalContent('确定要删除此备份文件吗？此操作不可撤销。')
+    setConfirmModalTitle(t('bindServer.deleteBackup'))
+    setConfirmModalContent(t('bindServer.confirmDeleteBackup'))
     setCurrentAction('deleteBackup')
     setCurrentActionParams(backupId)
     setConfirmModalVisible(true)
@@ -361,14 +362,14 @@ const BindServerManager = ({ currentLanguage }) => {
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           <Alert
-            title={t('bindServer.pluginNotEnabled', currentLanguage)}
+            title={t('bindServer.pluginNotEnabled')}
             description={
               <div>
-                <p style={{ marginBottom: '16px' }}>{t('bindServer.pluginNotEnabledDescription', currentLanguage)}</p>
-                <p style={{ marginBottom: '8px' }}><strong>{t('bindServer.enableMethod', currentLanguage)}：</strong></p>
-                <p>1. {t('bindServer.editConfigFile', currentLanguage)}：<code>/src/cmd/config/steadydns.conf</code></p>
-                <p>2. {t('bindServer.setBindEnabled', currentLanguage)} <code>true</code></p>
-                <p>3. {t('bindServer.restartService', currentLanguage)}</p>
+                <p style={{ marginBottom: '16px' }}>{t('bindServer.pluginNotEnabledDescription')}</p>
+                <p style={{ marginBottom: '8px' }}><strong>{t('bindServer.enableMethod')}：</strong></p>
+                <p>1. {t('bindServer.editConfigFile')}：<code>/src/cmd/config/steadydns.conf</code></p>
+                <p>2. {t('bindServer.setBindEnabled')} <code>true</code></p>
+                <p>3. {t('bindServer.restartService')}</p>
               </div>
             }
             type="warning"
@@ -384,7 +385,9 @@ const BindServerManager = ({ currentLanguage }) => {
   if (checkingPluginStatus) {
     return (
       <div style={{ textAlign: 'center', padding: '60px' }}>
-        <Spin size="large" tip={t('bindServer.checkingPluginStatus', currentLanguage)} />
+        <Spin size="large" tip={t('bindServer.checkingPluginStatus')}>
+          <div style={{ padding: 50 }} />
+        </Spin>
       </div>
     )
   }
@@ -395,7 +398,7 @@ const BindServerManager = ({ currentLanguage }) => {
         <h2>
           <Space>
             <DatabaseOutlined />
-            {t('bindServer.title', currentLanguage)}
+            {t('bindServer.title')}
           </Space>
         </h2>
         <Space>
@@ -406,14 +409,14 @@ const BindServerManager = ({ currentLanguage }) => {
               loadBackups()
             }}
           >
-            {t('bindServer.backupManagement', currentLanguage)}
+            {t('bindServer.backupManagement')}
           </Button>
           <Button
             icon={<ReloadOutlined />}
             onClick={loadBindServerStatus}
             loading={loading}
           >
-            {t('bindServer.refresh', currentLanguage)}
+            {t('bindServer.refresh')}
           </Button>
         </Space>
       </div>
@@ -422,28 +425,28 @@ const BindServerManager = ({ currentLanguage }) => {
         {bindStatus ? (
           <>
             {/* BIND Server Health */}
-            <Card title={t('bindServer.health', currentLanguage)} style={{ marginBottom: 24 }}>
+            <Card title={t('bindServer.health')} style={{ marginBottom: 24 }}>
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={8}>
                   <Alert
-                    title={t('bindServer.configValid', currentLanguage)}
-                    description={t('bindServer.configValidDescription', currentLanguage)}
+                    title={t('bindServer.configValid')}
+                    description={t('bindServer.configValidDescription')}
                     type="success"
                     showIcon
                   />
                 </Col>
                 <Col xs={24} sm={8}>
                   <Alert
-                    title={t('bindServer.portAvailable', currentLanguage)}
-                    description={t('bindServer.portAvailableDescription', currentLanguage)}
+                    title={t('bindServer.portAvailable')}
+                    description={t('bindServer.portAvailableDescription')}
                     type="success"
                     showIcon
                   />
                 </Col>
                 <Col xs={24} sm={8}>
                   <Alert
-                    title={t('bindServer.overallHealth', currentLanguage)}
-                    description={t('bindServer.overallHealthDescription', currentLanguage)}
+                    title={t('bindServer.overallHealth')}
+                    description={t('bindServer.overallHealthDescription')}
                     type="success"
                     showIcon
                   />
@@ -455,12 +458,12 @@ const BindServerManager = ({ currentLanguage }) => {
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('bindServer.status', currentLanguage)}
+                  title={t('bindServer.status')}
                   style={{ border: '1px solid #f0f0f0' }}
                   hoverable
                 >
                   <Statistic
-                    title={t('bindServer.status', currentLanguage)}
+                    title={t('bindServer.status')}
                     value={bindStatus.status || 'unknown'}
                     valueProps={{
                       style: {
@@ -470,7 +473,7 @@ const BindServerManager = ({ currentLanguage }) => {
                   />
                   <div style={{ marginTop: 16 }}>
                     <Tag color={bindStatus.status === 'running' ? 'green' : 'red'}>
-                      {bindStatus.status === 'running' ? t('bindServer.running', currentLanguage) : t('bindServer.stopped', currentLanguage)}
+                      {bindStatus.status === 'running' ? t('bindServer.running') : t('bindServer.stopped')}
                     </Tag>
                   </div>
                   <div style={{ marginTop: 16 }}>
@@ -482,7 +485,7 @@ const BindServerManager = ({ currentLanguage }) => {
                           onClick={() => controlBindServer('start')}
                           loading={actionLoading}
                         >
-                          {t('bindServer.start', currentLanguage)}
+                          {t('bindServer.start')}
                         </Button>
                       ) : (
                         <Button
@@ -491,7 +494,7 @@ const BindServerManager = ({ currentLanguage }) => {
                           onClick={() => controlBindServer('stop')}
                           loading={actionLoading}
                         >
-                          {t('bindServer.stop', currentLanguage)}
+                          {t('bindServer.stop')}
                         </Button>
                       )}
                       <Button
@@ -499,14 +502,14 @@ const BindServerManager = ({ currentLanguage }) => {
                         onClick={() => controlBindServer('restart')}
                         loading={actionLoading}
                       >
-                        {t('bindServer.restart', currentLanguage)}
+                        {t('bindServer.restart')}
                       </Button>
                       <Button
                         icon={<ReloadOutlined />}
                         onClick={() => controlBindServer('reload')}
                         loading={actionLoading}
                       >
-                        {t('bindServer.reload', currentLanguage)}
+                        {t('bindServer.reload')}
                       </Button>
                     </Space>
                   </div>
@@ -514,12 +517,12 @@ const BindServerManager = ({ currentLanguage }) => {
               </Col>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('bindServer.stats', currentLanguage)}
+                  title={t('bindServer.stats')}
                   style={{ border: '1px solid #f0f0f0' }}
                   hoverable
                 >
                   <Statistic
-                    title={t('bindServer.version', currentLanguage)}
+                    title={t('bindServer.version')}
                     value={bindStats?.version || 'unknown'}
                   />
                   <Statistic
@@ -538,7 +541,7 @@ const BindServerManager = ({ currentLanguage }) => {
               </Col>
               <Col xs={24} sm={12} md={8}>
                 <Card
-                  title={t('bindServer.actions', currentLanguage)}
+                  title={t('bindServer.actions')}
                   style={{ border: '1px solid #f0f0f0' }}
                   hoverable
                 >
@@ -550,11 +553,11 @@ const BindServerManager = ({ currentLanguage }) => {
                     block
                     style={{ marginBottom: 16 }}
                   >
-                    {t('bindServer.validateConfig', currentLanguage)}
+                    {t('bindServer.validateConfig')}
                   </Button>
                   <Alert
-                    title={t('bindServer.warning', currentLanguage)}
-                    description={t('bindServer.actionWarning', currentLanguage)}
+                    title={t('bindServer.warning')}
+                    description={t('bindServer.actionWarning')}
                     type="warning"
                     showIcon
                     style={{ marginBottom: 16 }}
@@ -564,12 +567,12 @@ const BindServerManager = ({ currentLanguage }) => {
             </Row>
 
             {/* BIND Server Configuration */}
-            <Card title={t('bindServer.configuration', currentLanguage)} style={{ marginBottom: 24 }}>
+            <Card title={t('bindServer.configuration')} style={{ marginBottom: 24 }}>
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12}>
                   <div style={{ marginBottom: 16 }}>
                     <span style={{ fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
-                      {t('bindServer.bindAddress', currentLanguage)}:
+                      {t('bindServer.bindAddress')}:
                     </span>
                     <span>{bindConfig?.BIND_ADDRESS || 'unknown'}</span>
                   </div>
@@ -577,7 +580,7 @@ const BindServerManager = ({ currentLanguage }) => {
                 <Col xs={24} sm={12}>
                   <div style={{ marginBottom: 16 }}>
                     <span style={{ fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
-                      {t('bindServer.zoneFilePath', currentLanguage)}:
+                      {t('bindServer.zoneFilePath')}:
                     </span>
                     <span>{bindConfig?.ZONE_FILE_PATH || 'unknown'}</span>
                   </div>
@@ -585,7 +588,7 @@ const BindServerManager = ({ currentLanguage }) => {
                 <Col xs={24} sm={12}>
                   <div style={{ marginBottom: 16 }}>
                     <span style={{ fontWeight: 'bold', display: 'block', marginBottom: 4 }}>
-                      {t('bindServer.namedConfPath', currentLanguage)}:
+                      {t('bindServer.namedConfPath')}:
                     </span>
                     <span>{bindConfig?.NAMED_CONF_PATH || 'unknown'}</span>
                   </div>
@@ -598,7 +601,7 @@ const BindServerManager = ({ currentLanguage }) => {
                       style={{ marginBottom: 16 }}
                       onClick={() => setConfigEditorVisible(true)}
                     >
-                      {t('bindServer.editConfig', currentLanguage)}
+                      {t('bindServer.editConfig')}
                     </Button>
                   </div>
                 </Col>
@@ -606,64 +609,64 @@ const BindServerManager = ({ currentLanguage }) => {
             </Card>
 
             {/* BIND Server Detailed Statistics */}
-            <Card title="Detailed Statistics" style={{ marginBottom: 24 }}>
+            <Card title={t('bindServer.detailedStatistics')} style={{ marginBottom: 24 }}>
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12}>
                   <div style={{ marginBottom: 16 }}>
-                    <h4 style={{ marginBottom: 8 }}>Server Information</h4>
+                    <h4 style={{ marginBottom: 8 }}>{t('bindServer.serverInformation')}</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div>
-                        <strong>Boot Time:</strong> {bindStats?.["boot time"] || 'unknown'}
+                        <strong>{t('bindServer.bootTime')}</strong> {bindStats?.["boot time"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Last Configured:</strong> {bindStats?.["last configured"] || 'unknown'}
+                        <strong>{t('bindServer.lastConfigured')}</strong> {bindStats?.["last configured"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Configuration File:</strong> {bindStats?.["configuration file"] || 'unknown'}
+                        <strong>{t('bindServer.configurationFile')}</strong> {bindStats?.["configuration file"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Running On:</strong> {bindStats?.["running on localhost"] || 'unknown'}
+                        <strong>{t('bindServer.runningOn')}</strong> {bindStats?.["running on localhost"] || 'unknown'}
                       </div>
                     </div>
                   </div>
                 </Col>
                 <Col xs={24} sm={12}>
                   <div style={{ marginBottom: 16 }}>
-                    <h4 style={{ marginBottom: 8 }}>Performance Statistics</h4>
+                    <h4 style={{ marginBottom: 8 }}>{t('bindServer.performanceStatistics')}</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div>
-                        <strong>Debug Level:</strong> {bindStats?.["debug level"] || 'unknown'}
+                        <strong>{t('bindServer.debugLevel')}</strong> {bindStats?.["debug level"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>TCP High-water:</strong> {bindStats?.["TCP high-water"] || 'unknown'}
+                        <strong>{t('bindServer.tcpHighWater')}</strong> {bindStats?.["TCP high-water"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Recursive Clients:</strong> {bindStats?.["recursive clients"] || 'unknown'}
+                        <strong>{t('bindServer.recursiveClients')}</strong> {bindStats?.["recursive clients"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>TCP Clients:</strong> {bindStats?.["tcp clients"] || 'unknown'}
+                        <strong>{t('bindServer.tcpClients')}</strong> {bindStats?.["tcp clients"] || 'unknown'}
                       </div>
                     </div>
                   </div>
                 </Col>
                 <Col xs={24}>
                   <div>
-                    <h4 style={{ marginBottom: 8 }}>Transfer Statistics</h4>
+                    <h4 style={{ marginBottom: 8 }}>{t('bindServer.transferStatistics')}</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                       <div>
-                        <strong>Xfers Running:</strong> {bindStats?.["xfers running"] || 'unknown'}
+                        <strong>{t('bindServer.xfersRunning')}</strong> {bindStats?.["xfers running"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Xfers Deferred:</strong> {bindStats?.["xfers deferred"] || 'unknown'}
+                        <strong>{t('bindServer.xfersDeferred')}</strong> {bindStats?.["xfers deferred"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Xfers First Refresh:</strong> {bindStats?.["xfers first refresh"] || 'unknown'}
+                        <strong>{t('bindServer.xfersFirstRefresh')}</strong> {bindStats?.["xfers first refresh"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>Recursive High-water:</strong> {bindStats?.["recursive high-water"] || 'unknown'}
+                        <strong>{t('bindServer.recursiveHighWater')}</strong> {bindStats?.["recursive high-water"] || 'unknown'}
                       </div>
                       <div>
-                        <strong>SOA Queries In Progress:</strong> {bindStats?.["soa queries in progress"] || 'unknown'}
+                        <strong>{t('bindServer.soaQueriesInProgress')}</strong> {bindStats?.["soa queries in progress"] || 'unknown'}
                       </div>
                     </div>
                   </div>
@@ -675,8 +678,8 @@ const BindServerManager = ({ currentLanguage }) => {
           </>
         ) : (
           <Alert
-            title={t('bindServer.loading', currentLanguage)}
-            description={t('bindServer.loadingDescription', currentLanguage)}
+            title={t('bindServer.loading')}
+            description={t('bindServer.loadingDescription')}
             type="info"
             showIcon
           />
@@ -689,20 +692,20 @@ const BindServerManager = ({ currentLanguage }) => {
         open={confirmModalVisible}
         onOk={handleConfirmAction}
         onCancel={() => setConfirmModalVisible(false)}
-        okText={t('bindServer.confirm', currentLanguage)}
-        cancelText={t('bindServer.cancel', currentLanguage)}
+        okText={t('bindServer.confirm')}
+        cancelText={t('bindServer.cancel')}
         confirmLoading={actionLoading}
         okButtonProps={{ danger: true }}
       >
         <div>
           <Alert
-            title={t('bindServer.warning', currentLanguage)}
+            title={t('bindServer.warning')}
             description={confirmModalContent}
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
           />
-          <p>{t('bindServer.confirmMessage', currentLanguage)}</p>
+          <p>{t('bindServer.confirmMessage')}</p>
         </div>
       </Modal>
 
@@ -714,17 +717,17 @@ const BindServerManager = ({ currentLanguage }) => {
       
       {/* Backup Management Modal */}
       <Modal
-        title={t('bindServer.backupManagementTitle', currentLanguage)}
+        title={t('bindServer.backupManagementTitle')}
         open={backupModalVisible}
         onOk={() => setBackupModalVisible(false)}
         onCancel={() => setBackupModalVisible(false)}
-        okText={t('bindServer.close', currentLanguage)}
-        cancelText={t('bindServer.cancel', currentLanguage)}
+        okText={t('bindServer.close')}
+        cancelText={t('bindServer.cancel')}
         width={800}
         styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
       >
         <div>
-          <h3 style={{ marginBottom: 16 }}>{t('bindServer.backupList', currentLanguage)}</h3>
+          <h3 style={{ marginBottom: 16 }}>{t('bindServer.backupList')}</h3>
           <Spin spinning={backupLoading}>
             {backups.length > 0 ? (
               <div className="backup-list">
@@ -745,8 +748,8 @@ const BindServerManager = ({ currentLanguage }) => {
                       <div>
                         <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{filename}</div>
                         <div style={{ fontSize: '12px', color: '#666' }}>
-                          <span>{t('bindServer.time', currentLanguage)}: {new Date(backup.timestamp).toLocaleString()}</span>
-                          <span style={{ marginLeft: '16px' }}>{t('bindServer.size', currentLanguage)}: {backup.size} bytes</span>
+                          <span>{t('bindServer.time')}: {new Date(backup.timestamp).toLocaleString()}</span>
+                          <span style={{ marginLeft: '16px' }}>{t('bindServer.size')}: {backup.size} bytes</span>
                         </div>
                       </div>
                       <Space>
@@ -755,14 +758,14 @@ const BindServerManager = ({ currentLanguage }) => {
                           size="small"
                           onClick={() => handleRestoreBackup(backup.filePath)}
                         >
-                          {t('bindServer.restore', currentLanguage)}
+                          {t('bindServer.restore')}
                         </Button>
                         <Button 
                           danger 
                           size="small"
                           onClick={() => confirmDeleteBackup(filename)}
                         >
-                          {t('bindServer.delete', currentLanguage)}
+                          {t('bindServer.delete')}
                         </Button>
                       </Space>
                     </div>
@@ -771,8 +774,8 @@ const BindServerManager = ({ currentLanguage }) => {
               </div>
             ) : (
               <Alert
-                title={t('bindServer.noBackups', currentLanguage)}
-                description={t('bindServer.noBackupsDescription', currentLanguage)}
+                title={t('bindServer.noBackups')}
+                description={t('bindServer.noBackupsDescription')}
                 type="info"
                 showIcon
               />

@@ -53,7 +53,17 @@ export default {
     no: 'No',
     ruleAdded: 'Rule added successfully',
     ruleUpdated: 'Rule updated successfully',
-    ruleDeleted: 'Rule deleted successfully'
+    ruleDeleted: 'Rule deleted successfully',
+    checkFormFields: 'Please check form fields',
+    pleaseInputDomain: 'Please input domain',
+    enterDomainName: 'Enter domain name',
+    pleaseSelectType: 'Please select type',
+    selectDnsType: 'Select DNS type',
+    pleaseInputValue: 'Please input value',
+    enterDnsValue: 'Enter DNS value',
+    pleaseInputPriority: 'Please input priority',
+    enterPriority: 'Enter priority',
+    enterDescription: 'Enter description'
   },
   
   // Logs page
@@ -307,7 +317,75 @@ export default {
       labelLength: 'Each domain label must be between 1-63 characters',
       invalidCharacters: 'Domain can only contain letters, numbers, and hyphens',
       hyphenStartEnd: 'Domain labels cannot start or end with a hyphen'
-    }
+    },
+    
+    // Messages
+    fetchError: 'Failed to get forward groups',
+    formValidateError: 'Please check form fields',
+    createSuccess: 'Forward group created successfully',
+    createError: 'Failed to create forward group',
+    updateSuccess: 'Forward group updated successfully',
+    updateError: 'Failed to update forward group',
+    deleteSuccess: 'Forward group deleted successfully',
+    deleteError: 'Failed to delete forward group',
+    batchDeleteSuccess: 'Forward groups deleted successfully',
+    batchDeleteError: 'Failed to delete forward groups',
+    selectToDelete: 'Please select forward groups to delete',
+    
+    // Server related
+    serverAdded: 'Server added successfully',
+    serverAddError: 'Failed to add server',
+    serverUpdated: 'Server updated successfully',
+    serverUpdateError: 'Failed to update server',
+    serverDeleted: 'Server deleted successfully',
+    serverDeleteError: 'Failed to delete server',
+    healthCheckFailed: 'Health check failed',
+    confirmDeleteServer: 'Are you sure to delete this server?',
+    
+    // Table columns
+    index: 'No.',
+    enableStatus: 'Enable Status',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    
+    // Priority
+    priority: 'Priority',
+    priorityHigh: 'High',
+    priorityMedium: 'Medium',
+    priorityLow: 'Low',
+    serversCount: 'servers',
+    priorityHighOption: 'High (1)',
+    priorityMediumOption: 'Medium (2)',
+    priorityLowOption: 'Low (3)',
+    
+    // Buttons
+    add: 'Add',
+    check: 'Check',
+    reset: 'Reset',
+    addServer: 'Add Server',
+    editServer: 'Edit Server',
+    
+    // Form labels
+    serverAddress: 'Server Address',
+    serverAddressPlaceholder: 'Please enter DNS server address (IPv4/IPv6)',
+    port: 'Port',
+    portPlaceholder: 'Please enter port',
+    serverDescription: 'Description',
+    serverDescriptionPlaceholder: 'Please enter server description',
+    priorityLabel: 'Priority',
+    priorityPlaceholder: 'Please select priority',
+    inputPort: 'Please enter port',
+    inputServerAddress: 'Please enter server address',
+    
+    // Placeholders
+    domainPlaceholder: 'Please enter forward group domain',
+    descriptionPlaceholder: 'Please enter forward group description',
+    testDomainPlaceholder: 'Please enter a domain to test, e.g.: www.example.com',
+    
+    // Test related
+    enterTestDomain: 'Please enter a test domain',
+    testFailed: 'Test failed',
+    testFailedRetry: 'Test failed, please try again later'
   },
   
   // Dashboard page
@@ -606,7 +684,35 @@ export default {
     editConfigFile: 'Edit configuration file',
     setBindEnabled: 'Set BIND_ENABLED to',
     restartService: 'Restart SteadyDNS service for the configuration to take effect',
-    checkingPluginStatus: 'Checking plugin status...'
+    checkingPluginStatus: 'Checking plugin status...',
+    
+    // Backup management messages
+    loadBackupListFailed: 'Failed to load backup list',
+    restoreBackupSuccess: 'Backup restored successfully',
+    restoreBackupFailed: 'Failed to restore backup',
+    deleteBackupSuccess: 'Backup deleted successfully',
+    deleteBackupFailed: 'Failed to delete backup',
+    deleteBackup: 'Delete Backup',
+    confirmDeleteBackup: 'Are you sure to delete this backup file? This action cannot be undone.',
+    
+    // Statistics
+    detailedStatistics: 'Detailed Statistics',
+    serverInformation: 'Server Information',
+    bootTime: 'Boot Time:',
+    lastConfigured: 'Last Configured:',
+    configurationFile: 'Configuration File:',
+    runningOn: 'Running On:',
+    performanceStatistics: 'Performance Statistics',
+    debugLevel: 'Debug Level:',
+    tcpHighWater: 'TCP High-water:',
+    recursiveClients: 'Recursive Clients:',
+    tcpClients: 'TCP Clients:',
+    transferStatistics: 'Transfer Statistics',
+    xfersRunning: 'Xfers Running:',
+    xfersDeferred: 'Xfers Deferred:',
+    xfersFirstRefresh: 'Xfers First Refresh:',
+    recursiveHighWater: 'Recursive High-water:',
+    soaQueriesInProgress: 'SOA Queries In Progress:'
   },
   
   // ServerManager page
@@ -661,7 +767,11 @@ export default {
     confirmRestartHttp: 'Are you sure to restart the HTTP server? This will cause a brief interruption in HTTP services.',
     confirmLogLevel: 'Are you sure to change the log level? This will affect the amount of information logged by the server.',
     confirmDnsLogLevel: 'Are you sure to set DNS log level to {{level}}?',
-    confirmApiLogLevel: 'Are you sure to set API log level to {{level}}?'
+    confirmApiLogLevel: 'Are you sure to set API log level to {{level}}?',
+    logLevelsSetSuccess: 'Log levels set successfully',
+    logLevelsSetFailed: 'Failed to set log levels',
+    cacheInitialized: 'Cache Initialized',
+    forwarderInitialized: 'Forwarder Initialized'
   },
 
   // Bind config editor
@@ -730,8 +840,11 @@ export default {
     objectName: 'Object Name:',
     objectType: 'Object Type:',
     childObjectCount: 'Child Object Count:',
+    error: 'Error',
     renderError: 'Render Error',
-    renderErrorDescription: 'An error occurred while rendering this field: {{error}}'
+    renderErrorDetail: 'An error occurred while rendering this field: {{message}}',
+    noConfigData: 'No config data',
+    configBlockNotFound: 'Config block not found'
   },
   
   // Raw editor
@@ -786,6 +899,7 @@ export default {
     modified: 'Modified',
     total: 'Total',
     summary: 'Summary：',
+    summaryText: 'Total {{total}} lines, {{unchanged}} unchanged, {{added}} added, {{removed}} removed',
     noDiff: 'No Diff',
     noDiffDescription: 'Configuration has not changed',
     diffDetails: 'Diff Details',
@@ -796,7 +910,11 @@ export default {
     newValue: 'New Value：',
     context: 'Context：',
     configConsistent: 'Config Consistent',
-    configConsistentDescription: 'Current configuration is completely consistent with the original configuration, no differences found.'
+    configConsistentDescription: 'Current configuration is completely consistent with the original configuration, no differences found.',
+    add: 'Added',
+    remove: 'Removed',
+    modify: 'Modified',
+    unknown: 'Unknown'
   },
   
   // User Management
@@ -840,7 +958,8 @@ export default {
     passwordNotMatch: 'Passwords do not match',
     invalidEmail: 'Invalid email format',
     usernameMinLength: 'Username must be at least 3 characters',
-    passwordMinLength: 'Password must be at least 6 characters'
+    passwordMinLength: 'Password must be at least 6 characters',
+    totalRecords: 'Total {{total}} records'
   },
   
   // About
@@ -854,5 +973,58 @@ export default {
     reportBug: 'Report Bug',
     changelog: 'View Changelog',
     ok: 'OK'
+  },
+  
+  // Common translations
+  common: {
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    ok: 'OK',
+    generate: 'Generate',
+    pleaseConfirm: 'Please confirm if you want to proceed.',
+    operationConfirm: 'Operation Confirmation'
+  },
+  
+  // Plugin status related
+  plugins: {
+    bindNotEnabled: 'BIND Plugin Not Enabled',
+    bindNotEnabledDescription: 'Authority zone management requires BIND plugin support. Please enable the plugin before accessing.',
+    bindNotEnabledOperate: 'BIND plugin not enabled, please enable it first',
+    dnsRulesNotEnabled: 'DNS Rules Plugin Not Enabled',
+    dnsRulesNotEnabledDescription: 'Please enable DNS Rules plugin before accessing DNS rules management',
+    logAnalysisNotEnabled: 'Log Analysis Plugin Not Enabled',
+    logAnalysisNotEnabledDescription: 'Please enable Log Analysis plugin before accessing log analysis features',
+    pluginControlNotice: 'Plugin enable/disable is controlled via configuration file, changes require service restart',
+    configFileLocation: 'Config file location: /src/cmd/config/steadydns.conf',
+    enableMethod: 'Enable Method:',
+    editConfigFile: '1. Edit config file:',
+    setBindEnabled: '2. Set BIND_ENABLED to true',
+    restartService: '3. Restart SteadyDNS service for changes to take effect',
+    checkingPluginStatus: 'Checking plugin status...',
+    dnsRulesPlugin: 'DNS Rules Plugin',
+    dnsRulesPluginTooltip: 'DNS query rules management - Requires service restart for changes to take effect',
+    logAnalysisPlugin: 'Log Analysis Plugin',
+    logAnalysisPluginTooltip: 'DNS query log analysis - Requires service restart for changes to take effect'
+  },
+  
+  // JWT key generation
+  jwt: {
+    generateRandomKey: 'Generate Random Key',
+    generateRandomJwtKey: 'Generate Random JWT Key',
+    generatedKey: 'Generated random key:',
+    clickRegenerate: 'Click to regenerate random key'
+  },
+  
+  // History related
+  history: {
+    loadHistoryFailed: 'Failed to load operation history',
+    restoreSuccess: 'Restored from history successfully',
+    restoreFailed: 'Failed to restore from history'
+  },
+  
+  // Form placeholders
+  placeholders: {
+    allInterfaces: 'e.g.: 0.0.0.0 for all interfaces',
+    allInterfacesIpv6: 'e.g.: :: for all interfaces'
   }
 }
