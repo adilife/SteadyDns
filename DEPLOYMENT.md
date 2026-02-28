@@ -6,7 +6,7 @@
 
 - [环境要求](#环境要求)
   - [操作系统](#操作系统)
-  - [必须组件](#必须组件)
+  - [第三方组件](#第三方组件)
   - [BIND 插件说明](#bind-插件说明)
   - [端口要求](#端口要求)
   - [硬件要求](#硬件要求)
@@ -26,7 +26,7 @@
 |------|------|------|
 | Linux | CentOS 7+, Ubuntu 18.04+, Debian 10+ | x86_64, arm64 |
 
-### 必须组件
+### 第三方组件
 
 | 组件 | 版本要求 | 说明 |
 |------|----------|------|
@@ -174,12 +174,11 @@ wget https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steady
 # 2. 解压
 tar -xzf steadydns-linux-amd64.tar.gz
 
-# 3. 移动到目标目录
-mv steadydns /usr/local/bin/
+# 3. 进入目录
+cd steadydns-0.9.0-beta.1-linux-amd64
 
-# 4. 创建工作目录
-mkdir -p /etc/steadydns
-cd /etc/steadydns
+# 4. 启动服务
+./steadydns start
 ```
 
 ### 方式二：从源码编译
@@ -199,8 +198,8 @@ cd ../steadydnsd
 make build-full
 
 # 4. 安装
-cp src/cmd/steadydns /usr/local/bin/
-mkdir -p /etc/steadydns
+mkdir -p /opt/steadydns
+cp src/cmd/steadydns /opt/steadydns
 ```
 
 ### 方式三：使用 Makefile 安装
@@ -211,6 +210,18 @@ make install  # 安装依赖
 make build    # 编译
 ```
 
+## Systemd 服务安装
+
+```bash
+# 复制二进制文件
+sudo cp steadydns /opt/steadydns/
+
+# 安装服务
+sudo cp scripts/steadydns.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable steadydns
+sudo systemctl start steadydns
+```
 ---
 
 ## 配置说明
@@ -292,32 +303,13 @@ DNS_RATE_LIMIT_GLOBAL=10000
 ./steadydns status
 
 # 查看版本
-./steadydns version
+./steadydns --version
+
+# 查看帮助
+./steadydns --help
 ```
 
 ### Systemd 服务（推荐）
-
-创建服务文件 `/etc/systemd/system/steadydns.service`：
-
-```ini
-[Unit]
-Description=SteadyDNS Server
-After=network.target
-Wants=network.target
-
-[Service]
-Type=forking
-PIDFile=/etc/steadydns/steadydns.pid
-WorkingDirectory=/etc/steadydns
-ExecStart=/usr/local/bin/steadydns start
-ExecStop=/usr/local/bin/steadydns stop
-ExecReload=/usr/local/bin/steadydns restart
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
 
 管理命令：
 
@@ -377,7 +369,7 @@ cp /etc/steadydns/steadydns.db /etc/steadydns/backup/steadydns.db.bak
 systemctl stop steadydns
 
 # 3. 替换二进制文件
-cp steadydns /usr/local/bin/steadydns
+cp steadydns /opt/steadydns
 
 # 4. 启动服务
 ./steadydns start
@@ -385,7 +377,7 @@ cp steadydns /usr/local/bin/steadydns
 systemctl start steadydns
 
 # 5. 验证版本
-./steadydns version
+./steadydns --version
 ```
 
 ### 数据库迁移
