@@ -61,7 +61,7 @@ chmod +x steadydnsd
 After startup, access http://Server-IP:8080 in your browser to enter the visual management panel (default username: admin, password: admin123).
 > ⚠️ Security Note: Change the default password immediately after first login!
 
->For complete installation & deployment, auto-start on boot, custom configuration, etc., please refer to the [Deployment Guide](https://github.com/adilife/SteadyDns/blob/main/DEPLOYMENT.md)
+>For complete installation & deployment, auto-start on boot, custom configuration, etc., please refer to the [Deployment Guide](https://github.com/adilife/SteadyDns/blob/main/DEPLOYMENT.en-US.md)
 
 ### Testing Feedback
 * Encountered an issue? 👉 [Submit an Issue](https://github.com/adilife/SteadyDNS/issues/new?labels=beta-test&title=%5Bv0.9.0-beta.1%20Test%20Feedback%5D)
