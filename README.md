@@ -1,9 +1,8 @@
 
 # SteadyDNS
 
-[![Version](https://img.shields.io/badge/version-0.9.0--beta.1-blue.svg)](https://github.com/adilife/SteadyDNS)
+[![Version](https://img.shields.io/badge/version-0.9.0--beta.1-blue.svg)](https://github.com/adilife/SteadyDns/releases/tag/v0.9.0-beta.1)
 [![License](https://img.shields.io/badge/license-AGPLv3-green.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-1.21+-00ADD8.svg)](https://golang.org/)
 [![Language](https://img.shields.io/badge/Language-Golang%20%7C%20JavaScript-blue)](https://github.com/adilife/SteadyDns)
 
 A lightweight DNS solution tailored for small to medium-sized environments. Built with Golang, it boasts extreme concurrent processing capabilities and minimal resource consumption.
@@ -13,6 +12,8 @@ A lightweight DNS solution tailored for small to medium-sized environments. Buil
 ## 🚀 尝鲜测试（v0.9.0-beta.1 [Release Note](https://github.com/adilife/SteadyDns/releases/tag/v0.9.0-beta.1)）
 > 当前发布 beta 版本，欢迎下载测试并反馈问题！
 
+> [版本更新说明](https://github.com/adilife/SteadyDns/blob/main/CHANGELOG.md)
+
 ### 版本核心亮点
 - 极简部署：单二进制文件，无额外依赖，Linux x86_64/arm64 架构全覆盖
 - 高性能解析：基于 Go 原生并发模型，单节点支持每秒万级 DNS 请求处理
@@ -20,25 +21,50 @@ A lightweight DNS solution tailored for small to medium-sized environments. Buil
 - 高可用设计：智能上游 DNS 切换、本地缓存、不可用上游自动屏蔽，保障解析稳定性
 
 ### 环境要求
-- 操作系统：Linux
-- 架构支持：x86_64 arm_64
-- 端口要求：需开放TCP/UDP 53（DNS 服务）、8080（Web 面板，可自定义）端口
+- 操作系统：Linux（CentOS/Ubuntu/Debian 等主流发行版均可）
+- 架构支持：x86_64 arm_64（如树莓派、鲲鹏服务器等）
+- 端口要求：需开放TCP/UDP 53（DNS 服务默认端口）、8080（Web 面板，可自定义）端口
 
-### 快速下载（推荐）
+### 快速下载与启动（推荐）
 直接下载预编译二进制包（无需编译，开箱即用）：
 
-[linux x86-64版本下载](https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-amd64.tar.gz)
+#### 1. 下载对应架构版本
+
+> [linux x86-64版本下载](https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-amd64.tar.gz)
 ```bash
-# 下载 v0.9.0-beta.1 版本（Linux x86_64）
+# Linux x86_64 架构（主流 x86 服务器/虚拟机）
 wget https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-amd64.tar.gz
 ```
-[linux arm-64版本下载](https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-arm64.tar.gz)
+> [linux arm-64版本下载](https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-arm64.tar.gz)
 ```bash
-# 下载 v0.9.0-beta.1 版本（Linux arm_64）
+# Linux arm64 架构（如树莓派、鲲鹏、AWS Graviton 等）
 wget https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-arm64.tar.gz
 ```
 
-安装部署请参考[部署指南](https://github.com/adilife/SteadyDns/blob/main/DEPLOYMENT.md)
+#### 2. 解压并启动（基础测试）
+
+```bash
+# 解压下载的压缩包
+tar -zxvf steadydns-v0.9.0-beta.1-linux-*.tar.gz
+
+# 进入解压目录
+cd steadydns-v0.9.0-beta.1-linux-*
+
+# 赋予执行权限
+chmod +x steadydnsd
+
+# 启动服务（前台运行，测试用）
+./steadydnsd start
+
+# 查看命令行帮助
+./steadydnsd --help
+```
+
+#### 3. 访问 Web 面板
+启动后，浏览器访问 http://服务器IP:8080 即可进入可视化管理面板（默认用户admin，密码admin123）。
+> ⚠️ 安全提示：首次登录后请立即修改默认密码！
+
+>完整安装部署、开机自启、配置自定义等细节，请参考[部署指南](https://github.com/adilife/SteadyDns/blob/main/DEPLOYMENT.md)
 
 ### 测试反馈
 * 遇到问题？👉 [提交 Issue](https://github.com/adilife/SteadyDNS/issues/new?labels=beta-test&title=%E3%80%90v0.9.0-beta.1%E6%B5%8B%E8%AF%95%E5%8F%8D%E9%A6%88%E3%80%91)
@@ -145,7 +171,6 @@ npm run build      # 构建生产版本
 
 - GitHub: https://github.com/adilife/SteadyDNS
 
-=======
 
 
 
