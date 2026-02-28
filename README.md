@@ -1,3 +1,4 @@
+  🌐 English Version: [README.en-US.md](./README.en-US.md)
 
 # SteadyDNS
 
