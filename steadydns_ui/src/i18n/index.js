@@ -1,54 +1,34 @@
-import zhCN from './zh-CN'
-import enUS from './en-US'
-import arSA from './ar-SA'
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import LanguageDetector from 'i18next-browser-languagedetector';
 
-// Get saved language from localStorage or use default
-const getSavedLanguage = () => {
-  return localStorage.getItem('steadyDNS_language') || 'zh-CN'
-}
+import zhCN from './zh-CN';
+import enUS from './en-US';
+import arSA from './ar-SA';
 
-// Save language to localStorage
-const saveLanguage = (language) => {
-  localStorage.setItem('steadyDNS_language', language)
-}
-
-// Translation function
-const t = (key, lang = getSavedLanguage(), replacements = {}) => {
-  // Split key into parts (e.g., 'login.title' -> ['login', 'title'])
-  const keys = key.split('.')
-  let result = lang === 'zh-CN' ? zhCN : lang === 'ar-SA' ? arSA : enUS
-  
-  // Traverse the language object to find the translation
-  for (const k of keys) {
-    if (result && result[k] !== undefined) {
-      result = result[k]
-    } else {
-      return key // Return original key if translation not found
+/**
+ * i18next初始化配置
+ * 支持语言检测、持久化和三种语言（zh-CN、en-US、ar-SA）
+ */
+i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    resources: {
+      'zh-CN': { translation: zhCN },
+      'en-US': { translation: enUS },
+      'ar-SA': { translation: arSA }
+    },
+    fallbackLng: 'en-US',
+    supportedLngs: ['zh-CN', 'en-US', 'ar-SA'],
+    detection: {
+      order: ['localStorage', 'navigator'],
+      lookupLocalStorage: 'steadyDNS_language',
+      caches: ['localStorage']
+    },
+    interpolation: {
+      escapeValue: false
     }
-  }
-  
-  // Handle replacements (e.g., 'Welcome, {{username}}' -> 'Welcome, John')
-  if (typeof result === 'string' && Object.keys(replacements).length > 0) {
-    return result.replace(/{{(.*?)}}/g, (match, placeholder) => {
-      return replacements[placeholder] || match
-    })
-  }
-  
-  return result
-}
+  });
 
-// Language switch function
-const switchLanguage = (language) => {
-  saveLanguage(language)
-  // You might want to emit an event here to notify components of language change
-}
-
-export {
-  t,
-  switchLanguage,
-  getSavedLanguage,
-  saveLanguage,
-  zhCN,
-  enUS,
-  arSA
-}
+export default i18n;

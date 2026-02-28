@@ -53,7 +53,17 @@ export default {
     no: '否',
     ruleAdded: '规则添加成功',
     ruleUpdated: '规则更新成功',
-    ruleDeleted: '规则删除成功'
+    ruleDeleted: '规则删除成功',
+    checkFormFields: '请检查表单字段',
+    pleaseInputDomain: '请输入域名',
+    enterDomainName: '请输入域名',
+    pleaseSelectType: '请选择类型',
+    selectDnsType: '选择DNS类型',
+    pleaseInputValue: '请输入值',
+    enterDnsValue: '请输入DNS值',
+    pleaseInputPriority: '请输入优先级',
+    enterPriority: '请输入优先级',
+    enterDescription: '请输入描述'
   },
   
   // Logs page
@@ -307,7 +317,75 @@ export default {
       labelLength: '每个域名标签长度必须在1-63个字符之间',
       invalidCharacters: '域名只能包含字母、数字和连字符',
       hyphenStartEnd: '域名标签不能以连字符开头或结尾'
-    }
+    },
+    
+    // 消息提示
+    fetchError: '获取转发组失败',
+    formValidateError: '请检查表单字段',
+    createSuccess: '转发组创建成功',
+    createError: '创建转发组失败',
+    updateSuccess: '转发组更新成功',
+    updateError: '更新转发组失败',
+    deleteSuccess: '转发组删除成功',
+    deleteError: '删除转发组失败',
+    batchDeleteSuccess: '转发组批量删除成功',
+    batchDeleteError: '批量删除转发组失败',
+    selectToDelete: '请选择要删除的转发组',
+    
+    // 服务器相关
+    serverAdded: '服务器添加成功',
+    serverAddError: '添加服务器失败',
+    serverUpdated: '服务器更新成功',
+    serverUpdateError: '更新服务器失败',
+    serverDeleted: '服务器删除成功',
+    serverDeleteError: '删除服务器失败',
+    healthCheckFailed: '健康检查失败',
+    confirmDeleteServer: '确定要删除此服务器吗？',
+    
+    // 表格列
+    index: '序号',
+    enableStatus: '启用状态',
+    enabled: '启用',
+    disabled: '禁用',
+    
+    // 优先级
+    priority: '优先级',
+    priorityHigh: '高',
+    priorityMedium: '中',
+    priorityLow: '低',
+    serversCount: '个服务器',
+    priorityHighOption: '高 (1)',
+    priorityMediumOption: '中 (2)',
+    priorityLowOption: '低 (3)',
+    
+    // 按钮
+    add: '添加',
+    check: '检查',
+    reset: '重置',
+    addServer: '添加服务器',
+    editServer: '编辑服务器',
+    
+    // 表单标签
+    serverAddress: '服务器地址',
+    serverAddressPlaceholder: '请输入DNS服务器地址 (IPv4/IPv6)',
+    port: '端口',
+    portPlaceholder: '请输入端口',
+    serverDescription: '描述',
+    serverDescriptionPlaceholder: '请输入服务器描述',
+    priorityLabel: '优先级',
+    priorityPlaceholder: '请选择优先级',
+    inputPort: '请输入端口',
+    inputServerAddress: '请输入服务器地址',
+    
+    // 占位符
+    domainPlaceholder: '请输入转发组域名',
+    descriptionPlaceholder: '请输入转发组描述',
+    testDomainPlaceholder: '请输入要测试的域名，例如: www.example.com',
+    
+    // 测试相关
+    enterTestDomain: '请输入测试域名',
+    testFailed: '测试失败',
+    testFailedRetry: '测试失败，请稍后重试'
   },
   
   // Dashboard page
@@ -606,7 +684,35 @@ export default {
     editConfigFile: '编辑配置文件',
     setBindEnabled: '将 BIND_ENABLED 设置为',
     restartService: '重启SteadyDNS服务使配置生效',
-    checkingPluginStatus: '检查插件状态...'
+    checkingPluginStatus: '检查插件状态...',
+    
+    // Backup management messages
+    loadBackupListFailed: '加载备份列表失败',
+    restoreBackupSuccess: '恢复备份成功',
+    restoreBackupFailed: '恢复备份失败',
+    deleteBackupSuccess: '删除备份成功',
+    deleteBackupFailed: '删除备份失败',
+    deleteBackup: '删除备份',
+    confirmDeleteBackup: '确定要删除此备份文件吗？此操作不可撤销。',
+    
+    // Statistics
+    detailedStatistics: '详细统计',
+    serverInformation: '服务器信息',
+    bootTime: '启动时间:',
+    lastConfigured: '最后配置:',
+    configurationFile: '配置文件:',
+    runningOn: '运行于:',
+    performanceStatistics: '性能统计',
+    debugLevel: '调试级别:',
+    tcpHighWater: 'TCP高水位:',
+    recursiveClients: '递归客户端:',
+    tcpClients: 'TCP客户端:',
+    transferStatistics: '传输统计',
+    xfersRunning: '运行中的传输:',
+    xfersDeferred: '延迟传输:',
+    xfersFirstRefresh: '首次刷新传输:',
+    recursiveHighWater: '递归高水位:',
+    soaQueriesInProgress: '进行中的SOA查询:'
   },
   
   // ServerManager page
@@ -661,7 +767,11 @@ export default {
     confirmRestartHttp: '确定要重启HTTP服务器吗？这将导致HTTP服务短暂中断。',
     confirmLogLevel: '确定要更改日志级别吗？这将影响服务器记录的信息量。',
     confirmDnsLogLevel: '确定要将DNS日志级别设置为{{level}}吗？',
-    confirmApiLogLevel: '确定要将API日志级别设置为{{level}}吗？'
+    confirmApiLogLevel: '确定要将API日志级别设置为{{level}}吗？',
+    logLevelsSetSuccess: '日志级别设置成功',
+    logLevelsSetFailed: '设置日志级别失败',
+    cacheInitialized: '缓存已初始化',
+    forwarderInitialized: '转发器已初始化'
   },
 
   // Bind配置编辑器
@@ -730,8 +840,11 @@ export default {
     objectName: '对象名称:',
     objectType: '对象类型:',
     childObjectCount: '子对象数量:',
+    error: '错误',
     renderError: '渲染错误',
-    renderErrorDescription: '渲染此字段时发生错误: {{error}}'
+    renderErrorDetail: '渲染此字段时发生错误: {{message}}',
+    noConfigData: '无配置数据',
+    configBlockNotFound: '未找到配置块'
   },
   
   // 原始编辑器
@@ -786,6 +899,7 @@ export default {
     modified: '修改',
     total: '总计',
     summary: '摘要：',
+    summaryText: '共 {{total}} 行，{{unchanged}} 行未改变，{{added}} 行新增，{{removed}} 行删除',
     noDiff: '无差异',
     noDiffDescription: '配置未发生变化',
     diffDetails: '差异详情',
@@ -796,7 +910,11 @@ export default {
     newValue: '新值：',
     context: '上下文：',
     configConsistent: '配置一致',
-    configConsistentDescription: '当前配置与原始配置完全一致，没有发现任何差异。'
+    configConsistentDescription: '当前配置与原始配置完全一致，没有发现任何差异。',
+    add: '新增',
+    remove: '删除',
+    modify: '修改',
+    unknown: '未知'
   },
   
   // 用户管理
@@ -840,7 +958,8 @@ export default {
     passwordNotMatch: '两次输入的密码不一致',
     invalidEmail: '邮箱格式不正确',
     usernameMinLength: '用户名至少3个字符',
-    passwordMinLength: '密码至少6个字符'
+    passwordMinLength: '密码至少6个字符',
+    totalRecords: '共 {{total}} 条记录'
   },
   
   // 关于
@@ -854,5 +973,58 @@ export default {
     reportBug: '反馈Bug',
     changelog: '查看更新日志',
     ok: '确定'
+  },
+  
+  // 通用翻译
+  common: {
+    confirm: '确认',
+    cancel: '取消',
+    ok: '确定',
+    generate: '生成',
+    pleaseConfirm: '请确认是否执行此操作。',
+    operationConfirm: '操作确认'
+  },
+  
+  // 插件状态相关
+  plugins: {
+    bindNotEnabled: 'BIND插件未启用',
+    bindNotEnabledDescription: '权威域管理功能需要BIND插件支持，请先启用插件后再访问。',
+    bindNotEnabledOperate: 'BIND插件未启用，请启用后再操作',
+    dnsRulesNotEnabled: 'DNS Rules 插件未启用',
+    dnsRulesNotEnabledDescription: '请启用 DNS Rules 插件后再访问 DNS 规则管理功能',
+    logAnalysisNotEnabled: 'Log Analysis 插件未启用',
+    logAnalysisNotEnabledDescription: '请启用 Log Analysis 插件后再访问日志分析功能',
+    pluginControlNotice: '插件启用/禁用通过配置文件控制，修改后需重启服务生效',
+    configFileLocation: '配置文件位置: /src/cmd/config/steadydns.conf',
+    enableMethod: '启用方法：',
+    editConfigFile: '1. 编辑配置文件：',
+    setBindEnabled: '2. 将 BIND_ENABLED 设置为 true',
+    restartService: '3. 重启SteadyDNS服务使配置生效',
+    checkingPluginStatus: '检查插件状态...',
+    dnsRulesPlugin: 'DNS Rules Plugin',
+    dnsRulesPluginTooltip: 'DNS查询规则管理 - 修改后需重启服务生效',
+    logAnalysisPlugin: 'Log Analysis Plugin',
+    logAnalysisPluginTooltip: 'DNS查询日志分析 - 修改后需重启服务生效'
+  },
+  
+  // JWT密钥生成
+  jwt: {
+    generateRandomKey: '生成随机密钥',
+    generateRandomJwtKey: '生成随机JWT密钥',
+    generatedKey: '生成的随机密钥：',
+    clickRegenerate: '点击重新生成随机密钥'
+  },
+  
+  // 历史记录相关
+  history: {
+    loadHistoryFailed: '加载操作历史失败',
+    restoreSuccess: '从历史记录恢复成功',
+    restoreFailed: '从历史记录恢复失败'
+  },
+  
+  // 表单占位符
+  placeholders: {
+    allInterfaces: '例如：0.0.0.0 表示所有接口',
+    allInterfacesIpv6: '例如：:: 表示所有接口'
   }
 }

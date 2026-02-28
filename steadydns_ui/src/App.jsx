@@ -30,6 +30,7 @@ import {
   InfoCircleOutlined,
   ForwardOutlined
 } from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
 import './App.css'
 import DnsRules from './pages/DnsRules'
 import Logs from './pages/Logs'
@@ -40,7 +41,6 @@ import Configuration from './pages/Configuration'
 import UserManagement from './pages/UserManagement'
 import Login from './pages/Login'
 import AboutModal from './components/AboutModal'
-import { t, getSavedLanguage, switchLanguage } from './i18n'
 import { logout, hasValidToken, startTokenRefreshInterval, resetSessionTimeoutTimer, startSessionTimeoutTimer } from './utils/tokenManager'
 import { apiClient } from './utils/apiClient'
 import { VERSION } from './config/version'
@@ -77,17 +77,23 @@ const MenuLabel = ({ text }) => {
 }
 
 function App() {
+  const { t, i18n } = useTranslation()
   const [selectedKey, setSelectedKey] = useState('1')
   const [collapsed, setCollapsed] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [currentLanguage, setCurrentLanguage] = useState(getSavedLanguage())
   const [userInfo, setUserInfo] = useState({ username: '' })
   const [pluginsStatus, setPluginsStatus] = useState({})
   const [isMobile, setIsMobile] = useState(false)
   const [aboutModalOpen, setAboutModalOpen] = useState(false)
 
   // 检测是否为 RTL 语言
-  const isRTL = currentLanguage === 'ar-SA' // 阿拉伯语等 RTL 语言
+  const isRTL = i18n.language === 'ar-SA' // 阿拉伯语等 RTL 语言
+
+  // 更新HTML根元素的dir和lang属性，用于全局CSS选择器
+  useEffect(() => {
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr'
+    document.documentElement.lang = i18n.language
+  }, [isRTL, i18n.language])
 
   // 检测屏幕尺寸，判断是否为移动端
   useEffect(() => {
@@ -112,19 +118,19 @@ function App() {
   const siderWidth = useMemo(() => {
     // 获取所有菜单文本
     const menuTexts = [
-      t('nav.dashboard', currentLanguage),
-      pluginsStatus.bind?.enabled ? t('nav.authZones', currentLanguage) : '',
-      pluginsStatus['dns-rules']?.enabled ? t('nav.dnsRules', currentLanguage) : '',
-      pluginsStatus['log-analysis']?.enabled ? t('nav.logs', currentLanguage) : '',
-      t('nav.forwardGroups', currentLanguage),
-      t('configuration.title', currentLanguage),
-      t('userManagement.title', currentLanguage)
+      t('nav.dashboard'),
+      pluginsStatus.bind?.enabled ? t('nav.authZones') : '',
+      pluginsStatus['dns-rules']?.enabled ? t('nav.dnsRules') : '',
+      pluginsStatus['log-analysis']?.enabled ? t('nav.logs') : '',
+      t('nav.forwardGroups'),
+      t('configuration.title'),
+      t('userManagement.title')
     ]
     
     // 计算最长文本宽度，加上图标和padding
     const maxTextWidth = Math.max(...menuTexts.map(calculateTextWidth))
     return Math.min(Math.max(180, maxTextWidth + 80), 320) // 限制在180-320px之间
-  }, [currentLanguage, pluginsStatus])
+  }, [pluginsStatus, t])
 
   // Fetch plugins status with cache support (defined at component level)
   const fetchPluginsStatus = useCallback(async (useCache = true) => {
@@ -248,10 +254,6 @@ function App() {
       window.removeEventListener('storage', handleStorageChange)
     }
   }, [fetchPluginsStatus])
-  // Update language when changed
-  useEffect(() => {
-    switchLanguage(currentLanguage)
-  }, [currentLanguage])
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -301,60 +303,60 @@ function App() {
     }
   }
   const handleLanguageChange = (lang) => {
-    setCurrentLanguage(lang)
+    i18n.changeLanguage(lang)
   }
 
   const renderContent = () => {
     switch (selectedKey) {
       case '1':
-        return <Dashboard currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <Dashboard userInfo={userInfo} />
       case '2':
         // Check if BIND plugin is enabled before rendering AuthZones
         if (!pluginsStatus.bind?.enabled) {
           return (
             <div style={{ textAlign: 'center', padding: '40px' }}>
-              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>BIND插件未启用</h2>
-              <p style={{ marginBottom: '24px' }}>请启用BIND插件后再访问权威域管理功能</p>
-              <p>插件启用/禁用通过配置文件控制，修改后需重启服务生效</p>
-              <p>配置文件位置: /src/cmd/config/steadydns.conf</p>
+              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>{t('plugins.bindNotEnabled')}</h2>
+              <p style={{ marginBottom: '24px' }}>{t('plugins.bindNotEnabledDescription')}</p>
+              <p>{t('plugins.pluginControlNotice')}</p>
+              <p>{t('plugins.configFileLocation')}</p>
             </div>
           )
         }
-        return <AuthZones currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <AuthZones userInfo={userInfo} />
       case '3':
         // Check if DNS Rules plugin is enabled before rendering DnsRules
         if (!pluginsStatus['dns-rules']?.enabled) {
           return (
             <div style={{ textAlign: 'center', padding: '40px' }}>
-              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>DNS Rules 插件未启用</h2>
-              <p style={{ marginBottom: '24px' }}>请启用 DNS Rules 插件后再访问 DNS 规则管理功能</p>
-              <p>插件启用/禁用通过配置文件控制，修改后需重启服务生效</p>
-              <p>配置文件位置: /src/cmd/config/steadydns.conf</p>
+              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>{t('plugins.dnsRulesNotEnabled')}</h2>
+              <p style={{ marginBottom: '24px' }}>{t('plugins.dnsRulesNotEnabledDescription')}</p>
+              <p>{t('plugins.pluginControlNotice')}</p>
+              <p>{t('plugins.configFileLocation')}</p>
             </div>
           )
         }
-        return <DnsRules currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <DnsRules userInfo={userInfo} />
       case '4':
         // Check if Log Analysis plugin is enabled before rendering Logs
         if (!pluginsStatus['log-analysis']?.enabled) {
           return (
             <div style={{ textAlign: 'center', padding: '40px' }}>
-              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>Log Analysis 插件未启用</h2>
-              <p style={{ marginBottom: '24px' }}>请启用 Log Analysis 插件后再访问日志分析功能</p>
-              <p>插件启用/禁用通过配置文件控制，修改后需重启服务生效</p>
-              <p>配置文件位置: /src/cmd/config/steadydns.conf</p>
+              <h2 style={{ color: '#ff4d4f', marginBottom: '16px' }}>{t('plugins.logAnalysisNotEnabled')}</h2>
+              <p style={{ marginBottom: '24px' }}>{t('plugins.logAnalysisNotEnabledDescription')}</p>
+              <p>{t('plugins.pluginControlNotice')}</p>
+              <p>{t('plugins.configFileLocation')}</p>
             </div>
           )
         }
-        return <Logs currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <Logs userInfo={userInfo} />
       case '5':
-        return <ForwardGroups currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <ForwardGroups userInfo={userInfo} />
       case '6':
-        return <Configuration currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <Configuration userInfo={userInfo} />
       case '7':
-        return <UserManagement currentLanguage={currentLanguage} />
+        return <UserManagement />
       default:
-        return <Dashboard currentLanguage={currentLanguage} userInfo={userInfo} />
+        return <Dashboard userInfo={userInfo} />
     }
   }
 
@@ -365,7 +367,7 @@ function App() {
       label: (
         <a onClick={() => setAboutModalOpen(true)}>
           <InfoCircleOutlined style={{ marginRight: '8px' }} />
-          {t('about.title', currentLanguage)}
+          {t('about.title')}
         </a>
       ),
     },
@@ -373,7 +375,7 @@ function App() {
       key: 'logout',
       label: (
         <a onClick={handleLogout}>
-          {t('header.logout', currentLanguage)}
+          {t('header.logout')}
         </a>
       ),
     },
@@ -382,8 +384,6 @@ function App() {
   if (!isLoggedIn) {
     return <Login 
       onLogin={handleLogin} 
-      currentLanguage={currentLanguage} 
-      onLanguageChange={handleLanguageChange} 
     />
   }
 
@@ -394,13 +394,13 @@ function App() {
         <Header style={{ display: 'flex', alignItems: 'center', justifyContent: isRTL ? 'space-between' : 'space-between', padding: '0 16px', background: colorBgContainer, direction: isRTL ? 'rtl' : 'ltr' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', direction: isRTL ? 'rtl' : 'ltr' }}>
             <h1 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold', textAlign: isRTL ? 'right' : 'left' }}>
-              {t('header.title', currentLanguage)}
+              {t('header.title')}
             </h1>
           </div>
           <Space size="middle">
             {/* Language selector */}
             <Select
-              value={currentLanguage}
+              value={i18n.language}
               style={{ width: 100 }}
               onChange={handleLanguageChange}
             >
@@ -429,40 +429,40 @@ function App() {
               {
                 key: '1',
                 icon: <DashboardOutlined />,
-                label: t('nav.dashboard', currentLanguage),
+                label: t('nav.dashboard'),
               },
               // Only show auth zones menu if BIND plugin is enabled
               ...(pluginsStatus.bind?.enabled ? [{
                 key: '2',
                 icon: <DatabaseOutlined />,
-                label: t('nav.authZones', currentLanguage),
+                label: t('nav.authZones'),
               }] : []),
               // Only show DNS Rules menu if DNS Rules plugin is enabled
               ...(pluginsStatus['dns-rules']?.enabled ? [{
                 key: '3',
                 icon: <AppstoreOutlined />,
-                label: t('nav.dnsRules', currentLanguage),
+                label: t('nav.dnsRules'),
               }] : []),
               // Only show Logs menu if Log Analysis plugin is enabled
               ...(pluginsStatus['log-analysis']?.enabled ? [{
                 key: '4',
                 icon: <LogoutOutlined />,
-                label: t('nav.logs', currentLanguage),
+                label: t('nav.logs'),
               }] : []),
               {
                 key: '5',
                 icon: <ForwardOutlined />,
-                label: t('nav.forwardGroups', currentLanguage),
+                label: t('nav.forwardGroups'),
               },
               {
                 key: '6',
                 icon: <SettingOutlined />,
-                label: t('configuration.title', currentLanguage),
+                label: t('configuration.title'),
               },
               {
                 key: '7',
                 icon: <TeamOutlined />,
-                label: t('userManagement.title', currentLanguage),
+                label: t('userManagement.title'),
               },
             ]}
           />
@@ -485,7 +485,6 @@ function App() {
         <AboutModal
           open={aboutModalOpen}
           onCancel={() => setAboutModalOpen(false)}
-          currentLanguage={currentLanguage}
         />
       </Layout>
     )
@@ -519,40 +518,40 @@ function App() {
             {
               key: '1',
               icon: <DashboardOutlined />,
-              label: <MenuLabel text={t('nav.dashboard', currentLanguage)} />,
+              label: <MenuLabel text={t('nav.dashboard')} />,
             },
             // Only show auth zones menu if BIND plugin is enabled
             ...(pluginsStatus.bind?.enabled ? [{
               key: '2',
               icon: <DatabaseOutlined />,
-              label: <MenuLabel text={t('nav.authZones', currentLanguage)} />,
+              label: <MenuLabel text={t('nav.authZones')} />,
             }] : []),
             // Only show DNS Rules menu if DNS Rules plugin is enabled
             ...(pluginsStatus['dns-rules']?.enabled ? [{
               key: '3',
               icon: <AppstoreOutlined />,
-              label: <MenuLabel text={t('nav.dnsRules', currentLanguage)} />,
+              label: <MenuLabel text={t('nav.dnsRules')} />,
             }] : []),
             // Only show Logs menu if Log Analysis plugin is enabled
             ...(pluginsStatus['log-analysis']?.enabled ? [{
               key: '4',
               icon: <LogoutOutlined />,
-              label: <MenuLabel text={t('nav.logs', currentLanguage)} />,
+              label: <MenuLabel text={t('nav.logs')} />,
             }] : []),
             {
               key: '5',
               icon: <ForwardOutlined />,
-              label: <MenuLabel text={t('nav.forwardGroups', currentLanguage)} />,
+              label: <MenuLabel text={t('nav.forwardGroups')} />,
             },
             {
               key: '6',
               icon: <SettingOutlined />,
-              label: <MenuLabel text={t('configuration.title', currentLanguage)} />,
+              label: <MenuLabel text={t('configuration.title')} />,
             },
             {
               key: '7',
               icon: <TeamOutlined />,
-              label: <MenuLabel text={t('userManagement.title', currentLanguage)} />,
+              label: <MenuLabel text={t('userManagement.title')} />,
             },
           ]}
         />
@@ -576,14 +575,14 @@ function App() {
       <Layout style={{ display: 'flex', flexDirection: 'column', height: '100%', direction: isRTL ? 'rtl' : 'ltr' }}>
         <Header style={{ display: 'flex', alignItems: 'center', justifyContent: isRTL ? 'space-between' : 'space-between', padding: '0 24px', background: colorBgContainer, direction: isRTL ? 'rtl' : 'ltr' }}>
           <h1 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', textAlign: isRTL ? 'right' : 'left' }}>
-            {t('header.title', currentLanguage)}
+            {t('header.title')}
           </h1>
           <Space size="large">
             {/* Language selector */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', direction: isRTL ? 'rtl' : 'ltr' }}>
-              <span style={{ fontSize: '14px', color: '#666', textAlign: isRTL ? 'right' : 'left' }}>{t('header.language', currentLanguage)}:</span>
+              <span style={{ fontSize: '14px', color: '#666', textAlign: isRTL ? 'right' : 'left' }}>{t('header.language')}:</span>
               <Select
-                value={currentLanguage}
+                value={i18n.language}
                 style={{ width: 120 }}
                 onChange={handleLanguageChange}
               >
@@ -597,7 +596,7 @@ function App() {
             <Dropdown menu={{ items: userMenu }}>
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />
-                <span>{t('header.welcome', currentLanguage, { username: userInfo.username || '' })}</span>
+                <span>{t('header.welcome', { username: userInfo.username || '' })}</span>
                 <DownOutlined />
               </Space>
             </Dropdown>
@@ -624,7 +623,6 @@ function App() {
       <AboutModal
         open={aboutModalOpen}
         onCancel={() => setAboutModalOpen(false)}
-        currentLanguage={currentLanguage}
       />
     </Layout>
   )

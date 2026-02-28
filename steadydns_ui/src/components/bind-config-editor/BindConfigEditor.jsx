@@ -37,7 +37,7 @@ import {
   CodeOutlined,
   LoadingOutlined
 } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../../utils/apiClient'
 import ConfigNavigator from './ConfigNavigator'
 import StructuredEditor from './StructuredEditor'
@@ -86,6 +86,9 @@ class ErrorBoundary extends React.Component {
 const { TabPane } = Tabs
 
 const BindConfigEditor = ({ visible, onClose }) => {
+  // 国际化
+  const { t } = useTranslation()
+  
   // 状态管理
   const [configState, setConfigState] = useState({
     // 原始配置（加载后不再修改）
@@ -210,7 +213,7 @@ const BindConfigEditor = ({ visible, onClose }) => {
         }
       }))
     }
-  }, [])
+  }, [t])
 
   // 提取注释
   const extractComments = () => {

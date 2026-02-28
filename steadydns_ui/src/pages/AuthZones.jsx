@@ -25,12 +25,17 @@ import {
   ReloadOutlined,
   DatabaseOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { apiClient } from '../utils/apiClient'
 
 const { TabPane } = Tabs
 
-const AuthZones = ({ currentLanguage }) => {
+/**
+ * 权威域管理组件
+ * 用于管理BIND权威域配置，包括域的增删改查、记录管理等
+ */
+const AuthZones = () => {
+  const { t } = useTranslation()
   const [authZones, setAuthZones] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingZone, setEditingZone] = useState(null)
@@ -116,21 +121,21 @@ const AuthZones = ({ currentLanguage }) => {
       if (response.success) {
         setAuthZones(response.data)
       } else {
-        message.error(response.error || t('authZones.fetchError', currentLanguage))
+        message.error(response.error || t('authZones.fetchError'))
       }
     } catch (error) {
       console.error('Error loading auth zones:', error)
       // 检查是否是404错误（插件禁用）
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error(t('authZones.fetchError', currentLanguage))
+        message.error(t('authZones.fetchError'))
       }
     } finally {
       setLoading(false)
     }
-  }, [currentLanguage, pluginEnabled])
+  }, [pluginEnabled, t])
 
   // 组件挂载时加载数据
   useEffect(() => {
@@ -268,7 +273,7 @@ const AuthZones = ({ currentLanguage }) => {
       setEditingRecord(null)
       recordForm.resetFields()
     }).catch(() => {
-      message.error(t('authZones.formValidateError', currentLanguage))
+      message.error(t('authZones.formValidateError'))
     })
   }
 
@@ -278,10 +283,13 @@ const AuthZones = ({ currentLanguage }) => {
     setRecords(updatedRecords)
   }
 
-  // Load operation history records
+  /**
+   * 加载操作历史记录
+   * 从后端获取BIND区域操作历史
+   */
   const loadHistoryRecords = useCallback(async () => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('plugins.bindNotEnabledOperate'))
       setHistoryLoading(false)
       return
     }
@@ -294,31 +302,37 @@ const AuthZones = ({ currentLanguage }) => {
         const sortedRecords = (response.data || []).sort((a, b) => b.id - a.id)
         setHistoryRecords(sortedRecords)
       } else {
-        message.error(response.error || '加载操作历史失败')
+        message.error(response.error || t('history.loadHistoryFailed'))
       }
     } catch (error) {
       console.error('Error loading history records:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error('加载操作历史失败')
+        message.error(t('history.loadHistoryFailed'))
       }
     } finally {
       setHistoryLoading(false)
     }
-  }, [pluginEnabled])
+  }, [pluginEnabled, t])
 
-  // Handle restore from history with confirmation
+  /**
+   * 处理从历史记录恢复的确认操作
+   * @param {number} historyId - 历史记录ID
+   */
   const confirmRestoreFromHistory = (historyId) => {
-    setConfirmModalTitle(t('authZones.restoreFromHistory', currentLanguage))
-    setConfirmModalContent(t('authZones.confirmRestoreMessage', currentLanguage))
+    setConfirmModalTitle(t('authZones.restoreFromHistory'))
+    setConfirmModalContent(t('authZones.confirmRestoreMessage'))
     setCurrentAction('restoreFromHistory')
     setCurrentActionParams(historyId)
     setConfirmModalVisible(true)
   }
 
-  // Handle confirm action
+  /**
+   * 处理确认操作
+   * 执行用户确认后的操作
+   */
   const handleConfirmAction = async () => {
     setConfirmModalVisible(false)
     
@@ -332,7 +346,7 @@ const AuthZones = ({ currentLanguage }) => {
       }
     } catch (error) {
       console.error('Error executing action:', error)
-      message.error(t('authZones.error', currentLanguage))
+      message.error(t('authZones.error'))
     }
   }
 
@@ -375,7 +389,10 @@ const AuthZones = ({ currentLanguage }) => {
     }
   }
 
-  // 提交表单
+  /**
+   * 提交表单
+   * 处理权威域的创建或更新
+   */
   const handleOk = () => {
     form.validateFields().then(values => {
       setLoading(true)
@@ -393,15 +410,18 @@ const AuthZones = ({ currentLanguage }) => {
         createAuthZone(createData)
       }
     }).catch(() => {
-      message.error(t('authZones.formValidateError', currentLanguage))
+      message.error(t('authZones.formValidateError'))
       setLoading(false)
     })
   }
 
-  // 创建权威域
+  /**
+   * 创建权威域
+   * @param {object} values - 权威域数据
+   */
   const createAuthZone = async (values) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('plugins.bindNotEnabledOperate'))
       setLoading(false)
       return
     }
@@ -409,31 +429,35 @@ const AuthZones = ({ currentLanguage }) => {
     try {
       const response = await apiClient.post('/bind-zones', values)
       if (response.success) {
-        message.success(response.data.message || t('authZones.createSuccess', currentLanguage))
+        message.success(response.data.message || t('authZones.createSuccess'))
         loadAuthZones()
         setIsModalOpen(false)
         setEditingZone(null)
         form.resetFields()
       } else {
-        message.error(response.error || t('authZones.createError', currentLanguage))
+        message.error(response.error || t('authZones.createError'))
       }
     } catch (error) {
       console.error('Error creating auth zone:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error(t('authZones.createError', currentLanguage))
+        message.error(t('authZones.createError'))
       }
     } finally {
       setLoading(false)
     }
   }
 
-  // 更新权威域
+  /**
+   * 更新权威域
+   * @param {string} domain - 域名
+   * @param {object} values - 更新数据
+   */
   const updateAuthZone = async (domain, values) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('plugins.bindNotEnabledOperate'))
       setLoading(false)
       return
     }
@@ -441,82 +465,91 @@ const AuthZones = ({ currentLanguage }) => {
     try {
       const response = await apiClient.put(`/bind-zones/${domain}`, values)
       if (response.success) {
-        message.success(response.data.message || t('authZones.updateSuccess', currentLanguage))
+        message.success(response.data.message || t('authZones.updateSuccess'))
         loadAuthZones()
         setIsModalOpen(false)
         setEditingZone(null)
         form.resetFields()
       } else {
-        message.error(response.error || t('authZones.updateError', currentLanguage))
+        message.error(response.error || t('authZones.updateError'))
       }
     } catch (error) {
       console.error('Error updating auth zone:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error(t('authZones.updateError', currentLanguage))
+        message.error(t('authZones.updateError'))
       }
     } finally {
       setLoading(false)
     }
   }
 
-  // 删除权威域
+  /**
+   * 删除权威域
+   * @param {string} domain - 域名
+   */
   const deleteAuthZone = async (domain) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('plugins.bindNotEnabledOperate'))
       return
     }
     
     try {
       const response = await apiClient.delete(`/bind-zones/${domain}`)
       if (response.success) {
-        message.success(response.data.message || t('authZones.deleteSuccess', currentLanguage))
+        message.success(response.data.message || t('authZones.deleteSuccess'))
         loadAuthZones()
       } else {
-        message.error(response.error || t('authZones.deleteError', currentLanguage))
+        message.error(response.error || t('authZones.deleteError'))
       }
     } catch (error) {
       console.error('Error deleting auth zone:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error(t('authZones.deleteError', currentLanguage))
+        message.error(t('authZones.deleteError'))
       }
     }
   }
 
-  // 刷新权威域配置
+  /**
+   * 刷新权威域配置
+   * @param {string} domain - 域名
+   */
   const reloadAuthZone = async (domain) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('plugins.bindNotEnabledOperate'))
       return
     }
     
     try {
       const response = await apiClient.post(`/bind-zones/${domain}/reload`)
       if (response.success) {
-        message.success(response.data.message || t('authZones.reloadSuccess', currentLanguage))
+        message.success(response.data.message || t('authZones.reloadSuccess'))
       } else {
-        message.error(response.error || t('authZones.reloadError', currentLanguage))
+        message.error(response.error || t('authZones.reloadError'))
       }
     } catch (error) {
       console.error('Error reloading auth zone:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error(t('authZones.reloadError', currentLanguage))
+        message.error(t('authZones.reloadError'))
       }
     }
   }
 
-  // Handle restore from history
+  /**
+   * 从历史记录恢复
+   * @param {number} historyId - 历史记录ID
+   */
   const handleRestoreFromHistory = async (historyId) => {
     if (!pluginEnabled) {
-      message.error('BIND插件未启用，请启用后再操作')
+      message.error(t('plugins.bindNotEnabledOperate'))
       setHistoryLoading(false)
       return
     }
@@ -525,30 +558,33 @@ const AuthZones = ({ currentLanguage }) => {
       setHistoryLoading(true)
       const response = await apiClient.restoreBindZoneFromHistory(historyId)
       if (response.success) {
-        message.success(response.data.message || '从历史记录恢复成功')
+        message.success(response.data.message || t('history.restoreSuccess'))
         // Reload auth zones after restore
         setTimeout(loadAuthZones, 1000)
         setHistoryModalVisible(false)
       } else {
-        message.error(response.error || '从历史记录恢复失败')
+        message.error(response.error || t('history.restoreFailed'))
       }
     } catch (error) {
       console.error('Error restoring from history:', error)
       if (error.message.includes('404')) {
         setPluginEnabled(false)
-        message.error('BIND插件未启用，请启用后再操作')
+        message.error(t('plugins.bindNotEnabledOperate'))
       } else {
-        message.error('从历史记录恢复失败')
+        message.error(t('history.restoreFailed'))
       }
     } finally {
       setHistoryLoading(false)
     }
   }
 
-  // 表格列配置
+  /**
+   * 表格列配置
+   * 定义权威域列表的列信息
+   */
   const columns = [
     {
-      title: t('authZones.domain', currentLanguage),
+      title: t('authZones.domain'),
       dataIndex: 'domain',
       key: 'domain',
       ellipsis: true,
@@ -557,19 +593,19 @@ const AuthZones = ({ currentLanguage }) => {
       )
     },
     {
-      title: t('authZones.type', currentLanguage),
+      title: t('authZones.type'),
       dataIndex: 'type',
       key: 'type',
       width: 120
     },
     {
-      title: t('authZones.allowQuery', currentLanguage),
+      title: t('authZones.allowQuery'),
       dataIndex: 'allow_query',
       key: 'allow_query',
       width: 150
     },
     {
-      title: t('authZones.comment', currentLanguage),
+      title: t('authZones.comment'),
       dataIndex: 'comment',
       key: 'comment',
       width: 300,
@@ -581,7 +617,7 @@ const AuthZones = ({ currentLanguage }) => {
       )
     },
     {
-      title: t('authZones.records', currentLanguage),
+      title: t('authZones.records'),
       key: 'records',
       width: 120,
       render: (_, record) => {
@@ -589,37 +625,37 @@ const AuthZones = ({ currentLanguage }) => {
         const totalRecords = record.records?.length || 0;
         return (
           <div>
-            {t('authZones.totalRecords', currentLanguage)}: {totalRecords}
+            {t('authZones.totalRecords')}: {totalRecords}
           </div>
         );
       }
     },
     {
-      title: t('authZones.actions', currentLanguage),
+      title: t('authZones.actions'),
       key: 'actions',
       width: 180,
       render: (_, record) => (
         <Space size="middle">
-          <Tooltip title={t('authZones.edit', currentLanguage)}>
+          <Tooltip title={t('authZones.edit')}>
             <Button
               icon={<EditOutlined />}
               size="small"
               onClick={() => showModal(record)}
             />
           </Tooltip>
-          <Tooltip title={t('authZones.reload', currentLanguage)}>
+          <Tooltip title={t('authZones.reload')}>
             <Button
               icon={<ReloadOutlined />}
               size="small"
               onClick={() => reloadAuthZone(record.domain)}
             />
           </Tooltip>
-          <Tooltip title={t('authZones.delete', currentLanguage)}>
+          <Tooltip title={t('authZones.delete')}>
             <Popconfirm
-              title={t('authZones.confirmDelete', currentLanguage)}
+              title={t('authZones.confirmDelete')}
               onConfirm={() => deleteAuthZone(record.domain)}
-              okText={t('authZones.yes', currentLanguage)}
-              cancelText={t('authZones.no', currentLanguage)}
+              okText={t('authZones.yes')}
+              cancelText={t('authZones.no')}
             >
               <Button
                 icon={<DeleteOutlined />}
@@ -633,20 +669,22 @@ const AuthZones = ({ currentLanguage }) => {
     }
   ]
 
-  // 当插件未启用时显示的提示信息
+  /**
+   * 当插件未启用时显示的提示信息
+   */
   if (!pluginEnabled) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           <Alert
-            message="BIND插件未启用"
+            message={t('plugins.bindNotEnabled')}
             description={
               <div>
-                <p style={{ marginBottom: '16px' }}>权威域管理功能需要BIND插件支持，请先启用插件后再访问。</p>
-                <p style={{ marginBottom: '8px' }}><strong>启用方法：</strong></p>
-                <p>1. 编辑配置文件：<code>/src/cmd/config/steadydns.conf</code></p>
-                <p>2. 将 <code>BIND_ENABLED</code> 设置为 <code>true</code></p>
-                <p>3. 重启SteadyDNS服务使配置生效</p>
+                <p style={{ marginBottom: '16px' }}>{t('plugins.bindNotEnabledDescription')}</p>
+                <p style={{ marginBottom: '8px' }}><strong>{t('plugins.enableMethod')}</strong></p>
+                <p>{t('plugins.enableStep1')}</p>
+                <p>{t('plugins.enableStep2')}</p>
+                <p>{t('plugins.enableStep3')}</p>
               </div>
             }
             type="warning"
@@ -658,11 +696,15 @@ const AuthZones = ({ currentLanguage }) => {
     )
   }
 
-  // 当检查插件状态时显示加载状态
+  /**
+   * 当检查插件状态时显示加载状态
+   */
   if (checkingPluginStatus) {
     return (
       <div style={{ textAlign: 'center', padding: '60px' }}>
-        <Spin size="large" tip="检查插件状态..." />
+        <Spin size="large" tip={t('plugins.checkingPluginStatus')}>
+          <div style={{ padding: 50 }} />
+        </Spin>
       </div>
     )
   }
@@ -673,7 +715,7 @@ const AuthZones = ({ currentLanguage }) => {
         <h2>
           <Space>
             <DatabaseOutlined />
-            {t('authZones.title', currentLanguage)}
+            {t('authZones.title')}
           </Space>
         </h2>
         <Space>
@@ -681,14 +723,14 @@ const AuthZones = ({ currentLanguage }) => {
             icon={<ReloadOutlined />}
             onClick={() => setHistoryModalVisible(true)}
           >
-            {t('authZones.operationHistory', currentLanguage)}
+            {t('authZones.operationHistory')}
           </Button>
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => showModal()}
           >
-            {t('authZones.addZone', currentLanguage)}
+            {t('authZones.addZone')}
           </Button>
         </Space>
       </div>
@@ -709,7 +751,7 @@ const AuthZones = ({ currentLanguage }) => {
 
       {/* 添加/编辑权威域模态框 */}
       <Modal
-        title={editingZone ? t('authZones.editZone', currentLanguage) : t('authZones.addNewZone', currentLanguage)}
+        title={editingZone ? t('authZones.editZone') : t('authZones.addNewZone')}
         open={isModalOpen}
         onOk={handleOk}
         onCancel={handleCancel}
@@ -742,42 +784,42 @@ const AuthZones = ({ currentLanguage }) => {
             items={[
               {
                 key: 'basic',
-                label: t('authZones.basic', currentLanguage),
+                label: t('authZones.basic'),
                 children: (
                   <>
                     <Form.Item
                       name="domain"
-                      label={t('authZones.domain', currentLanguage)}
+                      label={t('authZones.domain')}
                       rules={[
-                        { required: true, message: t('authZones.domainRequired', currentLanguage) },
-                        { type: 'string', max: 255, message: t('authZones.domainMax', currentLanguage) }
+                        { required: true, message: t('authZones.domainRequired') },
+                        { type: 'string', max: 255, message: t('authZones.domainMax') }
                       ]}
                     >
-                      <Input placeholder={t('authZones.domainPlaceholder', currentLanguage)} />
+                      <Input placeholder={t('authZones.domainPlaceholder')} />
                     </Form.Item>
 
                     <Form.Item
                       name="type"
-                      label={t('authZones.type', currentLanguage)}
-                      rules={[{ required: true, message: t('authZones.typeRequired', currentLanguage) }]}
+                      label={t('authZones.type')}
+                      rules={[{ required: true, message: t('authZones.typeRequired') }]}
                     >
-                      <Input placeholder={t('authZones.typePlaceholder', currentLanguage)} />
+                      <Input placeholder={t('authZones.typePlaceholder')} />
                     </Form.Item>
 
                     <Form.Item
                       name="allow_query"
-                      label={t('authZones.allowQuery', currentLanguage)}
+                      label={t('authZones.allowQuery')}
                     >
-                      <Input placeholder={t('authZones.allowQueryPlaceholder', currentLanguage)} />
+                      <Input placeholder={t('authZones.allowQueryPlaceholder')} />
                     </Form.Item>
 
                     <Form.Item
                       name="comment"
-                      label={t('authZones.comment', currentLanguage)}
+                      label={t('authZones.comment')}
                     >
                       <Input.TextArea 
                         rows={4} 
-                        placeholder={t('authZones.commentPlaceholder', currentLanguage)} 
+                        placeholder={t('authZones.commentPlaceholder')} 
                       />
                     </Form.Item>
 
@@ -786,60 +828,60 @@ const AuthZones = ({ currentLanguage }) => {
               },
               {
                 key: 'soa',
-                label: t('authZones.soaRecord', currentLanguage),
+                label: t('authZones.soaRecord'),
                 children: (
-                  <Card title={t('authZones.soaRecord', currentLanguage)} size="small">
+                  <Card title={t('authZones.soaRecord')} size="small">
                     <Form.Item
                       name={['soa', 'primary_ns']}
-                      label={t('authZones.primaryNs', currentLanguage)}
-                      rules={[{ required: true, message: t('authZones.primaryNsRequired', currentLanguage) }]}
+                      label={t('authZones.primaryNs')}
+                      rules={[{ required: true, message: t('authZones.primaryNsRequired') }]}
                     >
-                      <Input placeholder={t('authZones.primaryNsPlaceholder', currentLanguage)} />
+                      <Input placeholder={t('authZones.primaryNsPlaceholder')} />
                     </Form.Item>
 
                     <Form.Item
                       name={['soa', 'admin_email']}
-                      label={t('authZones.adminEmail', currentLanguage)}
-                      rules={[{ required: true, message: t('authZones.adminEmailRequired', currentLanguage) }]}
+                      label={t('authZones.adminEmail')}
+                      rules={[{ required: true, message: t('authZones.adminEmailRequired') }]}
                     >
-                      <Input placeholder={t('authZones.adminEmailPlaceholder', currentLanguage)} />
+                      <Input placeholder={t('authZones.adminEmailPlaceholder')} />
                     </Form.Item>
 
                     <Row gutter={16}>
                       <Col xs={12}>
                         <Form.Item
                           name={['soa', 'refresh']}
-                          label={t('authZones.refresh', currentLanguage)}
-                          rules={[{ required: true, message: t('authZones.refreshRequired', currentLanguage) }]}
+                          label={t('authZones.refresh')}
+                          rules={[{ required: true, message: t('authZones.refreshRequired') }]}
                         >
-                          <Input placeholder={t('authZones.refreshPlaceholder', currentLanguage)} />
+                          <Input placeholder={t('authZones.refreshPlaceholder')} />
                         </Form.Item>
                       </Col>
                       <Col xs={12}>
                         <Form.Item
                           name={['soa', 'retry']}
-                          label={t('authZones.retry', currentLanguage)}
-                          rules={[{ required: true, message: t('authZones.retryRequired', currentLanguage) }]}
+                          label={t('authZones.retry')}
+                          rules={[{ required: true, message: t('authZones.retryRequired') }]}
                         >
-                          <Input placeholder={t('authZones.retryPlaceholder', currentLanguage)} />
+                          <Input placeholder={t('authZones.retryPlaceholder')} />
                         </Form.Item>
                       </Col>
                       <Col xs={12}>
                         <Form.Item
                           name={['soa', 'expire']}
-                          label={t('authZones.expire', currentLanguage)}
-                          rules={[{ required: true, message: t('authZones.expireRequired', currentLanguage) }]}
+                          label={t('authZones.expire')}
+                          rules={[{ required: true, message: t('authZones.expireRequired') }]}
                         >
-                          <Input placeholder={t('authZones.expirePlaceholder', currentLanguage)} />
+                          <Input placeholder={t('authZones.expirePlaceholder')} />
                         </Form.Item>
                       </Col>
                       <Col xs={12}>
                         <Form.Item
                           name={['soa', 'minimum_ttl']}
-                          label={t('authZones.minimumTtl', currentLanguage)}
-                          rules={[{ required: true, message: t('authZones.minimumTtlRequired', currentLanguage) }]}
+                          label={t('authZones.minimumTtl')}
+                          rules={[{ required: true, message: t('authZones.minimumTtlRequired') }]}
                         >
-                          <Input placeholder={t('authZones.minimumTtlPlaceholder', currentLanguage)} />
+                          <Input placeholder={t('authZones.minimumTtlPlaceholder')} />
                         </Form.Item>
                       </Col>
                     </Row>
@@ -848,7 +890,7 @@ const AuthZones = ({ currentLanguage }) => {
               },
               {
                 key: 'records',
-                label: t('authZones.records', currentLanguage),
+                label: t('authZones.records'),
                 children: (
                   <>
                     <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
@@ -857,11 +899,11 @@ const AuthZones = ({ currentLanguage }) => {
                         icon={<PlusOutlined />}
                         onClick={() => showRecordModal()}
                       >
-                        {t('authZones.addRecord', currentLanguage)}
+                        {t('authZones.addRecord')}
                       </Button>
                     </div>
 
-                    <Card title={t('authZones.recordsList', currentLanguage)} size="small">
+                    <Card title={t('authZones.recordsList')} size="small">
                       <Table
                         dataSource={records}
                         rowKey="id"
@@ -873,51 +915,51 @@ const AuthZones = ({ currentLanguage }) => {
                         scroll={{ x: 'max-content' }}
                         columns={[
                           {
-                            title: t('authZones.name', currentLanguage),
+                            title: t('authZones.name'),
                             dataIndex: 'name',
                             key: 'name',
                             width: 150,
                             ellipsis: true
                           },
                           {
-                            title: t('authZones.type', currentLanguage),
+                            title: t('authZones.type'),
                             dataIndex: 'type',
                             key: 'type',
                             width: 100
                           },
                           {
-                            title: t('authZones.value', currentLanguage),
+                            title: t('authZones.value'),
                             dataIndex: 'value',
                             key: 'value',
                             width: 200,
                             ellipsis: true
                           },
                           {
-                            title: t('authZones.priority', currentLanguage),
+                            title: t('authZones.priority'),
                             dataIndex: 'priority',
                             key: 'priority',
                             width: 100
                           },
                           {
-                            title: t('authZones.ttl', currentLanguage),
+                            title: t('authZones.ttl'),
                             dataIndex: 'ttl',
                             key: 'ttl',
                             width: 100
                           },
                           {
-                            title: t('authZones.comment', currentLanguage),
+                            title: t('authZones.comment'),
                             dataIndex: 'comment',
                             key: 'comment',
                             width: 300,
                             ellipsis: true
                           },
                           {
-                            title: t('authZones.actions', currentLanguage),
+                            title: t('authZones.actions'),
                             key: 'actions',
                             width: 80,
                             render: (_, record) => (
                               <Space size="middle">
-                                <Tooltip title={t('authZones.edit', currentLanguage)}>
+                                <Tooltip title={t('authZones.edit')}>
                                   <Button
                                     type="link"
                                     size="small"
@@ -925,7 +967,7 @@ const AuthZones = ({ currentLanguage }) => {
                                     onClick={() => showRecordModal(record)}
                                   />
                                 </Tooltip>
-                                <Tooltip title={t('authZones.delete', currentLanguage)}>
+                                <Tooltip title={t('authZones.delete')}>
                                   <Button
                                     type="link"
                                     size="small"
@@ -950,7 +992,7 @@ const AuthZones = ({ currentLanguage }) => {
 
       {/* 添加/编辑记录模态框 */}
       <Modal
-        title={editingRecord ? t('authZones.editRecord', currentLanguage) : t('authZones.addRecord', currentLanguage)}
+        title={editingRecord ? t('authZones.editRecord') : t('authZones.addRecord')}
         open={isRecordModalOpen}
         onOk={handleRecordOk}
         onCancel={handleRecordCancel}
@@ -963,21 +1005,21 @@ const AuthZones = ({ currentLanguage }) => {
         >
           <Form.Item
             name="name"
-            label={t('authZones.name', currentLanguage)}
-            rules={[{ required: true, message: t('authZones.nameRequired', currentLanguage) }]}
+            label={t('authZones.name')}
+            rules={[{ required: true, message: t('authZones.nameRequired') }]}
           >
-            <Input placeholder={t('authZones.namePlaceholder', currentLanguage)} />
+            <Input placeholder={t('authZones.namePlaceholder')} />
           </Form.Item>
 
           <Form.Item
             name="type"
-            label={t('authZones.type', currentLanguage)}
-            rules={[{ required: true, message: t('authZones.typeRequired', currentLanguage) }]}
+            label={t('authZones.type')}
+            rules={[{ required: true, message: t('authZones.typeRequired') }]}
           >
             <Select
               value={selectedRecordType}
               onChange={handleRecordTypeChange}
-              placeholder={t('authZones.typePlaceholder', currentLanguage)}
+              placeholder={t('authZones.typePlaceholder')}
               allowClear={false}
             >
               {standardRecordTypes.map(type => (
@@ -985,7 +1027,7 @@ const AuthZones = ({ currentLanguage }) => {
                   {type}
                 </Select.Option>
               ))}
-              <Select.Option value="custom">{t('authZones.customType', currentLanguage)}</Select.Option>
+              <Select.Option value="custom">{t('authZones.customType')}</Select.Option>
             </Select>
           </Form.Item>
 
@@ -993,21 +1035,21 @@ const AuthZones = ({ currentLanguage }) => {
           {selectedRecordType === 'custom' && (
             <Form.Item
               name="customType"
-              label={t('authZones.customType', currentLanguage)}
-              rules={[{ required: true, message: t('authZones.customTypeRequired', currentLanguage) }]}
+              label={t('authZones.customType')}
+              rules={[{ required: true, message: t('authZones.customTypeRequired') }]}
             >
-              <Input placeholder={t('authZones.customTypePlaceholder', currentLanguage)} />
+              <Input placeholder={t('authZones.customTypePlaceholder')} />
             </Form.Item>
           )}
 
           <Form.Item
             name="value"
-            label={t('authZones.value', currentLanguage)}
-            rules={[{ required: true, message: t('authZones.valueRequired', currentLanguage) }]}
+            label={t('authZones.value')}
+            rules={[{ required: true, message: t('authZones.valueRequired') }]}
           >
             <Input.TextArea
               rows={3}
-              placeholder={t('authZones.valuePlaceholder', currentLanguage)}
+              placeholder={t('authZones.valuePlaceholder')}
             />
           </Form.Item>
 
@@ -1015,13 +1057,13 @@ const AuthZones = ({ currentLanguage }) => {
           {selectedRecordType === 'MX' && (
             <Form.Item
               name="priority"
-              label={t('authZones.priority', currentLanguage)}
-              rules={[{ required: true, message: t('authZones.priorityRequired', currentLanguage) }]}
+              label={t('authZones.priority')}
+              rules={[{ required: true, message: t('authZones.priorityRequired') }]}
             >
               <InputNumber
                 min={0}
                 max={65535}
-                placeholder={t('authZones.priorityPlaceholder', currentLanguage)}
+                placeholder={t('authZones.priorityPlaceholder')}
                 style={{ width: '100%' }}
               />
             </Form.Item>
@@ -1029,24 +1071,24 @@ const AuthZones = ({ currentLanguage }) => {
 
           <Form.Item
             name="ttl"
-            label={t('authZones.ttl', currentLanguage)}
-            rules={[{ required: true, message: t('authZones.ttlRequired', currentLanguage) }]}
+            label={t('authZones.ttl')}
+            rules={[{ required: true, message: t('authZones.ttlRequired') }]}
           >
             <InputNumber
               min={0}
               max={2147483647}
-              placeholder={t('authZones.ttlPlaceholder', currentLanguage)}
+              placeholder={t('authZones.ttlPlaceholder')}
               style={{ width: '100%' }}
             />
           </Form.Item>
 
           <Form.Item
             name="comment"
-            label={t('authZones.comment', currentLanguage)}
+            label={t('authZones.comment')}
           >
             <Input.TextArea
               rows={2}
-              placeholder={t('authZones.commentPlaceholder', currentLanguage)}
+              placeholder={t('authZones.commentPlaceholder')}
             />
           </Form.Item>
         </Form>
@@ -1054,17 +1096,17 @@ const AuthZones = ({ currentLanguage }) => {
       
       {/* Operation History Modal */}
       <Modal
-        title={t('authZones.operationHistoryTitle', currentLanguage)}
+        title={t('authZones.operationHistoryTitle')}
         open={historyModalVisible}
         onOk={() => setHistoryModalVisible(false)}
         onCancel={() => setHistoryModalVisible(false)}
-        okText={t('authZones.close', currentLanguage)}
-        cancelText={t('authZones.cancel', currentLanguage)}
+        okText={t('authZones.close')}
+        cancelText={t('authZones.cancel')}
         width={1000}
         styles={{ body: { maxHeight: 600, overflow: 'auto' } }}
       >
         <div>
-          <h3 style={{ marginBottom: 16 }}>{t('authZones.operationHistoryRecords', currentLanguage)}</h3>
+          <h3 style={{ marginBottom: 16 }}>{t('authZones.operationHistoryRecords')}</h3>
           <Spin spinning={historyLoading}>
             {historyRecords.length > 0 ? (
               <Table
@@ -1078,34 +1120,34 @@ const AuthZones = ({ currentLanguage }) => {
                 scroll={{ x: 'max-content' }}
                 columns={[
                   {
-                    title: t('authZones.id', currentLanguage),
+                    title: t('authZones.id'),
                     dataIndex: 'id',
                     key: 'id',
                     width: 80
                   },
                   {
-                    title: t('authZones.operationType', currentLanguage),
+                    title: t('authZones.operationType'),
                     dataIndex: 'operation',
                     key: 'operation',
                     width: 120,
                     render: (operation) => {
                       const operationMap = {
-                        create: t('authZones.create', currentLanguage),
-                        update: t('authZones.update', currentLanguage),
-                        delete: t('authZones.deleteOperation', currentLanguage),
-                        rollback: t('authZones.rollback', currentLanguage)
+                        create: t('authZones.create'),
+                        update: t('authZones.update'),
+                        delete: t('authZones.deleteOperation'),
+                        rollback: t('authZones.rollback')
                       }
                       return operationMap[operation] || operation
                     }
                   },
                   {
-                    title: t('authZones.domain', currentLanguage),
+                    title: t('authZones.domain'),
                     dataIndex: 'domain',
                     key: 'domain',
                     width: 200
                   },
                   {
-                    title: t('authZones.operationTime', currentLanguage),
+                    title: t('authZones.operationTime'),
                     dataIndex: 'timestamp',
                     key: 'timestamp',
                     width: 200,
@@ -1114,7 +1156,7 @@ const AuthZones = ({ currentLanguage }) => {
                     }
                   },
                   {
-                    title: t('authZones.actions', currentLanguage),
+                    title: t('authZones.actions'),
                     key: 'actions',
                     width: 100,
                     render: (_, record) => (
@@ -1123,7 +1165,7 @@ const AuthZones = ({ currentLanguage }) => {
                         size="small"
                         onClick={() => confirmRestoreFromHistory(record.id)}
                       >
-                        {t('authZones.restore', currentLanguage)}
+                        {t('authZones.restore')}
                       </Button>
                     )
                   }
@@ -1131,8 +1173,8 @@ const AuthZones = ({ currentLanguage }) => {
               />
             ) : (
               <Alert
-                title={t('authZones.noOperationHistory', currentLanguage)}
-                description={t('authZones.noOperationHistoryDescription', currentLanguage)}
+                title={t('authZones.noOperationHistory')}
+                description={t('authZones.noOperationHistoryDescription')}
                 type="info"
                 showIcon
               />
@@ -1147,18 +1189,18 @@ const AuthZones = ({ currentLanguage }) => {
         open={confirmModalVisible}
         onOk={handleConfirmAction}
         onCancel={() => setConfirmModalVisible(false)}
-        okText="确认"
-        cancelText="取消"
+        okText={t('common.confirm')}
+        cancelText={t('common.cancel')}
       >
         <div>
           <Alert
-            title="操作确认"
+            title={t('common.operationConfirm')}
             description={confirmModalContent}
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
           />
-          <p>请确认是否执行此操作。</p>
+          <p>{t('common.confirmOperationPrompt')}</p>
         </div>
       </Modal>
     </div>

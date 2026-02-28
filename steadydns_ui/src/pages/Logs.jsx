@@ -14,7 +14,7 @@ import {
   DownloadOutlined,
   SearchOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 
 const { Option } = Select
 const { RangePicker } = DatePicker
@@ -48,7 +48,8 @@ const generateMockLogs = () => {
   return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 }
 
-const Logs = ({ currentLanguage }) => {
+const Logs = () => {
+  const { t } = useTranslation()
   const [logs, setLogs] = useState([])
   const [filteredLogs, setFilteredLogs] = useState([])
   const [loading, setLoading] = useState(false)
@@ -111,7 +112,7 @@ const Logs = ({ currentLanguage }) => {
 
   const handleDownload = () => {
     // Simulate download
-    message.success(t('logs.logsDownloaded', currentLanguage))
+    message.success(t('logs.logsDownloaded'))
   }
 
   const formatTimestamp = (timestamp) => {
@@ -120,13 +121,13 @@ const Logs = ({ currentLanguage }) => {
 
   const columns = [
     {
-      title: t('logs.id', currentLanguage),
+      title: t('logs.id'),
       dataIndex: 'id',
       key: 'id',
       width: 60
     },
     {
-      title: t('logs.timestamp', currentLanguage),
+      title: t('logs.timestamp'),
       dataIndex: 'timestamp',
       key: 'timestamp',
       render: (text) => formatTimestamp(text),
@@ -134,25 +135,25 @@ const Logs = ({ currentLanguage }) => {
       defaultSortOrder: 'descend'
     },
     {
-      title: t('logs.clientIP', currentLanguage),
+      title: t('logs.clientIP'),
       dataIndex: 'client',
       key: 'client',
       width: 120
     },
     {
-      title: t('logs.domain', currentLanguage),
+      title: t('logs.domain'),
       dataIndex: 'domain',
       key: 'domain',
       ellipsis: true
     },
     {
-      title: t('logs.type', currentLanguage),
+      title: t('logs.type'),
       dataIndex: 'type',
       key: 'type',
       width: 80
     },
     {
-      title: t('logs.result', currentLanguage),
+      title: t('logs.result'),
       dataIndex: 'result',
       key: 'result',
       width: 100,
@@ -175,13 +176,13 @@ const Logs = ({ currentLanguage }) => {
       }
     },
     {
-      title: t('logs.response', currentLanguage),
+      title: t('logs.response'),
       dataIndex: 'response',
       key: 'response',
       ellipsis: true
     },
     {
-      title: t('logs.latency', currentLanguage),
+      title: t('logs.latency'),
       dataIndex: 'latency',
       key: 'latency',
       width: 100
@@ -191,29 +192,29 @@ const Logs = ({ currentLanguage }) => {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <h2>{t('logs.title', currentLanguage)}</h2>
+        <h2>{t('logs.title')}</h2>
       </div>
 
       <div style={{ marginBottom: 16, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
         <Space orientation="vertical" style={{ width: '100%' }}>
           <Space wrap>
             <Input
-              placeholder={t('logs.searchPlaceholder', currentLanguage)}
+              placeholder={t('logs.searchPlaceholder')}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               style={{ width: 300 }}
               prefix={<SearchOutlined />}
             />
             <Select
-              placeholder={t('logs.filterByResult', currentLanguage)}
+              placeholder={t('logs.filterByResult')}
               value={resultFilter}
               onChange={setResultFilter}
               style={{ width: 150 }}
               allowClear
             >
-              <Option value="SUCCESS">{t('logs.success', currentLanguage)}</Option>
-              <Option value="FAILED">{t('logs.failed', currentLanguage)}</Option>
-              <Option value="TIMEOUT">{t('logs.timeout', currentLanguage)}</Option>
+              <Option value="SUCCESS">{t('logs.success')}</Option>
+              <Option value="FAILED">{t('logs.failed')}</Option>
+              <Option value="TIMEOUT">{t('logs.timeout')}</Option>
             </Select>
             <RangePicker
               value={dateRange}
@@ -225,21 +226,21 @@ const Logs = ({ currentLanguage }) => {
               onClick={handleSearch}
               icon={<SearchOutlined />}
             >
-              {t('logs.search', currentLanguage)}
+              {t('logs.search')}
             </Button>
-            <Button onClick={handleReset}>{t('logs.reset', currentLanguage)}</Button>
+            <Button onClick={handleReset}>{t('logs.reset')}</Button>
             <Button
               onClick={loadLogs}
               icon={<ReloadOutlined />}
               loading={loading}
             >
-              {t('logs.refresh', currentLanguage)}
+              {t('logs.refresh')}
             </Button>
             <Button
               icon={<DownloadOutlined />}
               onClick={handleDownload}
             >
-              {t('logs.download', currentLanguage)}
+              {t('logs.download')}
             </Button>
           </Space>
         </Space>

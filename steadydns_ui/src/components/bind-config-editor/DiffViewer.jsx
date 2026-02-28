@@ -20,13 +20,16 @@ import {
   UpOutlined,
   CheckOutlined
 } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 
 
 const { Text, Paragraph, Link } = Typography
 const { Panel } = Collapse
 
 const DiffViewer = ({ diff }) => {
+  // 国际化
+  const { t } = useTranslation()
+  
   const [expandedSections, setExpandedSections] = useState([])
 
   if (!diff) {
@@ -55,7 +58,7 @@ const DiffViewer = ({ diff }) => {
     added = diff.stats.added || 0
     removed = diff.stats.removed || 0
     modified = 0 // API 不返回 modified 统计
-    summary = `共 ${diff.stats.total} 行，${diff.stats.unchanged} 行未改变，${added} 行新增，${removed} 行删除`
+    summary = t('diffViewer.summaryText', { total: diff.stats.total, unchanged: diff.stats.unchanged, added, removed })
 
     // 将 API 返回的 lines 转换为 changes 格式，只保留有变化的行
     changes = diff.lines
@@ -120,22 +123,22 @@ const DiffViewer = ({ diff }) => {
       case 'add':
         typeIcon = <PlusOutlined />;
         typeColor = '#52c41a';
-        typeText = '新增';
+        typeText = t('diffViewer.add');
         break;
       case 'remove':
         typeIcon = <MinusOutlined />;
         typeColor = '#ff4d4f';
-        typeText = '删除';
+        typeText = t('diffViewer.remove');
         break;
       case 'modify':
         typeIcon = <EditOutlined />;
         typeColor = '#1890ff';
-        typeText = '修改';
+        typeText = t('diffViewer.modify');
         break;
       default:
         typeIcon = <LineChartOutlined />;
         typeColor = '#8c8c8c';
-        typeText = '未知';
+        typeText = t('diffViewer.unknown');
     }
 
     return (

@@ -18,6 +18,7 @@
 import { useState, useEffect } from 'react'
 import { Card, Form, Input, Button, message, Typography, Select, Space } from 'antd'
 import { UserOutlined, LockOutlined, GlobalOutlined, CloudServerOutlined } from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
 
 import { storeTokens } from '../utils/tokenManager'
 import { apiClient } from '../utils/apiClient'
@@ -29,11 +30,10 @@ const { Option } = Select
  * 登录页面组件
  * @param {Object} props - 组件属性
  * @param {Function} props.onLogin - 登录成功回调函数
- * @param {string} props.currentLanguage - 当前语言
- * @param {Function} props.onLanguageChange - 语言切换回调函数
  * @returns {JSX.Element} 登录页面组件
  */
-const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
+const Login = ({ onLogin }) => {
+  const { t, i18n } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -62,14 +62,14 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
       if (response.success) {
         storeTokens(response.data.access_token, response.data.refresh_token, response.data.expires_in)
         
-        message.success(response.message || (currentLanguage === 'zh-CN' ? '登录成功！' : 'Login successful!'))
+        message.success(response.message || t('login.success'))
         onLogin({
           user: response.data.user,
           message: response.message
         })
       } else {
         console.error('Login failed:', response.message)
-        message.error(response.message || (currentLanguage === 'zh-CN' ? '登录失败，请检查用户名和密码' : 'Login failed, please check username and password'))
+        message.error(response.message || t('login.error'))
       }
     } catch (error) {
       console.error('Login error:', error)
@@ -78,47 +78,21 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
     }
   }
 
-  const loginText = {
-    'zh-CN': {
-      title: 'SteadyDNS',
-      subtitle: '管理系统',
-      username: '用户名',
-      password: '密码',
-      login: '登录',
-      welcome: '欢迎登录',
-      chinese: '中文',
-      english: '英文',
-      arabic: '阿拉伯语',
-      language: '语言'
-    },
-    'en-US': {
-      title: 'SteadyDNS',
-      subtitle: 'Management System',
-      username: 'Username',
-      password: 'Password',
-      login: 'Login',
-      welcome: 'Welcome',
-      chinese: 'Chinese',
-      english: 'English',
-      arabic: 'Arabic',
-      language: 'Language'
-    },
-    'ar-SA': {
-      title: 'SteadyDNS',
-      subtitle: 'نظام الإدارة',
-      username: 'اسم المستخدم',
-      password: 'كلمة المرور',
-      login: 'تسجيل الدخول',
-      welcome: 'مرحبا',
-      chinese: 'الصينية',
-      english: 'الإنجليزية',
-      arabic: 'العربية',
-      language: 'اللغة'
-    }
+  /**
+   * 处理语言切换
+   * @param {string} lang - 目标语言
+   */
+  const handleLanguageChange = (lang) => {
+    i18n.changeLanguage(lang)
   }
 
-  const text = loginText[currentLanguage]
-  const isRTL = currentLanguage === 'ar-SA'
+  const isRTL = i18n.language === 'ar-SA'
+
+  // 更新HTML根元素的dir和lang属性，用于全局CSS选择器
+  useEffect(() => {
+    document.documentElement.dir = isRTL ? 'rtl' : 'ltr'
+    document.documentElement.lang = i18n.language
+  }, [isRTL, i18n.language])
 
   const containerStyle = {
     minHeight: '100vh',
@@ -176,16 +150,16 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
 
   return (
     <div style={containerStyle}>
-      <Card style={cardStyle} bodyStyle={{ padding: 0 }}>
+      <Card style={cardStyle} styles={{ body: { padding: 0 } }}>
         <div style={headerStyle}>
           <div style={logoStyle}>
             <CloudServerOutlined style={{ fontSize: '28px', color: '#fff' }} />
           </div>
           <Title level={3} style={{ margin: 0, fontWeight: 600, color: '#1a1a1a' }}>
-            {text.title}
+            SteadyDNS
           </Title>
           <Text type="secondary" style={{ fontSize: '14px', display: 'block', marginTop: '4px' }}>
-            {text.subtitle}
+            {t('login.title')}
           </Text>
         </div>
         
@@ -194,11 +168,11 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
             <Space size={8}>
               <GlobalOutlined style={{ color: '#8c8c8c', fontSize: '14px' }} />
               <Select
-                value={currentLanguage}
+                value={i18n.language}
                 style={{ width: 110 }}
-                onChange={onLanguageChange}
+                onChange={handleLanguageChange}
                 size="small"
-                dropdownMatchSelectWidth={false}
+                popupMatchSelectWidth={false}
               >
                 <Option value="zh-CN">中文</Option>
                 <Option value="en-US">English</Option>
@@ -215,12 +189,12 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
           >
             <Form.Item
               name="username"
-              label={text.username}
-              rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入用户名' : 'Please enter username' }]}
+              label={t('login.username')}
+              rules={[{ required: true, message: t('login.username') }]}
             >
               <Input 
                 prefix={<UserOutlined style={{ color: '#bfbfbf' }} />} 
-                placeholder={currentLanguage === 'zh-CN' ? '请输入用户名' : 'Please enter username'}
+                placeholder={t('login.username')}
                 style={inputStyle}
                 size="large"
               />
@@ -228,12 +202,12 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
             
             <Form.Item
               name="password"
-              label={text.password}
-              rules={[{ required: true, message: currentLanguage === 'zh-CN' ? '请输入密码' : 'Please enter password' }]}
+              label={t('login.password')}
+              rules={[{ required: true, message: t('login.password') }]}
             >
               <Input.Password 
                 prefix={<LockOutlined style={{ color: '#bfbfbf' }} />} 
-                placeholder={currentLanguage === 'zh-CN' ? '请输入密码' : 'Please enter password'}
+                placeholder={t('login.password')}
                 style={inputStyle}
                 size="large"
               />
@@ -253,7 +227,7 @@ const Login = ({ onLogin, currentLanguage, onLanguageChange }) => {
                 }}
                 loading={loading}
               >
-                {text.login}
+                {t('login.login')}
               </Button>
             </Form.Item>
           </Form>

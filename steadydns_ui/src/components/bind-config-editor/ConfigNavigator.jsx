@@ -12,12 +12,15 @@ import {
   RightOutlined,
   DownOutlined
 } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 
 
 const { Search } = Input
 
 const ConfigNavigator = ({ config, activeBlock, onSelectBlock }) => {
+  // 国际化
+  const { t } = useTranslation()
+  
   const [searchText, setSearchText] = useState('')
   const [filteredMenu, setFilteredMenu] = useState([])
   const [loading, setLoading] = useState(false)

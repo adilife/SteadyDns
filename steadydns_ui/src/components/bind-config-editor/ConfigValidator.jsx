@@ -18,13 +18,16 @@ import {
   DownOutlined,
   UpOutlined
 } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 
 
 const { Text, Paragraph } = Typography
 const { Panel } = Collapse
 
 const ConfigValidator = ({ result }) => {
+  // 国际化
+  const { t } = useTranslation()
+  
   const [expandedErrors, setExpandedErrors] = useState([])
 
   if (!result) {

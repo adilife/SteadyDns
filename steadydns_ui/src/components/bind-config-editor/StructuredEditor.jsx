@@ -22,7 +22,7 @@ import {
   SaveOutlined,
   CloseOutlined
 } from '@ant-design/icons'
-import { t } from '../../i18n'
+import { useTranslation } from 'react-i18next'
 
 
 const { TextArea } = Input
@@ -30,7 +30,8 @@ const { Option } = Select
 const { Text } = Typography
 
 const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => {
-
+  // 国际化
+  const { t } = useTranslation()
   
   const [form] = Form.useForm()
   const [editingComment, setEditingComment] = useState(null)
@@ -536,7 +537,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
                     size="small"
                     onClick={() => handleCommentEdit(fieldPath)}
                   >
-                    编辑注释
+                    {t('structuredEditor.editComment')}
                   </Button>
                 )}
               </Space>
@@ -579,10 +580,10 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
     } catch (error) {
       console.error('渲染配置字段时出错:', error);
       return (
-        <Form.Item label="错误">
+        <Form.Item label={t('structuredEditor.error')}>
           <Alert
-            title="渲染错误"
-            description={`渲染此字段时发生错误: ${error.message}`}
+            title={t('structuredEditor.renderError')}
+            description={t('structuredEditor.renderErrorDetail', { message: error.message })}
             type="error"
             showIcon
           />
@@ -682,13 +683,13 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
   }, [config, activeBlock, form])
 
   if (!config) {
-    return <Empty description="无配置数据" style={{ margin: '40px 0' }} />
+    return <Empty description={t('structuredEditor.noConfigData')} style={{ margin: '40px 0' }} />
   }
 
   const activeData = getActiveBlockData(config, activeBlock)
 
   if (activeBlock && !activeData) {
-    return <Empty description="未找到配置块" style={{ margin: '40px 0' }} />
+    return <Empty description={t('structuredEditor.configBlockNotFound')} style={{ margin: '40px 0' }} />
   }
 
   return (
@@ -753,7 +754,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
               ) : (
                 // 检查是否为简单值包装对象
                 Object.keys(activeData).length === 1 && 'value' in activeData ? (
-                  <Form.Item label="值">
+                  <Form.Item label={t('structuredEditor.value')}>
                     {renderFieldControl('value', activeData.value)}
                   </Form.Item>
                 ) : (
@@ -764,7 +765,7 @@ const StructuredEditor = ({ config, comments, activeBlock, onConfigChange }) => 
               )}
             </div>
           ) : (
-            <Form.Item label="值">
+            <Form.Item label={t('structuredEditor.value')}>
               {renderFieldControl('value', activeData)}
             </Form.Item>
           )}

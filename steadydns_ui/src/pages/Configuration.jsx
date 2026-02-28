@@ -7,14 +7,15 @@ import {
 import {
   SettingOutlined
 } from '@ant-design/icons'
-import { t } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import ServerManager from './ServerManager'
 import CacheManager from './CacheManager'
 import BindServerManager from './BindServerManager'
 import Settings from './Settings'
 import { apiClient } from '../utils/apiClient'
 
-const Configuration = ({ currentLanguage, userInfo }) => {
+const Configuration = ({ userInfo }) => {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('server')
   const [settingsKey, setSettingsKey] = useState(0)
   const [pluginEnabled, setPluginEnabled] = useState(true)
@@ -57,24 +58,24 @@ const Configuration = ({ currentLanguage, userInfo }) => {
   const items = [
     {
       key: 'server',
-      label: t('configuration.server', currentLanguage),
-      children: <ServerManager currentLanguage={currentLanguage} userInfo={userInfo} />
+      label: t('configuration.server'),
+      children: <ServerManager userInfo={userInfo} />
     },
     {
       key: 'cache',
-      label: t('configuration.cache', currentLanguage),
-      children: <CacheManager currentLanguage={currentLanguage} userInfo={userInfo} />
+      label: t('configuration.cache'),
+      children: <CacheManager userInfo={userInfo} />
     },
     // 只有当BIND插件启用时才显示BIND Server标签页
     ...(pluginEnabled ? [{
       key: 'bindServer',
-      label: t('configuration.bindServer', currentLanguage),
-      children: <BindServerManager currentLanguage={currentLanguage} userInfo={userInfo} />
+      label: t('configuration.bindServer'),
+      children: <BindServerManager userInfo={userInfo} />
     }] : []),
     {
       key: 'settings',
-      label: t('configuration.settings', currentLanguage),
-      children: <Settings key={settingsKey} currentLanguage={currentLanguage} userInfo={userInfo} />
+      label: t('configuration.settings'),
+      children: <Settings key={settingsKey} userInfo={userInfo} />
     }
   ]
 
@@ -82,7 +83,9 @@ const Configuration = ({ currentLanguage, userInfo }) => {
   if (checkingPluginStatus) {
     return (
       <div style={{ textAlign: 'center', padding: '60px' }}>
-        <Spin size="large" tip="检查插件状态..." />
+        <Spin size="large" tip={t('configuration.checkingPluginStatus')}>
+          <div style={{ padding: 50 }} />
+        </Spin>
       </div>
     )
   }
@@ -92,7 +95,7 @@ const Configuration = ({ currentLanguage, userInfo }) => {
       <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center' }}>
         <h2>
           <SettingOutlined style={{ marginRight: 8 }} />
-          {t('configuration.title', currentLanguage)}
+          {t('configuration.title')}
         </h2>
       </div>
 

@@ -53,7 +53,17 @@ export default {
     no: 'لا',
     ruleAdded: 'تم إضافة القاعدة بنجاح',
     ruleUpdated: 'تم تحديث القاعدة بنجاح',
-    ruleDeleted: 'تم حذف القاعدة بنجاح'
+    ruleDeleted: 'تم حذف القاعدة بنجاح',
+    checkFormFields: 'يرجى التحقق من حقول النموذج',
+    pleaseInputDomain: 'يرجى إدخال اسم النطاق',
+    enterDomainName: 'أدخل اسم النطاق',
+    pleaseSelectType: 'يرجى اختيار النوع',
+    selectDnsType: 'اختر نوع DNS',
+    pleaseInputValue: 'يرجى إدخال القيمة',
+    enterDnsValue: 'أدخل قيمة DNS',
+    pleaseInputPriority: 'يرجى إدخال الأولوية',
+    enterPriority: 'أدخل الأولوية',
+    enterDescription: 'أدخل الوصف'
   },
   
   // Logs page
@@ -307,7 +317,75 @@ export default {
       labelLength: 'يجب أن يكون طول كل تسمية نطاق بين 1-63 حرفًا',
       invalidCharacters: 'يمكن للنطاق أن يحتوي على أحرف، أرقام وشرطات فقط',
       hyphenStartEnd: 'لا يمكن أن تبدأ أو تنتهي تسميات النطاق بشرطة'
-    }
+    },
+    
+    // الرسائل
+    fetchError: 'فشل في الحصول على مجموعات التوجيه',
+    formValidateError: 'يرجى التحقق من حقول النموذج',
+    createSuccess: 'تم إنشاء مجموعة التوجيه بنجاح',
+    createError: 'فشل في إنشاء مجموعة التوجيه',
+    updateSuccess: 'تم تحديث مجموعة التوجيه بنجاح',
+    updateError: 'فشل في تحديث مجموعة التوجيه',
+    deleteSuccess: 'تم حذف مجموعة التوجيه بنجاح',
+    deleteError: 'فشل في حذف مجموعة التوجيه',
+    batchDeleteSuccess: 'تم حذف مجموعات التوجيه بنجاح',
+    batchDeleteError: 'فشل في حذف مجموعات التوجيه',
+    selectToDelete: 'يرجى اختيار مجموعات التوجيه للحذف',
+    
+    // الخادم
+    serverAdded: 'تمت إضافة الخادم بنجاح',
+    serverAddError: 'فشل في إضافة الخادم',
+    serverUpdated: 'تم تحديث الخادم بنجاح',
+    serverUpdateError: 'فشل في تحديث الخادم',
+    serverDeleted: 'تم حذف الخادم بنجاح',
+    serverDeleteError: 'فشل في حذف الخادم',
+    healthCheckFailed: 'فشل فحص الصحة',
+    confirmDeleteServer: 'هل أنت متأكد من حذف هذا الخادم؟',
+    
+    // أعمدة الجدول
+    index: 'الرقم',
+    enableStatus: 'حالة التفعيل',
+    enabled: 'مفعّل',
+    disabled: 'معطّل',
+    
+    // الأولوية
+    priority: 'الأولوية',
+    priorityHigh: 'عالية',
+    priorityMedium: 'متوسطة',
+    priorityLow: 'منخفضة',
+    serversCount: 'خوادم',
+    priorityHighOption: 'عالية (1)',
+    priorityMediumOption: 'متوسطة (2)',
+    priorityLowOption: 'منخفضة (3)',
+    
+    // الأزرار
+    add: 'إضافة',
+    check: 'فحص',
+    reset: 'إعادة تعيين',
+    addServer: 'إضافة خادم',
+    editServer: 'تعديل الخادم',
+    
+    // تسميات النموذج
+    serverAddress: 'عنوان الخادم',
+    serverAddressPlaceholder: 'يرجى إدخال عنوان خادم DNS (IPv4/IPv6)',
+    port: 'المنفذ',
+    portPlaceholder: 'يرجى إدخال المنفذ',
+    serverDescription: 'الوصف',
+    serverDescriptionPlaceholder: 'يرجى إدخال وصف الخادم',
+    priorityLabel: 'الأولوية',
+    priorityPlaceholder: 'يرجى اختيار الأولوية',
+    inputPort: 'يرجى إدخال المنفذ',
+    inputServerAddress: 'يرجى إدخال عنوان الخادم',
+    
+    // العناصر النائبة
+    domainPlaceholder: 'يرجى إدخال نطاق مجموعة التوجيه',
+    descriptionPlaceholder: 'يرجى إدخال وصف مجموعة التوجيه',
+    testDomainPlaceholder: 'يرجى إدخال النطاق للاختبار، مثال: www.example.com',
+    
+    // الاختبار
+    enterTestDomain: 'يرجى إدخال نطاق الاختبار',
+    testFailed: 'فشل الاختبار',
+    testFailedRetry: 'فشل الاختبار، يرجى المحاولة مرة أخرى لاحقًا'
   },
   
   // Dashboard page
@@ -606,7 +684,35 @@ export default {
     editConfigFile: 'تحرير ملف التكوين',
     setBindEnabled: 'تعيين BIND_ENABLED إلى',
     restartService: 'إعادة تشغيل خدمة SteadyDNS لكي تن生效 التكوين',
-    checkingPluginStatus: 'جارٍ التحقق من حالة الإضافة...'
+    checkingPluginStatus: 'جارٍ التحقق من حالة الإضافة...',
+    
+    // Backup management messages
+    loadBackupListFailed: 'فشل تحميل قائمة النسخ الاحتياطية',
+    restoreBackupSuccess: 'تم استعادة النسخة الاحتياطية بنجاح',
+    restoreBackupFailed: 'فشل استعادة النسخة الاحتياطية',
+    deleteBackupSuccess: 'تم حذف النسخة الاحتياطية بنجاح',
+    deleteBackupFailed: 'فشل حذف النسخة الاحتياطية',
+    deleteBackup: 'حذف النسخة الاحتياطية',
+    confirmDeleteBackup: 'هل أنت متأكد من حذف ملف النسخة الاحتياطية هذا؟ لا يمكن التراجع عن هذا الإجراء.',
+    
+    // Statistics
+    detailedStatistics: 'إحصائيات مفصلة',
+    serverInformation: 'معلومات الخادم',
+    bootTime: 'وقت التشغيل:',
+    lastConfigured: 'آخر تكوين:',
+    configurationFile: 'ملف التكوين:',
+    runningOn: 'يعمل على:',
+    performanceStatistics: 'إحصائيات الأداء',
+    debugLevel: 'مستوى التصحيح:',
+    tcpHighWater: 'TCP عالي المستوى:',
+    recursiveClients: 'العملاء المتكررون:',
+    tcpClients: 'عملاء TCP:',
+    transferStatistics: 'إحصائيات النقل',
+    xfersRunning: 'عمليات النقل الجارية:',
+    xfersDeferred: 'عمليات النقل المؤجلة:',
+    xfersFirstRefresh: 'أول تحديث للنقل:',
+    recursiveHighWater: 'الحد الأعلى للتكرار:',
+    soaQueriesInProgress: 'استعلامات SOA قيد التقدم:'
   },
   
   // ServerManager page
@@ -661,7 +767,11 @@ export default {
     confirmRestartHttp: 'هل أنت متأكد من إعادة تشغيل خادم HTTP؟ سيؤدي هذا إلى انقطاع مؤقت في خدمات HTTP.',
     confirmLogLevel: 'هل أنت متأكد من تغيير مستوى التسجيل؟ سيؤثر هذا على كمية المعلومات المسجلة بواسطة الخادم.',
     confirmDnsLogLevel: 'هل أنت متأكد من تعيين مستوى تسجيل DNS إلى {{level}}؟',
-    confirmApiLogLevel: 'هل أنت متأكد من تعيين مستوى تسجيل API إلى {{level}}؟'
+    confirmApiLogLevel: 'هل أنت متأكد من تعيين مستوى تسجيل API إلى {{level}}؟',
+    logLevelsSetSuccess: 'تم تعيين مستويات السجل بنجاح',
+    logLevelsSetFailed: 'فشل في تعيين مستويات السجل',
+    cacheInitialized: 'تم تهيئة ذاكرة التخزين المؤقت',
+    forwarderInitialized: 'تم تهيئة المُعيد التوجيه'
   },
 
   // Bind config editor
@@ -730,8 +840,11 @@ export default {
     objectName: 'اسم الكائن:',
     objectType: 'نوع الكائن:',
     childObjectCount: 'عدد الكائنات الفرعية:',
+    error: 'خطأ',
     renderError: 'خطأ في العرض',
-    renderErrorDescription: 'حدث خطأ أثناء عرض هذا الحقل: {{error}}'
+    renderErrorDetail: 'حدث خطأ أثناء عرض هذا الحقل: {{message}}',
+    noConfigData: 'لا توجد بيانات تكوين',
+    configBlockNotFound: 'لم يتم العثور على كتلة التكوين'
   },
   
   // Raw editor
@@ -786,6 +899,7 @@ export default {
     modified: 'معدل',
     total: 'الإجمالي',
     summary: 'الملخص：',
+    summaryText: 'إجمالي {{total}} سطر، {{unchanged}} سطر بدون تغيير، {{added}} سطر مضاف، {{removed}} سطر محذوف',
     noDiff: 'لا يوجد فرق',
     noDiffDescription: 'لم يتغير التكوين',
     diffDetails: 'تفاصيل الفرق',
@@ -796,7 +910,11 @@ export default {
     newValue: 'القيمة الجديدة：',
     context: 'السياق：',
     configConsistent: 'التكوين متسق',
-    configConsistentDescription: 'تكوين الحالي متسق تمامًا مع التكوين الأصلي، لم يتم العثور على فروق.'
+    configConsistentDescription: 'تكوين الحالي متسق تمامًا مع التكوين الأصلي، لم يتم العثور على فروق.',
+    add: 'مضاف',
+    remove: 'محذوف',
+    modify: 'معدل',
+    unknown: 'غير معروف'
   },
   
   // User Management
@@ -840,7 +958,8 @@ export default {
     passwordNotMatch: 'كلمات المرور غير متطابقة',
     invalidEmail: 'تنسيق البريد الإلكتروني غير صالح',
     usernameMinLength: 'يجب أن يكون اسم المستخدم 3 أحرف على الأقل',
-    passwordMinLength: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل'
+    passwordMinLength: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل',
+    totalRecords: 'إجمالي {{total}} سجل'
   },
   
   // About
@@ -854,5 +973,58 @@ export default {
     reportBug: 'الإبلاغ عن خطأ',
     changelog: 'عرض سجل التغييرات',
     ok: 'موافق'
+  },
+  
+  // Common translations
+  common: {
+    confirm: 'تأكيد',
+    cancel: 'إلغاء',
+    ok: 'موافق',
+    generate: 'توليد',
+    pleaseConfirm: 'يرجى تأكيد ما إذا كنت تريد المتابعة.',
+    operationConfirm: 'تأكيد العملية'
+  },
+  
+  // Plugin status related
+  plugins: {
+    bindNotEnabled: 'إضافة BIND غير مفعلة',
+    bindNotEnabledDescription: 'تتطلب إدارة مناطق الأuthority دعم إضافة BIND. يرجى تمكين الإضافة قبل الوصول.',
+    bindNotEnabledOperate: 'إضافة BIND غير مفعلة، يرجى تفعيلها أولاً',
+    dnsRulesNotEnabled: 'إضافة DNS Rules غير مفعلة',
+    dnsRulesNotEnabledDescription: 'يرجى تفعيل إضافة DNS Rules قبل الوصول إلى إدارة قواعد DNS',
+    logAnalysisNotEnabled: 'إضافة Log Analysis غير مفعلة',
+    logAnalysisNotEnabledDescription: 'يرجى تفعيل إضافة Log Analysis قبل الوصول إلى ميزات تحليل السجلات',
+    pluginControlNotice: 'يتم التحكم في تفعيل/تعطيل الإضافات عبر ملف التكوين، التغييرات تتطلب إعادة تشغيل الخدمة',
+    configFileLocation: 'موقع ملف التكوين: /src/cmd/config/steadydns.conf',
+    enableMethod: 'طريقة التفعيل:',
+    editConfigFile: '1. تحرير ملف التكوين:',
+    setBindEnabled: '2. تعيين BIND_ENABLED إلى true',
+    restartService: '3. إعادة تشغيل خدمة SteadyDNS لتطبيق التغييرات',
+    checkingPluginStatus: 'جارٍ التحقق من حالة الإضافة...',
+    dnsRulesPlugin: 'إضافة DNS Rules',
+    dnsRulesPluginTooltip: 'إدارة قواعد استعلام DNS - يتطلب إعادة تشغيل الخدمة لتطبيق التغييرات',
+    logAnalysisPlugin: 'إضافة Log Analysis',
+    logAnalysisPluginTooltip: 'تحليل سجلات استعلام DNS - يتطلب إعادة تشغيل الخدمة لتطبيق التغييرات'
+  },
+  
+  // JWT key generation
+  jwt: {
+    generateRandomKey: 'توليد مفتاح عشوائي',
+    generateRandomJwtKey: 'توليد مفتاح JWT عشوائي',
+    generatedKey: 'المفتاح العشوائي المولد:',
+    clickRegenerate: 'انقر لإعادة توليد المفتاح العشوائي'
+  },
+  
+  // History related
+  history: {
+    loadHistoryFailed: 'فشل في تحميل سجل العمليات',
+    restoreSuccess: 'تمت الاستعادة من السجل بنجاح',
+    restoreFailed: 'فشلت الاستعادة من السجل'
+  },
+  
+  // Form placeholders
+  placeholders: {
+    allInterfaces: 'مثال: 0.0.0.0 لجميع الواجهات',
+    allInterfacesIpv6: 'مثال: :: لجميع الواجهات'
   }
 }
