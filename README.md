@@ -10,6 +10,34 @@ A lightweight DNS solution tailored for small to medium-sized environments. Buil
 
 专为中小型环境设计的轻量级、高性能 DNS 解决方案，兼顾易用性和稳定性。
 
+## 🚀 尝鲜测试（v0.9.0-beta.1 [Release Note](https://github.com/adilife/SteadyDns/releases/tag/v0.9.0-beta.1)）
+> 当前发布 beta 版本，欢迎下载测试并反馈问题！
+
+### 环境要求
+- 操作系统：Linux
+- 架构支持：x86_64 arm_64
+- 端口要求：需开放TCP/UDP 53（DNS 服务）、8080（Web 面板，可自定义）端口
+
+### 快速下载（推荐）
+直接下载预编译二进制包（无需编译，开箱即用）：
+
+[linux x86-64版本下载](https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-amd64.tar.gz)
+```bash
+# 下载 v0.9.0-beta.1 版本（Linux x86_64）
+wget https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-amd64.tar.gz
+```
+[linux arm-64版本下载](https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-arm64.tar.gz)
+```bash
+# 下载 v0.9.0-beta.1 版本（Linux arm_64）
+wget https://github.com/adilife/SteadyDNS/releases/download/v0.9.0-beta.1/steadydns-v0.9.0-beta.1-linux-arm64.tar.gz
+```
+
+安装部署请参考[部署指南](https://github.com/adilife/SteadyDns/blob/main/DEPLOYMENT.md)
+
+### 测试反馈
+* 遇到问题？👉 [提交 Issue](https://github.com/adilife/SteadyDNS/issues/new?labels=beta-test&title=%E3%80%90v0.9.0-beta.1%E6%B5%8B%E8%AF%95%E5%8F%8D%E9%A6%88%E3%80%91)
+* 功能建议？👉 [讨论区交流](https://github.com/adilife/SteadyDNS/discussions/categories/beta-test)
+
 ## 项目简介
 
 SteadyDNS 由两个核心子项目组成，采用前后端分离架构：
@@ -45,38 +73,8 @@ SteadyDNS 由两个核心子项目组成，采用前后端分离架构：
 
 - 简洁易用的操作界面
 - 上游 DNS 服务器管理（添加/删除/优先级调整）
-- 本地解析规则可视化配置
+- 集成BIND服务管理
 - DNS 服务状态实时监控面板
-
-## 快速开始
-
-### 环境要求
-
-- 操作系统：Linux
-- 架构支持：x86_64
-- 必须组件：BIND9.18+
-- 端口要求：53（DNS 服务）、8080（Web 面板，可自定义）
-
-### 安装部署
-
-```bash
-# 1. 克隆仓库
-git clone https://github.com/adilife/SteadyDNS.git
-cd SteadyDNS
-
-# 2. 构建后端（包含前端）
-cd steadydnsd
-make build-full
-
-# 3. 启动服务
-cd src/cmd
-./steadydns start
-
-# 4. 访问 Web 管理界面
-# http://localhost:8080
-# 默认用户名: admin
-# 默认密码: admin123
-```
 
 ## 项目结构
 
@@ -139,11 +137,6 @@ npm run build      # 构建生产版本
 - GitHub: https://github.com/adilife/SteadyDNS
 
 =======
-### 必须组件
-- BIND9.18+
 
-### 环境要求
-- 操作系统：Linux
-- 架构支持：x86_64
-- 端口要求：需开放 53（DNS 服务）、8080（Web 面板，可自定义）端口
+
 
