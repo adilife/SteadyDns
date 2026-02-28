@@ -12,17 +12,17 @@
   - [硬件要求](#硬件要求)
 - [安装方式](#安装方式)
   - [方式一：预编译二进制包（推荐）](#方式一预编译二进制包推荐)
-  - [方式二：源码编译（开发 / 定制场景）](#方式二源码编译开发定制场景)
-  - [方式三：Makefile 快速安装](#方式三makefile快速安装)
-  - [Systemd 服务注册（生产推荐）](#systemd服务注册生产推荐)
+  - [方式二：源码编译（开发/定制场景）](#方式二源码编译开发定制场景)
+  - [方式三：Makefile快速安装](#方式三makefile快速安装)
+  - [Systemd服务注册（生产推荐）](#systemd服务注册生产推荐)
 - [配置说明](#配置说明)
   - [目录结构](#目录结构)
   - [配置文件管理](#配置文件管理)
   - [环境变量](#环境变量)
 - [启动与管理](#启动与管理)
   - [命令行管理](#命令行管理)
-  - [Systemd 服务（推荐）](#Systemd服务推荐)
-  - [Web 管理面板访问](#Web管理面板访问)
+  - [Systemd 服务（推荐）](#systemd服务推荐)
+  - [Web管理面板访问](#web管理面板访问)
 - [升级指南](#升级指南)
   - [升级步骤](#升级步骤)
   - [数据库迁移](#数据库迁移)
@@ -187,7 +187,7 @@ tar -xzf steadydns.tar.gz -C /opt/steadydns --strip-components=1
 /opt/steadydns/steadydns start
 ```
 
-### 方式二：源码编译（开发 / 定制场景）
+### 方式二：源码编译（开发/定制场景）
 适合需要修改源码、自定义构建的场景：
 
 ```bash
@@ -216,7 +216,7 @@ cp src/cmd/steadydns /opt/steadydns/
 chmod +x /opt/steadydns/steadydns
 ```
 
-### 方式三：Makefile 快速安装
+### 方式三：Makefile快速安装
 适合熟悉 Makefile、需简化编译流程的场景：
 
 ```bash
@@ -226,7 +226,7 @@ make build    # 编译二进制文件
 cp src/cmd/steadydns /opt/steadydns/  # 部署到目标目录
 ```
 
-## Systemd 服务注册（生产推荐）
+### Systemd服务注册（生产推荐）
 通过 Systemd 管理服务，支持开机自启、进程守护：
 
 ```bash
@@ -329,7 +329,7 @@ cd /opt/steadydns
 ./steadydns --help
 ```
 
-### Systemd 服务（推荐）
+### Systemd服务（推荐）
 适用于生产环境，支持进程守护、日志集中管理：
 
 ```bash
@@ -361,7 +361,7 @@ journalctl -u steadydns -f --no-pager
 journalctl -u steadydns --since "1 hour ago"
 ```
 
-### Web 管理面板访问
+### Web管理面板访问
 
 1. 确认服务正常运行（systemctl status steadydns）；
 2. 浏览器访问：http://<服务器IP>:<API_SERVER_PORT>（如 http://192.168.1.100:8080）
